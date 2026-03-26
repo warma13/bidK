@@ -1,0 +1,47 @@
+{
+  "$schema": "../schemas/project.schema.json",
+  "project_id": "p_70vd",
+  "author": {
+    "id": "1564171575"
+  },
+  "entry": "main.lua",
+  "version": "1.0.25",
+  "taptap_publish": {
+    "title": "拍卖之王",
+    "description": "在神秘仓库拍卖中斗智斗勇！4位竞拍者争夺未知宝藏，通过5轮暗标竞价决出胜负。运用角色技能、掌握出价策略，成为终极拍卖之王！",
+    "category": "strategy",
+    "screen_orientation": "landscape",
+    "collection_type": "sce",
+    "trial_note": "仓库拍卖策略游戏，支持角色技能和实时竞拍",
+    "app_platforms": "1,2",
+    "developer_id": 245098,
+    "app_id": 831325,
+    "miniapp_id": "tapmcughfgwmteozhh",
+    "gameplay_demo_video_source": ""
+  },
+  "assets": {
+    "icon": "./game_material/ICON_2026-03-22T05-14-47_01.png",
+    "screenshots": [
+      "./game_material/screenshot_1.png",
+      "./game_material/SCREENSHOT_2026-03-22T05-14-47_02.png",
+      "./game_material/SCREENSHOT_2026-03-22T05-14-47_03.png"
+    ],
+    "promotional_image": "./game_material/PROMO_2026-03-22T05-14-47_01.jpg",
+    "icon_url": "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/ICON_2026-03-22T05-14-47_01.png",
+    "screenshot_urls": [
+      "https://tapcode-sce.spark.xd.com/assets/game_material/p_70vd/screenshot_1.png",
+      "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/SCREENSHOT_2026-03-22T05-14-47_02.png",
+      "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/SCREENSHOT_2026-03-22T05-14-47_03.png"
+    ],
+    "promotional_image_url": "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/PROMO_2026-03-22T05-14-47_01.jpg"
+  },
+  "metadata": {
+    "updated_at": "2026-03-22T19:56:59.955Z"
+  },
+  "test_qrcode": {
+    "url": "https://tapcode-sce.spark.xd.com/qrcode/p_70vd_1774209419826.png",
+    "generated_at": "2026-03-22T19:56:59.955Z"
+  },
+  "entry@client": "main.lua",
+  "entry@server": "main.lua"
+}

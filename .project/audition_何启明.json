@@ -1,0 +1,16 @@
+{
+  "character_name": "何启明",
+  "character_description": "Young adult male in his mid-20s, bright and agile voice, quick-witted and smooth tone, fast but clear pacing, opportunistic and charming quality, street-smart businessman with natural charisma. Studio-quality recording.",
+  "audition_line": "消息就是金钱，这话一点不假。我在这圈子里认识的人多，各种小道消息都能第一时间打听到。别人还在猜的时候，我已经心里有数了。做买卖嘛，信息差就是利润！",
+  "created_at": "2026-03-23T11:32:36.967Z",
+  "recommended_index": 1,
+  "use_voice_design": true,
+  "candidates": [
+    {
+      "index": 1,
+      "generated_voice_id": "wIyKANVQ8lJpEzbC5eDM",
+      "audio_url": "https://tapcode-sce.spark.xd.com/assets/audio/audition/%E4%BD%95%E5%90%AF%E6%98%8E_candidate_1_1774265555867.mp3?OSSAccessKeyId=LTAI4G7vtqmfz981S5caL2hM&Expires=1774870357&Signature=Sf9j5yMFpIHCSqcDeaoTN01nbn8%3D",
+      "duration_seconds": 27.952875
+    }
+  ]
+}

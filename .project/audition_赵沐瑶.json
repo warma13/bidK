@@ -1,0 +1,16 @@
+{
+  "character_name": "赵沐瑶",
+  "character_description": "Young adult female in her early 20s, soft and warm voice with growing determination, moderate pacing, gentle yet ambitious undertone, sweet but serious when focused, professional voice acting. Studio-quality recording.",
+  "audition_line": "能源市场的价值往往需要时间才能显现，我会一步步收集情报，等到时机成熟再出手。别看我现在出价保守，等我摸清了仓库里的门道，你们就知道厉害了。",
+  "created_at": "2026-03-23T11:28:58.810Z",
+  "recommended_index": 1,
+  "use_voice_design": true,
+  "candidates": [
+    {
+      "index": 1,
+      "generated_voice_id": "xUNdD3VpLDHcRJ5grHyU",
+      "audio_url": "https://tapcode-sce.spark.xd.com/assets/audio/audition/%E8%B5%B5%E6%B2%90%E7%91%B6_candidate_1_1774265337608.mp3?OSSAccessKeyId=LTAI4G7vtqmfz981S5caL2hM&Expires=1774870139&Signature=BIsFsQRm0RuGGzU1tV8zO9bLYKM%3D",
+      "duration_seconds": 30.59125
+    }
+  ]
+}

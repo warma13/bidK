@@ -1,0 +1,116 @@
+{
+  "version": "1.0",
+  "default_language": "cmn",
+  "default_stability": 0.5,
+  "characters": {
+    "旁白": {
+      "voice_id": "ZbJsHfxRblYMzufkFPpk",
+      "voice_name": "旁白_voice",
+      "description": "Middle-aged male in his 40s, deep and authoritative voice, warm undertone, measured pacing with dramatic pauses, professional auctioneer and host style.",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-20T21:16:57.805Z",
+      "last_used": "2026-03-20T21:16:57.805Z"
+    },
+    "林远舟": {
+      "voice_id": "SspZAfaRSyEYjoYDjn98",
+      "voice_name": "林远舟_voice",
+      "description": "Young adult male, clear and cool tone, calm and collected, measured pacing, intellectual and analytical. (Reused from 顾千鹤)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "赵沐瑶": {
+      "voice_id": "LvWNC2jSASVoYAxCj9zO",
+      "voice_name": "赵沐瑶_voice",
+      "description": "Young adult female, soft and ethereal voice, gentle and deliberate pacing, warm quality. (Reused from 叶灵犀)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "钱思远": {
+      "voice_id": "Dj95yQI1WaPiaosghGUt",
+      "voice_name": "钱思远_voice",
+      "description": "Middle-aged male, deep and steady voice, slow and deliberate pacing, authoritative and calm, businessman quality. (Reused from 钱伯年)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "顾清韵": {
+      "voice_id": "Hdbj6V8jQ5jSGxjTn0bv",
+      "voice_name": "顾清韵_voice",
+      "description": "Young adult female, sweet and bright voice, lively pacing, charming and confident. (Reused from 苏巧巧)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "沈玉珂": {
+      "voice_id": "YPV0Y42b6FBiTn3oyTYu",
+      "voice_name": "沈玉珂_voice",
+      "description": "Young adult female, deep and cool tone, icy and composed, slow and deliberate pacing, precise and professional. (Reused from 方锦书)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "周正霆": {
+      "voice_id": "8jNK3vt2EB5Y29kJUjyf",
+      "voice_name": "周正霆_voice",
+      "description": "Elderly male, rough and gravelly voice, bold and straightforward, working man quality. (Reused from 陈老根)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "方逸尘": {
+      "voice_id": "jW0BT7CJtgxAOPvMQJFJ",
+      "voice_name": "方逸尘_voice",
+      "description": "Young adult male, energetic and passionate, fast-paced speaking, magnetic and daring tone. (Reused from 沈惊鸿)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "孙弈辰": {
+      "voice_id": "eZfiDA9ILBoshtHtFIr2",
+      "voice_name": "孙弈辰_voice",
+      "description": "Middle-aged male, warm and earnest voice, straightforward, moderate pacing, down-to-earth. (Reused from 赵铁柱)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "last_used": "2026-03-23T00:00:00.000Z"
+    },
+    "韩墨璃": {
+      "voice_id": "LvWNC2jSASVoYAxCj9zO",
+      "voice_name": "韩墨璃_voice",
+      "description": "Young adult female, soft and ethereal voice, used for veteran appraiser role. (Reused from 赵沐瑶)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T11:00:00.000Z",
+      "last_used": "2026-03-23T11:00:00.000Z"
+    },
+    "吴鉴之": {
+      "voice_id": "Dj95yQI1WaPiaosghGUt",
+      "voice_name": "吴鉴之_voice",
+      "description": "Middle-aged male, deep and steady voice, authoritative and calm. (Reused from 钱思远)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T11:00:00.000Z",
+      "last_used": "2026-03-23T11:00:00.000Z"
+    },
+    "何启明": {
+      "voice_id": "jW0BT7CJtgxAOPvMQJFJ",
+      "voice_name": "何启明_voice",
+      "description": "Young adult male, energetic and passionate, fast-paced speaking. (Reused from 方逸尘)",
+      "language": "cmn",
+      "stability": 0.5,
+      "created_at": "2026-03-23T11:00:00.000Z",
+      "last_used": "2026-03-23T11:00:00.000Z"
+    }
+  },
+  "special_voices": {}
+}
