@@ -6,8 +6,9 @@
 
 local WarehouseGrid = {}
 
--- 固定列数（与游戏仓库一致）
-local COLS = 10
+-- 列数（从配置读取）
+local Config = require("Config")
+local COLS = Config.GAME.WarehouseColumns
 
 -- ============================================================================
 -- 内部工具

@@ -10,15 +10,7 @@ local UIState = require("UI.UIState")
 
 local InfoFeed = {}
 
--- 网络模式支持
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function InfoFeed.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 
 local C = Config.COLORS
 

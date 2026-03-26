@@ -8,9 +8,11 @@ local Config = {}
 Config.GAME = {
     Title = "拍卖之王",
     MaxPlayers = 4,
-    WarehouseColumns = 10,      -- 仓库格子列数
-    WarehouseMaxRows = 20,      -- 仓库格子最大行数
-    WarehouseDisplayRows = 14,  -- 仓库默认显示行数
+    WarehouseColumns = 30,      -- 玩家仓库格子列数
+    WarehouseMaxRows = 21,      -- 玩家仓库格子最大行数（满级 5+4*4=21）
+    WarehouseDisplayRows = 5,   -- 玩家仓库初始行数
+    LootColumns = 10,           -- 战利品仓库列数
+    LootMaxRows = 20,           -- 战利品仓库行数
     StartingMoney = 800000,
     MaxRounds = 5,              -- 最多5轮暗标
     SealedBidSeconds = 30,      -- 暗标出价时间（第2轮起）

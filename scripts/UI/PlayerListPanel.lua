@@ -12,15 +12,7 @@ local PlayerListPanel = {}
 local refs = UIState.refs
 local C = Config.COLORS
 
--- 网络模式支持
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function PlayerListPanel.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 local BID_ANIM_DURATION = 0.35  -- 单个金额展开动画时长
 local BID_REVEAL_GAP = 0.3      -- 两个玩家之间的间隔
 local BID_REVEAL_END_WAIT = 1.0 -- 最后一个揭示完后等待时长
@@ -275,7 +267,7 @@ function PlayerListPanel.Update()
     local maxRounds = Config.GAME.MaxRounds
 
     -- 刷新金币余额
-    local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+    local mySlot = 1
     if players[mySlot] and refs.playerMoneyLabel then
         refs.playerMoneyLabel:SetText(Utils.FormatMoney(players[mySlot].money))
     end
@@ -314,10 +306,7 @@ function PlayerListPanel.Update()
 
             if phase == GS.PHASE.SEALED_BID then
                 -- 确认出价后只显示硬币图标
-                if isNetworkMode_ then
-                    -- 网络模式：所有玩家（真人+AI）统一用 aiBidConfirmed[idx]
-                    visible = UIState.aiBidConfirmed[idx] == true
-                elseif player.isHuman then
+                if player.isHuman then
                     visible = UIState.playerBidConfirmed == true
                 else
                     visible = UIState.aiBidConfirmed[idx] == true
@@ -447,13 +436,10 @@ function PlayerListPanel.UpdateAnimations(dt)
             revealAnim.waitTimer = revealAnim.waitTimer + dt
             if revealAnim.waitTimer >= BID_REVEAL_END_WAIT and not revealAnim.finished then
                 revealAnim.finished = true
-                if not isNetworkMode_ then
-                    if not AuctionEngine_ then
-                        AuctionEngine_ = require("AuctionEngine")
-                    end
-                    AuctionEngine_.FinishBidReveal()
+                if not AuctionEngine_ then
+                    AuctionEngine_ = require("AuctionEngine")
                 end
-                -- 网络模式：服务端自行控制 BID_REVEAL 结束时机
+                AuctionEngine_.FinishBidReveal()
             end
         end
     else

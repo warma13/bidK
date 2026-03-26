@@ -30,9 +30,7 @@ local MyWarehousePanel = require("UI.MyWarehousePanel")
 
 local GameController = {}
 
--- 网络模式支持
-local isNetworkMode_ = false
-local GS = GameState  -- 指向当前使用的状态模块（GameState 或 ClientGameState）
+local GS = GameState
 
 local C = Config.COLORS
 local refs = UIState.refs
@@ -41,9 +39,6 @@ local refs = UIState.refs
 ---@param playerIdx number
 ---@return boolean
 local function IsLocalPlayer(playerIdx)
-    if isNetworkMode_ then
-        return playerIdx == GS.GetMySlot()
-    end
     return playerIdx == 1
 end
 
@@ -52,12 +47,7 @@ end
 -- ============================================================================
 
 local function GoBackToLobby()
-    if isNetworkMode_ then
-        -- 网络模式：通知服务器离开房间，返回菜单
-        local Client = require("network.Client")
-        Client.LeaveRoom()
-        return
-    end
+
     local regionId = GS.GetRegionId()
     local regionIdx = 1
     for i, r in ipairs(Config.REGIONS) do
@@ -254,25 +244,20 @@ local function OnGameStateChanged(gameState)
     if phase == GS.PHASE.WAREHOUSE_INTRO then
         Utils.PlaySfx("round_start")
     elseif phase == GS.PHASE.SEALED_BID then
-        if not isNetworkMode_ then
-            -- 单机模式下由此处重置出价 UI 状态；网络模式下由 HandlePhaseChange 处理
-            UIState.playerBidConfirmed = false
-            UIState.aiBidConfirmed = {}
-            UIState.bidInputStr = ""
-            UIState.playerBidAmount = 0
-            UIState.lastTickSecond = -1
-            UIState.bidPanelVisible = false
-            if refs.bidPanel then refs.bidPanel:SetVisible(false) end
-        end
+        UIState.playerBidConfirmed = false
+        UIState.aiBidConfirmed = {}
+        UIState.bidInputStr = ""
+        UIState.playerBidAmount = 0
+        UIState.lastTickSecond = -1
+        UIState.bidPanelVisible = false
+        if refs.bidPanel then refs.bidPanel:SetVisible(false) end
     elseif phase == GS.PHASE.BID_REVEAL then
         UIState.bidPanelVisible = false
         if refs.bidPanel then refs.bidPanel:SetVisible(false) end
     elseif phase == GS.PHASE.TIEBREAK_BID then
-        if not isNetworkMode_ then
-            UIState.lastTickSecond = -1
-            UIState.bidPanelVisible = false
-            if refs.bidPanel then refs.bidPanel:SetVisible(false) end
-        end
+        UIState.lastTickSecond = -1
+        UIState.bidPanelVisible = false
+        if refs.bidPanel then refs.bidPanel:SetVisible(false) end
         TiebreakPanel.Show()
     end
 
@@ -300,7 +285,7 @@ local function OnInfoRevealed(round, publicInfos, skillInfos)
     end
 
     -- 角色私密线索（自己的槽位）
-    local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+    local mySlot = 1
     if skillInfos and skillInfos[mySlot] then
         local skillInfo = skillInfos[mySlot]
         -- reveal_item 技能：直接将物品揭示到等级 3
@@ -397,7 +382,7 @@ end
 
 local function OnTiebreakBidPlaced(playerIdx, amount)
     local players = GS.GetPlayers()
-    Utils.ShowMessage(players[playerIdx].name .. " 出价 " .. Utils.FormatMoney(amount))
+    -- 出价不弹 toast
     -- 刷新竞拍弹窗
     TiebreakPanel.Refresh()
     UpdateAllUI()
@@ -454,12 +439,7 @@ local function OnActiveSkillUsed(playerIdx, skillInfo, resultData)
 end
 
 function GameController.StartGame(regionId, charIdx, diffIdx, warehouseTypeId)
-    -- 网络模式：路由到 Client.StartMultiplayerGame()
-    if isNetworkMode_ then
-        local ClientModule = require("network.Client")
-        ClientModule.StartMultiplayerGame(regionId, charIdx, diffIdx, warehouseTypeId)
-        return
-    end
+
 
     GS = GameState
     UIState.currentScreen = "game"
@@ -512,85 +492,9 @@ function GameController.StartGame(regionId, charIdx, diffIdx, warehouseTypeId)
     AuctionEngine.StartGame()
 end
 
--- ============================================================================
--- 网络模式入口（由 Client.lua 调用）
--- ============================================================================
-
-function GameController.StartGameNetwork(clientGameState, initData)
-    isNetworkMode_ = true
-    GS = clientGameState
-    UIState.currentScreen = "game"
-
-    -- 网络模式：注入 ClientGameState 给 EstimateValue（客户端只需估价，不需要 AI/引擎）
-    do
-        local _EstimateValue = require("EstimateValue")
-        _EstimateValue.InjectDeps(clientGameState)
-    end
-
-    -- 通知所有 UI 面板进入网络模式
-    BidControlPanel.SetNetworkMode(clientGameState)
-    TiebreakPanel.SetNetworkMode(clientGameState)
-    PlayerListPanel.SetNetworkMode(clientGameState)
-    LootPanel.SetNetworkMode(clientGameState)
-    InfoFeed.SetNetworkMode(clientGameState)
-    GameOverDialog.SetNetworkMode(clientGameState)
-    CenterPanel.SetNetworkMode(clientGameState)
-    WarehouseItemListPanel.SetNetworkMode(clientGameState)
-
-    -- 切换区域 BGM
-    Utils.PlayBgm(initData.regionId)
-
-    -- 创建游戏 UI（使用 ClientGameState 提供的数据）
-    CreateGameUI()
-
-    -- 注册 ClientGameState 回调
-    clientGameState.SetOnStateChange(OnGameStateChanged)
-    clientGameState.SetOnMoneyChanged(function(playerIdx, newValue)
-        local mySlot = clientGameState.GetMySlot()
-        if playerIdx == mySlot then MoneyHUD.SetMoney(newValue) end
-    end)
-
-    -- 注册 Client.lua 的事件回调
-    local ClientModule = require("network.Client")
-    ClientModule.SetOnInfoRevealed(OnInfoRevealed)
-    ClientModule.SetOnBidRevealed(OnBidRevealed)
-    ClientModule.SetOnJudgeResult(OnJudgeResult)
-    ClientModule.SetOnItemRevealed(OnItemRevealed)
-    ClientModule.SetOnWarehouseOpen(OnWarehouseOpen)
-    ClientModule.SetOnBidPlaced(OnTiebreakBidPlaced)
-    ClientModule.SetOnGameOver(OnGameOver)
-    ClientModule.SetOnTiebreakStart(function(tiebreakPlayers)
-        TiebreakPanel.Show()
-    end)
-    ClientModule.SetOnActiveSkillUsed(OnActiveSkillUsed)
-    ClientModule.SetOnRecycleResult(function(data)
-        GameOverDialog.OnRecycleResult(data)
-    end)
-    ClientModule.SetOnSettleComplete(function(data)
-        GameOverDialog.OnSettleComplete(data)
-    end)
-
-    UIState.ResetGameState()
-    LootPanel.ResetCache()
-    CenterPanel.ResetAnimation()
-
-    PlayerListPanel.Update()
-
-    print("[GameController] Network game UI initialized")
-end
-
--- 暴露当前状态模块和网络模式标志给其他 UI 模块
+-- 暴露当前状态模块给其他 UI 模块
 function GameController.GetGS()
     return GS
-end
-
-function GameController.IsNetworkMode()
-    return isNetworkMode_
-end
-
---- 设置客户端网络模式标志（由 Client.Start 调用，用于 StartGame 路由判断）
-function GameController.SetClientMode(enabled)
-    isNetworkMode_ = enabled
 end
 
 -- ============================================================================
@@ -600,9 +504,7 @@ end
 function GameController.HandleUpdate(dt)
     if UIState.currentScreen ~= "game" then return end
 
-    if not isNetworkMode_ then
-        AuctionEngine.Update(dt)
-    end
+    AuctionEngine.Update(dt)
 
     local phase = GS.GetPhase()
 
@@ -698,13 +600,7 @@ function GameController.ShowLobby(regionIdx)
 end
 
 function GameController.ShowMapSelection(regionId, charIdx, diffIdx)
-    -- 网络模式：跳过本地仓库选择，由服务端随机决定仓库类型
-    if isNetworkMode_ then
-        GameController.StartGame(regionId, charIdx, diffIdx, nil)
-        return
-    end
-
-    -- 单机模式：查找区域的仓库类型列表
+    -- 查找区域的仓库类型列表
     local region
     for _, r in ipairs(Config.REGIONS) do
         if r.id == regionId then region = r; break end

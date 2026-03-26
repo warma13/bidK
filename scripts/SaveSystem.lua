@@ -710,7 +710,7 @@ function SaveSystem.GetWarehouseCapacity()
     return WarehouseUpgrade.GetCapacity(saveData.warehouseLevel or 1)
 end
 
---- 执行仓库升级（消耗物品和金币）
+--- 执行仓库升级（纯金币消耗）
 ---@param currentGold number 当前金币数
 ---@param deductGoldFn function(amount) 扣金币的回调
 ---@return boolean success
@@ -721,23 +721,22 @@ function SaveSystem.UpgradeWarehouse(currentGold, deductGoldFn)
         return false, "already_max"
     end
 
-    local canUpgrade, details = WarehouseUpgrade.CheckUpgrade(level, saveData.items, currentGold)
+    local canUpgrade, details = WarehouseUpgrade.CheckUpgrade(level, currentGold)
     if not canUpgrade then
         return false, "not_enough"
     end
 
-    -- 消耗物品
-    local _, goldCost = WarehouseUpgrade.ConsumeItems(level, saveData.items)
-
     -- 扣金币
-    if deductGoldFn then
-        deductGoldFn(goldCost)
+    local cost = WarehouseUpgrade.GetUpgradeCost(level)
+    if deductGoldFn and cost then
+        deductGoldFn(cost.gold)
     end
 
     -- 升级
     saveData.warehouseLevel = level + 1
     print("[SaveSystem] Warehouse upgraded to Lv." .. saveData.warehouseLevel
-        .. " (capacity: " .. WarehouseUpgrade.GetCapacity(saveData.warehouseLevel) .. ")")
+        .. " (rows: " .. WarehouseUpgrade.GetRows(saveData.warehouseLevel)
+        .. ", capacity: " .. WarehouseUpgrade.GetCapacity(saveData.warehouseLevel) .. ")")
 
     -- 立即保存
     SaveSystem.SaveNow()

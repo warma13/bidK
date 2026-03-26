@@ -19,15 +19,7 @@ local GameOverDialog = {}
 
 local refs = UIState.refs
 
--- 网络模式支持
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function GameOverDialog.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 
 ---@type table|nil
 local settlementPanel = nil
@@ -67,15 +59,7 @@ local ROLL_SPEED = 6.0
 
 --- 返回主页（处理物品入库逻辑）
 local function GoHome()
-    -- 网络模式：发送 C_LEAVE_SETTLE 到服务端，由服务端处理入库
-    if isNetworkMode_ then
-        local ClientModule = require("network.Client")
-        ClientModule.SendLeaveSettle()
-        -- UI 切换在收到 S_SETTLE_COMPLETE 后由 OnSettleComplete 处理
-        return
-    end
-
-    -- 单机模式：本地处理物品入库
+    -- 本地处理物品入库
     local winner = GS.GetWinner()
     local mySlot = 1
     if winner == mySlot and SaveSystem.IsReady() then
@@ -227,22 +211,7 @@ end
 
 --- 执行回收
 local function doRecycle()
-    -- 网络模式：发送选中品质到服务端
-    if isNetworkMode_ then
-        local rarities = {}
-        for rarityId, selected in pairs(recycleState.selectedRarities) do
-            if selected then
-                rarities[#rarities + 1] = rarityId
-            end
-        end
-        if #rarities == 0 then return end
-        local ClientModule = require("network.Client")
-        ClientModule.SendRecycleItems(rarities)
-        -- UI 更新在收到 S_RECYCLE_RESULT 后由 OnRecycleResult 处理
-        return
-    end
-
-    -- 单机模式：本地回收
+    -- 本地回收
     local recycledSet = {}
     for _, item in ipairs(recycleState.recycledItems) do
         recycledSet[item] = true
@@ -344,10 +313,7 @@ function GameOverDialog.Show()
     recycleState.recycledItems = {}
     recycleState.recycledTotal = 0
     -- 保存本局战利品引用
-    if isNetworkMode_ and GS.GetMyItemsWon then
-        -- 网络模式：使用服务端发来的 itemsWon（含 baseValue）
-        recycleState.lootItems = GS.GetMyItemsWon() or {}
-    else
+    do
         recycleState.lootItems = GS.GetWarehouseItems and GS.GetWarehouseItems() or {}
     end
 
@@ -506,12 +472,7 @@ function GameOverDialog.Show()
         fontSize = 14,
         onClick = function()
             Utils.PlayClick()
-            if isNetworkMode_ then
-                local ClientModule = require("network.Client")
-                ClientModule.SendSkipWarehouse()
-            else
-                AuctionEngine.SkipWarehouseOpen()
-            end
+            AuctionEngine.SkipWarehouseOpen()
         end,
     }
 
@@ -685,7 +646,7 @@ function GameOverDialog.OnGameOver()
 
     -- 判断赢家是否是玩家本人
     local winner = GS.GetWinner()
-    local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+    local mySlot = 1
     if winner == mySlot then
         -- 玩家本人赢了 → 显示回收面板和返回按钮
         if anim.recyclePanel then
@@ -738,24 +699,7 @@ end
 
 --- 网络模式：收到服务端结算完成通知
 function GameOverDialog.OnSettleComplete(data)
-    print("[GameOverDialog] Settle complete from server")
-
-    -- 隐藏结算面板
-    GameOverDialog.Hide()
-
-    -- 重新加载云端数据（服务端已写入新数据）
-    local MoneyHUD = require("UI.MoneyHUD")
-    MoneyHUD.LoadFromCloud(function()
-        print("[GameOverDialog] Cloud money reloaded after settle")
-    end)
-    SaveSystem.Init(function(success, isNewPlayer)
-        print("[GameOverDialog] SaveSystem reloaded after settle (new=" .. tostring(isNewPlayer) .. ")")
-    end)
-
-    -- 返回大厅
-    local GameController = require("UI.GameController")
-    local ClientModule = require("network.Client")
-    ClientModule.LeaveRoom()
+    -- 仅网络模式使用，单机模式不会触发
 end
 
 --- 每帧更新数字滚动动画

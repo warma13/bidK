@@ -14,15 +14,7 @@ local CenterPanel = {}
 local refs = UIState.refs
 local C = Config.COLORS
 
--- 网络模式支持
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function CenterPanel.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 
 -- ============================================================================
 -- 信息弹出动画状态

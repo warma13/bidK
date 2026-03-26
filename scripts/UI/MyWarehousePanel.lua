@@ -14,6 +14,7 @@ local WarehouseUpgrade = require("Config.WarehouseUpgrade")
 local WarehouseGrid = require("WarehouseGrid")
 local RecycleManager = require("RecycleManager")
 local ImageCache = require("urhox-libs/UI/Core/ImageCache")
+local ItemDetailPanel = require("UI.ItemDetailPanel")
 
 local Panel = {}
 
@@ -26,7 +27,7 @@ local upgradePopup = nil
 local emptyPanel = nil
 
 -- 格子系统
-local COLS = 10
+local COLS = Config.GAME.WarehouseColumns
 local gridSlots = {}       -- slotIdx → UI.Panel
 local gridContainer = nil  -- 格子网格容器
 local itemImages = {}       -- 图片叠加层面板池
@@ -35,11 +36,8 @@ local MAX_ITEM_IMAGES = 120
 local gridInst = nil        -- WarehouseGrid 实例
 local gridMap = nil         -- gridMap[r][c] = item 或 nil
 
--- 物品信息浮层
-local infoOverlay = nil
-local infoNameLabel = nil
-local infoPriceLabel = nil
-local infoCoinIcon = nil
+-- 物品详情面板
+local detailPanel = nil
 
 -- 筛选状态
 local activeFilters = {
@@ -172,8 +170,8 @@ local function exitSellMode()
             checkboxPanels[i]:SetVisible(false)
         end
     end
-    -- 恢复信息浮层
-    if infoOverlay then infoOverlay:SetVisible(false) end
+    -- 隐藏物品详情
+    ItemDetailPanel.Hide()
 end
 
 local function hideSellConfirm()
@@ -205,7 +203,7 @@ local function doSell()
     exitSellMode()
     updateLevelDisplay()
     refreshCards()
-    Utils.ShowMessage("出售成功！获得 " .. Utils.FormatMoney(totalValue) .. " 金币")
+    -- 出售成功不弹 toast
 end
 
 local function showSellConfirm()
@@ -648,7 +646,8 @@ updateLevelDisplay = function()
         levelLabel:SetText("Lv." .. level)
     end
     if capacityLabel then
-        capacityLabel:SetText(usedCells .. "/" .. capacity .. " 格")
+        local rows = WarehouseUpgrade.GetRows(level)
+        capacityLabel:SetText(usedCells .. "/" .. capacity .. " 格 (" .. rows .. "行)")
     end
     if upgradeBtn then
         upgradeBtn:SetVisible(level < WarehouseUpgrade.MAX_LEVEL)
@@ -674,7 +673,8 @@ local function doUpgrade()
         updateLevelDisplay()
         refreshCards()
         hideUpgradePopup()
-        Utils.ShowMessage("升级成功！仓库已扩容至 " .. SaveSystem.GetWarehouseCapacity() .. " 格")
+        local newRows = WarehouseUpgrade.GetRows(SaveSystem.GetWarehouseLevel())
+        Utils.ShowMessage("升级成功！仓库已扩展至 " .. newRows .. " 行（" .. SaveSystem.GetWarehouseCapacity() .. " 格）")
     end
 end
 
@@ -683,10 +683,13 @@ local function showUpgradePopup()
     if level >= WarehouseUpgrade.MAX_LEVEL then return end
 
     local gold = MoneyHUD.GetMoney()
-    local canUpgrade, details = WarehouseUpgrade.CheckUpgrade(level, allItems, gold)
+    local canUpgrade, details = WarehouseUpgrade.CheckUpgrade(level, gold)
     local cost = WarehouseUpgrade.GetUpgradeCost(level)
     if not cost or not details then return end
 
+    local curRows = WarehouseUpgrade.GetRows(level)
+    local nextRows = WarehouseUpgrade.GetRows(level + 1)
+    local addRows = nextRows - curRows
     local nextCapacity = WarehouseUpgrade.GetCapacity(level + 1)
 
     local contentChildren = {}
@@ -701,9 +704,17 @@ local function showUpgradePopup()
     }
 
     contentChildren[#contentChildren + 1] = UI.Label {
-        text = "容量: " .. WarehouseUpgrade.GetCapacity(level) .. " → " .. nextCapacity .. " 格 (+" .. (nextCapacity - WarehouseUpgrade.GetCapacity(level)) .. ")",
+        text = "行数: " .. curRows .. " → " .. nextRows .. " 行 (+" .. addRows .. "行)",
         fontSize = 12,
         fontColor = { 180, 190, 210, 220 },
+        textAlign = "center",
+        width = "100%",
+    }
+
+    contentChildren[#contentChildren + 1] = UI.Label {
+        text = "容量: " .. WarehouseUpgrade.GetCapacity(level) .. " → " .. nextCapacity .. " 格",
+        fontSize = 12,
+        fontColor = { 150, 160, 180, 200 },
         textAlign = "center",
         width = "100%",
         marginBottom = 8,
@@ -715,52 +726,18 @@ local function showUpgradePopup()
         marginBottom = 8,
     }
 
+    -- 金币消耗
+    local goldColor = details.gold.ok
+        and { 255, 220, 100, 255 }
+        or  { 255, 80, 80, 255 }
+
     contentChildren[#contentChildren + 1] = UI.Label {
-        text = "需要消耗",
+        text = "升级费用",
         fontSize = 13,
         fontColor = { 160, 168, 185, 220 },
         width = "100%",
         marginBottom = 6,
     }
-
-    for _, req in ipairs(details.items) do
-        local rar = Config.GetRarity(req.rarity)
-        local statusColor = req.ok
-            and { 100, 220, 120, 255 }
-            or  { 255, 80, 80, 255 }
-        local statusText = req.have .. "/" .. req.need
-
-        contentChildren[#contentChildren + 1] = UI.Panel {
-            width = "100%",
-            flexDirection = "row",
-            alignItems = "center",
-            gap = 6,
-            paddingVertical = 3,
-            children = {
-                UI.Label {
-                    text = "◆",
-                    fontSize = 12,
-                    fontColor = rar.color,
-                },
-                UI.Label {
-                    text = req.name,
-                    fontSize = 12,
-                    fontColor = { 210, 215, 225, 255 },
-                    flexGrow = 1,
-                },
-                UI.Label {
-                    text = statusText,
-                    fontSize = 12,
-                    fontColor = statusColor,
-                },
-            },
-        }
-    end
-
-    local goldColor = details.gold.ok
-        and { 255, 220, 100, 255 }
-        or  { 255, 80, 80, 255 }
-    local goldStatus = Utils.FormatMoney(details.gold.have) .. "/" .. Utils.FormatMoney(details.gold.need)
 
     contentChildren[#contentChildren + 1] = UI.Panel {
         width = "100%",
@@ -768,23 +745,25 @@ local function showUpgradePopup()
         alignItems = "center",
         gap = 6,
         paddingVertical = 3,
-        marginTop = 4,
         children = {
             UI.Panel {
-                width = 12, height = 12,
+                width = 14, height = 14,
                 backgroundImage = Utils.GetIcon("coin"),
                 backgroundFit = "contain",
             },
             UI.Label {
-                text = "金币",
-                fontSize = 12,
-                fontColor = { 210, 215, 225, 255 },
+                text = Utils.FormatMoney(cost.gold),
+                fontSize = 14,
+                fontColor = goldColor,
+                fontWeight = "bold",
                 flexGrow = 1,
             },
             UI.Label {
-                text = goldStatus,
+                text = details.gold.ok and "足够" or "不足",
                 fontSize = 12,
-                fontColor = goldColor,
+                fontColor = details.gold.ok
+                    and { 100, 220, 120, 255 }
+                    or  { 255, 80, 80, 255 },
             },
         },
     }
@@ -797,7 +776,7 @@ local function showUpgradePopup()
     }
 
     local confirmBtn = UI.Button {
-        text = canUpgrade and "确认升级" or "材料不足",
+        text = canUpgrade and "确认升级" or "金币不足",
         width = 120, height = 34,
         fontSize = 13,
         fontWeight = "bold",
@@ -891,8 +870,8 @@ refreshCards = function()
     if #filtered == 0 then
         if gridContainer then gridContainer:SetVisible(false) end
         emptyPanel:SetVisible(true)
-        -- 隐藏信息浮层
-        if infoOverlay then infoOverlay:SetVisible(false) end
+        -- 隐藏物品详情
+        ItemDetailPanel.Hide()
     else
         emptyPanel:SetVisible(false)
         if gridContainer then gridContainer:SetVisible(true) end
@@ -1096,61 +1075,7 @@ function Panel.Show(onBack)
         checkboxWidgets[#checkboxWidgets + 1] = cbPanel
     end
 
-    -- 信息浮层（点击物品时在底部显示物品名+价格）
-    infoNameLabel = UI.Label {
-        text = "",
-        fontSize = 11,
-        fontColor = { 220, 225, 235, 255 },
-        maxLines = 1,
-        pointerEvents = "none",
-    }
-    infoCoinIcon = UI.Panel {
-        width = 10, height = 10,
-        backgroundImage = Utils.GetIcon("coin"),
-        backgroundFit = "contain",
-        pointerEvents = "none",
-    }
-    infoPriceLabel = UI.Label {
-        text = "",
-        fontSize = 10,
-        fontColor = { 255, 220, 100, 255 },
-        pointerEvents = "none",
-    }
-
-    local infoDateLabel = UI.Label {
-        text = "",
-        fontSize = 8,
-        fontColor = { 120, 125, 140, 160 },
-        pointerEvents = "none",
-    }
-
-    -- 将 infoDateLabel 保存供后续使用
-    Panel._infoDateLabel = infoDateLabel
-
-    infoOverlay = UI.Panel {
-        position = "absolute",
-        left = 0, bottom = 0, right = 0,
-        height = 28,
-        backgroundColor = { 20, 24, 32, 230 },
-        borderWidth = { top = 1 },
-        borderColor = { 80, 130, 170, 80 },
-        flexDirection = "row",
-        alignItems = "center",
-        justifyContent = "center",
-        gap = 6,
-        paddingHorizontal = 8,
-        visible = false,
-        pointerEvents = "none",
-        children = {
-            infoNameLabel,
-            UI.Panel { width = 1, height = 14, backgroundColor = { 80, 85, 100, 120 }, pointerEvents = "none" },
-            infoCoinIcon,
-            infoPriceLabel,
-            infoDateLabel,
-        },
-    }
-
-    -- 组合格子 + 图片层 + 信息浮层
+    -- 组合格子 + 图片层
     local gridChildren = {}
     for _, row in ipairs(gridRowWidgets) do
         gridChildren[#gridChildren + 1] = row
@@ -1161,7 +1086,6 @@ function Panel.Show(onBack)
     for _, cb in ipairs(checkboxWidgets) do
         gridChildren[#gridChildren + 1] = cb
     end
-    gridChildren[#gridChildren + 1] = infoOverlay
 
     gridContainer = UI.Panel {
         id = "warehouseGridContainer",
@@ -1421,7 +1345,7 @@ function Panel.Show(onBack)
             end
             if allPlaced then
                 SaveSystem.Save()
-                Utils.ShowMessage("仓库已整理")
+                -- 整理成功不弹 toast
             else
                 -- 回滚：恢复原始位置
                 for _, item in ipairs(allItems) do
@@ -1563,10 +1487,11 @@ function Panel.Show(onBack)
         },
     }
 
-    -- ── 内容区域 ────────────────────────────────────
+    -- ── 内容区域（网格，占满筛选栏右侧所有空间） ────
     local contentArea = UI.Panel {
-        width = "30%",
-        flexShrink = 0,
+        flexGrow = 1,
+        flexShrink = 1,
+        flexBasis = 0,
         flexDirection = "column",
         backgroundColor = { 22, 25, 32, 255 },
         children = {
@@ -1583,19 +1508,6 @@ function Panel.Show(onBack)
         },
     }
 
-    -- ── 左侧区域（侧栏 + 空白） ────────────────────
-    local leftArea = UI.Panel {
-        flexGrow = 1,
-        flexShrink = 1,
-        flexBasis = 0,
-        flexDirection = "row",
-        backgroundColor = { 22, 25, 32, 255 },
-        children = {
-            sidebar,
-            UI.Panel { flexGrow = 1 }, -- 留空
-        },
-    }
-
     -- ── 主体 ────────────────────────────────────────
     local body = UI.Panel {
         width = "100%",
@@ -1604,11 +1516,16 @@ function Panel.Show(onBack)
         flexDirection = "row",
         overflow = "hidden",
         children = {
-            leftArea,
+            sidebar,
             UI.Panel { width = 1, backgroundColor = { 50, 55, 68, 200 } },
             contentArea,
         },
     }
+
+    -- ── 物品详情浮窗 ─────────────────────────────────
+    detailPanel = ItemDetailPanel.Create()
+    -- 初始隐藏，点击物品时动态定位
+    detailPanel:SetStyle({ right = nil, left = 0, top = 0 })
 
     -- ── 全屏根 ──────────────────────────────────────
     local root = UI.Panel {
@@ -1619,6 +1536,7 @@ function Panel.Show(onBack)
             topBar,
             UI.Panel { width = "100%", height = 1, backgroundColor = { 50, 55, 68, 200 }, borderRadius = 0 },
             body,
+            detailPanel,
         },
     }
 
@@ -1647,28 +1565,57 @@ function Panel._OnSlotClick(slotIdx)
             Panel._ShowItemInfo(item)
         end
     else
-        -- 点空格子隐藏信息
-        if not isSellMode and infoOverlay then infoOverlay:SetVisible(false) end
+        -- 点空格子隐藏详情
+        if not isSellMode then ItemDetailPanel.Hide() end
     end
 end
 
 function Panel._ShowItemInfo(item)
-    if not infoOverlay or not item then return end
-
-    local rar = Config.GetRarity(item.rarity)
-    infoNameLabel:SetText(item.name or "")
-    infoNameLabel:SetStyle({ fontColor = rar.color })
-    infoPriceLabel:SetText(Utils.FormatMoney(item.baseValue or 0))
-
-    if item.wonAt and item.wonAt > 0 then
-        local dateStr = os.date("%m/%d", item.wonAt)
-        Panel._infoDateLabel:SetText(dateStr)
-        Panel._infoDateLabel:SetVisible(true)
-    else
-        Panel._infoDateLabel:SetVisible(false)
+    if not item then return end
+    -- 用 realValue 或 baseValue 填充（ItemDetailPanel 读 realValue）
+    if not item.realValue then
+        item.realValue = item.baseValue or 0
+    end
+    if ItemDetailPanel.IsVisible()
+       and ItemDetailPanel.GetCurrentItem() == item then
+        ItemDetailPanel.Hide()
+        return
     end
 
-    infoOverlay:SetVisible(true)
+    ItemDetailPanel.Show(item)
+
+    -- 动态定位：在物品右侧显示，空间不足则显示在左侧
+    if detailPanel and item.gridX and item.gridY then
+        local w = item.w or 1
+        local h = item.h or 1
+        local originIdx = (item.gridY - 1) * COLS + item.gridX
+        local endIdx = (item.gridY + h - 2) * COLS + (item.gridX + w - 1)
+        local oSlot = gridSlots[originIdx]
+        local eSlot = gridSlots[endIdx]
+        local rootLayout = refs_root and refs_root:GetAbsoluteLayout() or nil
+        if oSlot and eSlot and rootLayout then
+            local oL = oSlot:GetAbsoluteLayout()
+            local eL = eSlot:GetAbsoluteLayout()
+            local itemRight = eL.x + eL.w - rootLayout.x
+            local itemLeft = oL.x - rootLayout.x
+            local itemTop = oL.y - rootLayout.y
+            local panelW = 200
+            local screenW = rootLayout.w
+
+            -- 优先在物品右侧，空间不足则放左侧
+            local px, py
+            if itemRight + panelW + 8 < screenW then
+                px = itemRight + 4
+            else
+                px = itemLeft - panelW - 4
+                if px < 0 then px = 4 end
+            end
+            py = itemTop
+            detailPanel:SetStyle({
+                left = px, top = py, right = nil,
+            })
+        end
+    end
 end
 
 return Panel

@@ -19,8 +19,8 @@ local warehouseModules = {
 }
 
 -- 常量
-local COLS = Config.GAME.WarehouseColumns   -- 10
-local MAX_ROWS = Config.GAME.WarehouseMaxRows -- 20
+local COLS = Config.GAME.LootColumns         -- 10
+local MAX_ROWS = Config.GAME.LootMaxRows     -- 20
 local MAX_CELLS = COLS * MAX_ROWS            -- 200
 
 -- ============================================================================

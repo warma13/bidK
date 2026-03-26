@@ -14,15 +14,7 @@ local TiebreakPanel = {}
 local C = Config.COLORS
 local refs = UIState.refs
 
--- 网络模式支持：由 GameController 设置
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function TiebreakPanel.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 
 -- 外部注册返回回调
 TiebreakPanel._onBackClick = nil
@@ -93,13 +85,8 @@ function TiebreakPanel.Create()
     bidButtons = {}
     local function SubmitTiebreakBid(nextAmount)
         Utils.PlaySfx("bid_place")
-        if isNetworkMode_ then
-            local ClientModule = require("network.Client")
-            ClientModule.SendTiebreakBid(nextAmount)
-        else
-            if not AuctionEngine.CanTiebreakBid() then return end
-            AuctionEngine.PlayerTiebreakBid(nextAmount)
-        end
+        if not AuctionEngine.CanTiebreakBid() then return end
+        AuctionEngine.PlayerTiebreakBid(nextAmount)
     end
 
     local btnChildren = {}
@@ -113,7 +100,7 @@ function TiebreakPanel.Create()
                 local currentBid = GS.GetCurrentBid()
                 local inc = Config.CalcBidIncrement(currentBid, pct)
                 local nextAmount = currentBid + inc
-                local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+                local mySlot = 1
                 local player = GS.GetPlayers()[mySlot]
                 if not player or nextAmount > player.money then return end
 
@@ -319,13 +306,8 @@ function TiebreakPanel.Refresh()
     end
 
     -- 按钮状态（动态更新文本和可用性）
-    local canBid
-    if isNetworkMode_ then
-        canBid = (GS.GetPhase() == GS.PHASE.TIEBREAK_BID)
-    else
-        canBid = AuctionEngine.CanTiebreakBid()
-    end
-    local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+    local canBid = AuctionEngine.CanTiebreakBid()
+    local mySlot = 1
     local playerMoney = (players[mySlot] and players[mySlot].money) or 0
     for i, pct in ipairs(Config.GAME.TiebreakBidPercents) do
         if bidButtons[i] then

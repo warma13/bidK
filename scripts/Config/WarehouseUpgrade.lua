@@ -1,49 +1,54 @@
 -- ============================================================================
 -- Config/WarehouseUpgrade.lua - 仓库升级配置与逻辑
+-- 纯金币升级，每次扩展 4 行
 -- ============================================================================
+
+local Config = require("Config")
 
 local WarehouseUpgrade = {}
 
--- 各等级容量
+-- 基础行数（初始仓库）
+WarehouseUpgrade.BASE_ROWS = 5
+
+-- 每次升级增加的行数
+WarehouseUpgrade.ROWS_PER_UPGRADE = 4
+
+-- 各等级配置（行数 = BASE_ROWS + (level-1) * ROWS_PER_UPGRADE）
 WarehouseUpgrade.LEVELS = {
-    [1] = { capacity = 100 },
-    [2] = { capacity = 150 },
-    [3] = { capacity = 200 },
+    [1] = { rows = 5 },    -- 初始: 30×5  = 150 格
+    [2] = { rows = 9 },    -- 升级1: 30×9  = 270 格
+    [3] = { rows = 13 },   -- 升级2: 30×13 = 390 格
+    [4] = { rows = 17 },   -- 升级3: 30×17 = 510 格
+    [5] = { rows = 21 },   -- 升级4: 30×21 = 630 格
 }
 
-WarehouseUpgrade.MAX_LEVEL = 3
+WarehouseUpgrade.MAX_LEVEL = 5
 
--- 升级消耗（从 level → level+1）
--- items: { { name=物品名, rarity=品质, count=所需数量 }, ... }
--- gold: 金币消耗
+-- 升级花费（从 level → level+1），纯金币
 WarehouseUpgrade.COSTS = {
-    -- Lv.1 → Lv.2
-    [1] = {
-        items = {
-            { name = "铜墨盒",   rarity = "green", count = 2 },
-            { name = "老铜锁",   rarity = "green", count = 2 },
-            { name = "青花瓷片", rarity = "blue",  count = 1 },
-        },
-        gold = 3000,
-    },
-    -- Lv.2 → Lv.3
-    [2] = {
-        items = {
-            { name = "老胶片相机", rarity = "blue",   count = 2 },
-            { name = "绿松石珠串", rarity = "blue",   count = 1 },
-            { name = "鼻烟壶",     rarity = "purple", count = 1 },
-            { name = "机械秒表",   rarity = "purple", count = 1 },
-        },
-        gold = 30000,
-    },
+    [1] = { gold = 10000000 },    -- Lv.1 → Lv.2: 1000万
+    [2] = { gold = 100000000 },   -- Lv.2 → Lv.3: 1亿
+    [3] = { gold = 1000000000 },  -- Lv.3 → Lv.4: 10亿
+    [4] = { gold = 10000000000 }, -- Lv.4 → Lv.5: 100亿
 }
 
---- 获取指定等级的容量
+--- 获取指定等级的容量（格数）
 ---@param level number
 ---@return number
 function WarehouseUpgrade.GetCapacity(level)
     local data = WarehouseUpgrade.LEVELS[level]
-    return data and data.capacity or WarehouseUpgrade.LEVELS[1].capacity
+    if not data then
+        data = WarehouseUpgrade.LEVELS[1]
+    end
+    return data.rows * Config.GAME.WarehouseColumns
+end
+
+--- 获取指定等级的行数
+---@param level number
+---@return number
+function WarehouseUpgrade.GetRows(level)
+    local data = WarehouseUpgrade.LEVELS[level]
+    return data and data.rows or WarehouseUpgrade.BASE_ROWS
 end
 
 --- 获取升级到下一级所需的消耗
@@ -53,13 +58,12 @@ function WarehouseUpgrade.GetUpgradeCost(currentLevel)
     return WarehouseUpgrade.COSTS[currentLevel]
 end
 
---- 检查玩家是否满足升级条件
+--- 检查玩家是否满足升级条件（纯金币）
 ---@param currentLevel number 当前仓库等级
----@param items table 玩家拥有的物品列表（SaveSystem 格式，字段: name, rarity）
 ---@param gold number 玩家当前金币
 ---@return boolean canUpgrade 是否可升级
----@return table details 各条件的满足情况 { items = { {name, rarity, need, have, ok}, ... }, gold = {need, have, ok} }
-function WarehouseUpgrade.CheckUpgrade(currentLevel, items, gold)
+---@return table|nil details 条件满足情况 { gold = {need, have, ok} }
+function WarehouseUpgrade.CheckUpgrade(currentLevel, gold)
     if currentLevel >= WarehouseUpgrade.MAX_LEVEL then
         return false, nil
     end
@@ -69,68 +73,16 @@ function WarehouseUpgrade.CheckUpgrade(currentLevel, items, gold)
         return false, nil
     end
 
-    -- 统计玩家物品数量（按名称）
-    local itemCounts = {}
-    for _, item in ipairs(items) do
-        local name = item.name
-        itemCounts[name] = (itemCounts[name] or 0) + 1
-    end
-
-    local allOk = true
-    local details = { items = {}, gold = {} }
-
-    for _, req in ipairs(cost.items) do
-        local have = itemCounts[req.name] or 0
-        local ok = have >= req.count
-        if not ok then allOk = false end
-        details.items[#details.items + 1] = {
-            name = req.name,
-            rarity = req.rarity,
-            need = req.count,
-            have = have,
-            ok = ok,
-        }
-    end
-
     local goldOk = gold >= cost.gold
-    if not goldOk then allOk = false end
-    details.gold = {
-        need = cost.gold,
-        have = gold,
-        ok = goldOk,
+    local details = {
+        gold = {
+            need = cost.gold,
+            have = gold,
+            ok = goldOk,
+        },
     }
 
-    return allOk, details
-end
-
---- 执行升级：从物品列表中消耗指定物品（返回新列表和消耗的金币数）
----@param currentLevel number
----@param items table 玩家物品列表（会被修改）
----@return table newItems 消耗后的物品列表
----@return number goldCost 消耗的金币数
-function WarehouseUpgrade.ConsumeItems(currentLevel, items)
-    local cost = WarehouseUpgrade.COSTS[currentLevel]
-    if not cost then return items, 0 end
-
-    -- 按需消耗物品（从后往前删，避免索引错乱）
-    for _, req in ipairs(cost.items) do
-        local remaining = req.count
-        -- 收集要删除的索引
-        local toRemove = {}
-        for i, item in ipairs(items) do
-            if remaining <= 0 then break end
-            if item.name == req.name then
-                toRemove[#toRemove + 1] = i
-                remaining = remaining - 1
-            end
-        end
-        -- 从后往前删
-        for j = #toRemove, 1, -1 do
-            table.remove(items, toRemove[j])
-        end
-    end
-
-    return items, cost.gold
+    return goldOk, details
 end
 
 return WarehouseUpgrade

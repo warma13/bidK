@@ -11,15 +11,7 @@ local Utils = require("UI.Utils")
 
 local Panel = {}
 
--- 网络模式支持
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function Panel.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 
 -- 内部状态
 local panel = nil

@@ -16,15 +16,7 @@ local BidControlPanel = {}
 local refs = UIState.refs
 local C = Config.COLORS
 
--- 网络模式支持：由 GameController 设置
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function BidControlPanel.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 
 -- 极简风格色板
 local KB = {
@@ -62,7 +54,7 @@ local function ApplyMultiplier()
     if current <= 0 then return end
     local mult = GetCurrentMultiplier()
     local result = math.floor(current * mult)
-    local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+    local mySlot = 1
     local player = GS.GetPlayers()[mySlot]
     if player and result > player.money then
         result = player.money
@@ -79,7 +71,7 @@ local function AppendBidDigit(digit)
     if #UIState.bidInputStr > 9 then
         UIState.bidInputStr = UIState.bidInputStr:sub(1, 9)
     end
-    local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+    local mySlot = 1
     local player = GS.GetPlayers()[mySlot]
     local amount = tonumber(UIState.bidInputStr) or 0
     if player and amount > player.money then
@@ -127,18 +119,11 @@ local function OnForfeitClicked()
     if phase == GS.PHASE.SEALED_BID then
         UIState.playerBidAmount = 0
         UIState.bidInputStr = ""
-        if isNetworkMode_ then
-            local ClientModule = require("network.Client")
-            ClientModule.SendSealedBid(0)
-            -- 乐观更新：立即设置本地金币图标，不等服务器回传
-            UIState.aiBidConfirmed[ClientModule.GetMySlot()] = true
-        else
-            AuctionEngine.PlayerSealedBid(0)
-            AIPlayer.OnPlayerBidConfirmed()
-        end
+        AuctionEngine.PlayerSealedBid(0)
+        AIPlayer.OnPlayerBidConfirmed()
         UIState.playerBidConfirmed = true
         Utils.PlaySfx("bid_place")
-        Utils.ShowMessage("已弃权本轮")
+        -- 弃权不弹 toast
         UIState.bidPanelVisible = false
         if refs.bidPanel then
             refs.bidPanel:SetVisible(false)
@@ -151,18 +136,11 @@ end
 local bidConfirmModal_ = nil
 
 local function SubmitSealedBid(amount)
-    if isNetworkMode_ then
-        local ClientModule = require("network.Client")
-        ClientModule.SendSealedBid(amount)
-        -- 乐观更新：立即设置本地金币图标，不等服务器回传
-        UIState.aiBidConfirmed[ClientModule.GetMySlot()] = true
-    else
-        AuctionEngine.PlayerSealedBid(amount)
-        AIPlayer.OnPlayerBidConfirmed()
-    end
+    AuctionEngine.PlayerSealedBid(amount)
+    AIPlayer.OnPlayerBidConfirmed()
     UIState.playerBidConfirmed = true
     Utils.PlaySfx("bid_place")
-    Utils.ShowMessage("出价已锁定: " .. Utils.FormatMoney(amount))
+    -- 出价不弹 toast
     UIState.bidPanelVisible = false
     if refs.bidPanel then refs.bidPanel:SetVisible(false) end
     BidControlPanel.Update()
@@ -179,7 +157,7 @@ local function OnBidButtonClicked()
             local needConfirm = false
             if round > 1 then
                 local roundBids = GS.GetRoundBids()
-                local mySlot = isNetworkMode_ and GS.GetMySlot() or 1
+                local mySlot = 1
                 local prevBid = roundBids[round - 1] and roundBids[round - 1][mySlot]
                 if prevBid and prevBid > 0 and UIState.playerBidAmount > prevBid * 2 then
                     needConfirm = true

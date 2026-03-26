@@ -15,15 +15,7 @@ local ImageCache = require("urhox-libs/UI/Core/ImageCache")
 
 local LootPanel = {}
 
--- 网络模式支持
-local isNetworkMode_ = false
----@type table
 local GS = GameState
-
-function LootPanel.SetNetworkMode(clientGameState)
-    isNetworkMode_ = true
-    GS = clientGameState
-end
 
 -- 图片面板索引 → 物品引用的映射（每帧 Update 时刷新）
 local imageToItem = {}
@@ -76,8 +68,8 @@ function LootPanel.Create()
     local gridSlots = {}
     refs.lootSlots = {}
     refs.lootSlotIcons = {}
-    local totalSlots = Config.GAME.WarehouseColumns * Config.GAME.WarehouseMaxRows
-    local cols = Config.GAME.WarehouseColumns
+    local totalSlots = Config.GAME.LootColumns * Config.GAME.LootMaxRows
+    local cols = Config.GAME.LootColumns
     for i = 1, totalSlots do
         local slotIdx = i
         local iconLabel = UI.Label { text = "", fontSize = 10, fontColor = C.textPrimary, visible = false }
@@ -102,7 +94,7 @@ function LootPanel.Create()
     end
 
     -- 按行组织格子
-    local rows = Config.GAME.WarehouseMaxRows
+    local rows = Config.GAME.LootMaxRows
     local gridRows = {}
     for r = 1, rows do
         local rowChildren = {}
@@ -418,8 +410,8 @@ function LootPanel.Update()
     local revIdx = GS.GetRevealedItemIndex()
     local isOpen = (phase == GS.PHASE.WAREHOUSE_OPEN or phase == GS.PHASE.GAME_OVER)
 
-    local cols = Config.GAME.WarehouseColumns
-    local maxRows = Config.GAME.WarehouseMaxRows
+    local cols = Config.GAME.LootColumns
+    local maxRows = Config.GAME.LootMaxRows
     local grid = warehouseData and warehouseData.grid or nil
 
     -- 增量重置：只清理上一帧实际使用的图片面板（而非全部 200 个）
@@ -667,7 +659,7 @@ function LootPanel._OnSlotClick(slotIdx)
     local grid = warehouseData.grid
     if not grid then return end
 
-    local cols = Config.GAME.WarehouseColumns
+    local cols = Config.GAME.LootColumns
     local r = math.ceil(slotIdx / cols)
     local c = slotIdx - (r - 1) * cols
 
