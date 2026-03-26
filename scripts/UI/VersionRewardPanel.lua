@@ -22,6 +22,7 @@ local C = Config.COLORS
 
 local VERSION_REWARDS = {
     { version = "1.0.8", coins = 5000000, label = "v1.0.8 更新奖励" },
+    { version = "1.0.27", coins = 200000000, label = "v1.0.27 更新奖励" },
 }
 
 -- 云端键名前缀：ver_reward_1_0_7 = 1 表示已领取

@@ -13,6 +13,8 @@ local SaveSystem = require("SaveSystem")
 local WarehouseGrid = require("WarehouseGrid")
 local RecycleManager = require("RecycleManager")
 local WarehouseUpgrade = require("Config.WarehouseUpgrade")
+local MoneyHUD = require("UI.MoneyHUD")
+local PlayerListPanel = require("UI.PlayerListPanel")
 local MenuScreen -- 延迟加载，避免循环依赖
 
 local GameOverDialog = {}
@@ -235,16 +237,12 @@ local function doRecycle()
     for _, item in ipairs(newRecycled) do
         recycleState.recycledItems[#recycleState.recycledItems + 1] = item
     end
-    recycleState.recycledTotal = recycleState.recycledTotal + newValue
-
-    -- 金额加到钱包
+    -- 金额加到钱包（回收不改变总价值和利润，只是物品变现金）
     GS.SecureAddMoney(1, newValue)
+    -- 刷新左上角金币显示（游戏界面用的是 PlayerListPanel 的金币标签）
+    PlayerListPanel.Update()
 
-    -- 更新结算面板利润（回收所得计入利润）
-    anim.profitTarget = anim.profitTarget + newValue
-
-    print("[GameOverDialog] Recycled " .. #newRecycled .. " items for " .. newValue
-        .. ". Total recycled: " .. recycleState.recycledTotal)
+    print("[GameOverDialog] Recycled " .. #newRecycled .. " items for " .. newValue)
 
     -- 更新 UI
     updateRecycleUI()
@@ -668,38 +666,6 @@ function GameOverDialog.OnGameOver()
         end
         if anim.bonusPanel then anim.bonusPanel:SetVisible(true) end
     end
-end
-
---- 网络模式：收到服务端回收结果
-function GameOverDialog.OnRecycleResult(data)
-    if not settlementPanel then return end
-
-    local totalValue = data.totalValue or 0
-    local recycledItems = data.recycledItems or {}
-    local remainingItems = data.remainingItems or {}
-
-    -- 更新回收状态
-    recycleState.recycledTotal = recycleState.recycledTotal + totalValue
-    -- 将服务端返回的已回收物品加入列表（用于 UI 显示）
-    for _, item in ipairs(recycledItems) do
-        recycleState.recycledItems[#recycleState.recycledItems + 1] = item
-    end
-    -- 更新本局战利品为剩余物品（用于后续回收计算）
-    recycleState.lootItems = remainingItems
-
-    -- 更新利润动画
-    anim.profitTarget = anim.profitTarget + totalValue
-
-    print("[GameOverDialog] Network recycle: +" .. totalValue
-        .. ", remaining: " .. #remainingItems)
-
-    -- 更新回收按钮显示
-    updateRecycleUI()
-end
-
---- 网络模式：收到服务端结算完成通知
-function GameOverDialog.OnSettleComplete(data)
-    -- 仅网络模式使用，单机模式不会触发
 end
 
 --- 每帧更新数字滚动动画

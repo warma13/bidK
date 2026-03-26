@@ -11,7 +11,7 @@ local Utils = require("UI.Utils")
 
 local DebugPanel = {}
 
-local VERSION = "v1.0.26"
+local VERSION = "v1.0.28"
 
 local hudRoot = nil
 local debugPanel = nil

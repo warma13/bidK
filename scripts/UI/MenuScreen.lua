@@ -96,7 +96,10 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback)
             DebugPanel.CreateHUD(),
         }
     }
-    UI.SetRoot(menuRoot)
+    UI.SetRoot(UI.SafeAreaView {
+        edges = "all", width = "100%", height = "100%",
+        children = { menuRoot },
+    })
 end
 
 return MenuScreen

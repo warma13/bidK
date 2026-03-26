@@ -537,7 +537,10 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         },
     }
 
-    UI.SetRoot(finalRoot)
+    UI.SetRoot(UI.SafeAreaView {
+        edges = "all", width = "100%", height = "100%",
+        children = { finalRoot },
+    })
 
     -- 初始化
     refreshCharInfo()

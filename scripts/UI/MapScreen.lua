@@ -111,7 +111,10 @@ function MapScreen.Show(onBackCallback, onRegionSelected)
             DebugPanel.CreateHUD(),
         }
     }
-    UI.SetRoot(mapRoot)
+    UI.SetRoot(UI.SafeAreaView {
+        edges = "all", width = "100%", height = "100%",
+        children = { mapRoot },
+    })
 end
 
 return MapScreen

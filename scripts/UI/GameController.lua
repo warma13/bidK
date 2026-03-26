@@ -201,7 +201,10 @@ local function CreateGameUI()
         }
     }
     refs.gameRoot = uiRoot
-    UI.SetRoot(uiRoot)
+    UI.SetRoot(UI.SafeAreaView {
+        edges = "all", width = "100%", height = "100%",
+        children = { uiRoot },
+    })
 end
 
 local function UpdateAllUI()

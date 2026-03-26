@@ -13,6 +13,7 @@ local SaveSystem = require("SaveSystem")
 local WarehouseUpgrade = require("Config.WarehouseUpgrade")
 local WarehouseGrid = require("WarehouseGrid")
 local RecycleManager = require("RecycleManager")
+local MoneyManager = require("MoneyManager")
 local ImageCache = require("urhox-libs/UI/Core/ImageCache")
 local ItemDetailPanel = require("UI.ItemDetailPanel")
 
@@ -189,9 +190,25 @@ local function doSell()
     local totalValue = getSelectedTotalValue()
     -- 增加金币
     local curMoney = MoneyHUD.GetMoney()
-    MoneyHUD.SetMoney(curMoney + totalValue)
-    -- 从存档移除
+    local newTotal = curMoney + totalValue
+    MoneyHUD.SetMoney(newTotal)
+    -- 云端持久化金币
+    if clientCloud then
+        clientCloud:BatchSet()
+            :Set("player_money", newTotal)
+            :SetInt("money_rank", MoneyManager.ToRankValue(newTotal))
+            :Save("sell_items", {
+                ok = function()
+                    print("[Warehouse] Sell saved: +" .. totalValue .. " → " .. newTotal)
+                end,
+                error = function(code, reason)
+                    print("[Warehouse] Sell cloud save failed: " .. tostring(reason))
+                end,
+            })
+    end
+    -- 从存档移除并立即同步云端
     SaveSystem.RemoveItems(list)
+    SaveSystem.SaveNow()
 
     -- 刷新数据
     allItems = SaveSystem.GetItems()
@@ -1541,7 +1558,10 @@ function Panel.Show(onBack)
     }
 
     refs_root = root
-    UI.SetRoot(root)
+    UI.SetRoot(UI.SafeAreaView {
+        edges = "all", width = "100%", height = "100%",
+        children = { root },
+    })
 
     updateLevelDisplay()
     refreshCards()

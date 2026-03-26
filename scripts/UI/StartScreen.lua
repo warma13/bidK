@@ -43,7 +43,10 @@ function StartScreen.Show(onStartCallback)
             },
         },
     }
-    UI.SetRoot(root)
+    UI.SetRoot(UI.SafeAreaView {
+        edges = "all", width = "100%", height = "100%",
+        children = { root },
+    })
 end
 
 return StartScreen
