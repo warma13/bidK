@@ -1,20 +1,2 @@
-# 引擎内部目录（只读，非项目代码）
-engine-docs/
-examples/
-templates/
-urhox-libs/
-schemas/
-.emmylua/
-lua-tools/
-.claude/
-.cli/
-prompts/
-
-# 构建产物和临时文件
-dist/
 .build/
-.tmp/
-logs/
-
-# meta 文件（引擎生成）
-*.meta
+dist/

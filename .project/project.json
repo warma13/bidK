@@ -5,7 +5,7 @@
     "id": "1564171575"
   },
   "entry": "main.lua",
-  "version": "1.0.30",
+  "version": "1.1.1",
   "taptap_publish": {
     "title": "拍卖之王",
     "description": "在神秘仓库拍卖中斗智斗勇！4位竞拍者争夺未知宝藏，通过5轮暗标竞价决出胜负。运用角色技能、掌握出价策略，成为终极拍卖之王！",
@@ -41,7 +41,5 @@
   "test_qrcode": {
     "url": "https://tapcode-sce.spark.xd.com/qrcode/p_70vd_1774504113167.png",
     "generated_at": "2026-03-26T05:48:33.299Z"
-  },
-  "entry@client": "main.lua",
-  "entry@server": "main.lua"
+  }
 }
