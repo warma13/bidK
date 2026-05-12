@@ -1,12 +1,6 @@
 /*
 !/scripts
 !/assets
-!/.project
-.project/*
-!.project/project.json
-!.project/settings.json
-!.project/game_material
-!/game_material
 scripts/**/.luarc.json
 **/*.meta
 *.sh
