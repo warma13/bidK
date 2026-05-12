@@ -14,9 +14,6 @@ local GameState = {}
 -- 受保护的关键数值（SecureValue）
 local secureMoney = {}       -- { [playerIdx] = SecureValue }
 local secureTotalValue = nil  -- SecureValue
-local secureSealedBids = {}  -- { [playerIdx] = SecureValue }
-local secureCurrentBid = nil -- SecureValue
-local secureRoundBids = {}   -- { [round] = { [playerIdx] = SecureValue } }
 
 -- 游戏阶段
 GameState.PHASE = {
@@ -101,9 +98,6 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
     -- 反作弊重置
     AntiCheat.reset()
     secureMoney = {}
-    secureSealedBids = {}
-    secureCurrentBid = AntiCheat.SecureValue(0)
-    secureRoundBids = {}
 
     -- 生成仓库（使用 WarehouseGenerator，传入区域和难度）
     state.warehouseData = WarehouseGenerator.Generate(regionId, warehouseTypeId, diffIdx)
@@ -205,9 +199,11 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
             namePool[i], namePool[j] = namePool[j], namePool[i]
         end
         local aiNames = { namePool[1], namePool[2], namePool[3] }
+        -- AI 资金 = 仓库期望值 × 2（随仓库价值动态调整）
+        local aiBaseMoney = state.expectedValue * 2
         for i = 1, 3 do
             local aiChar = availChars[i]
-            local aiMoney = state.startingMoney
+            local aiMoney = aiBaseMoney
             if aiChar.bonusMoney then
                 aiMoney = math.floor(aiMoney * aiChar.bonusMoney)
             end
@@ -278,7 +274,6 @@ function GameState.StartInfoReveal(round)
     state.bidLocked = {}
     state.revealIndex = 0
     state.judgeResult = nil
-    secureSealedBids = {}
     state.phase = GameState.PHASE.INFO_REVEAL
     GameState.NotifyChange()
 end
@@ -307,11 +302,7 @@ function GameState.PlaceSealedBid(playerIdx, amount)
     if amount > player.money then amount = player.money end
     local flooredAmount = math.floor(amount)
     state.sealedBids[playerIdx] = flooredAmount
-    secureSealedBids[playerIdx] = AntiCheat.SecureValue(flooredAmount)
     state.bidLocked[playerIdx] = true
-
-    -- 反作弊：记录出价行为
-    AntiCheat.recordBid(playerIdx, state.currentRound, math.floor(amount), player.money)
 
     print("[GameState] Player " .. playerIdx .. " (" .. player.name .. ") sealed bid: " .. amount)
     return true
@@ -322,20 +313,15 @@ function GameState.FinalizeSealedBids()
     for idx = 1, #state.players do
         if not state.sealedBids[idx] then
             state.sealedBids[idx] = 0  -- 未出价视为0（弃权）
-            secureSealedBids[idx] = AntiCheat.SecureValue(0)
         end
     end
     -- 记录本轮出价到历史
     local round = state.currentRound
     state.roundBids[round] = {}
-    secureRoundBids[round] = {}
     for idx = 1, #state.players do
         local bid = state.sealedBids[idx] or 0
         state.roundBids[round][idx] = bid
-        secureRoundBids[round][idx] = AntiCheat.SecureValue(bid)
     end
-    -- 反作弊：出价锁定后拍快照
-    AntiCheat.snapshot("sealedBids_r" .. state.currentRound, state.sealedBids)
 
     -- 生成揭晓顺序（1→2→3→4）
     state.revealOrder = { 1, 2, 3, 4 }
@@ -362,10 +348,6 @@ end
 -- 执行倍率判定
 function GameState.PerformJudgment()
     state.phase = GameState.PHASE.ROUND_JUDGE
-
-    -- 反作弊：校验出价未被篡改
-    GameState.ValidateBids()
-    AntiCheat.verify("sealedBids_r" .. state.currentRound, state.sealedBids)
 
     -- 反作弊：校验所有玩家资金
     for idx = 1, #state.players do
@@ -498,7 +480,6 @@ function GameState.SetupTiebreak()
     end
 
     state.currentBid = maxBid
-    secureCurrentBid = AntiCheat.SecureValue(maxBid)
     state.currentBidder = 0
     state.bidHistory = {}
     state.timer = Config.GAME.TiebreakSeconds
@@ -528,7 +509,6 @@ function GameState.PlaceTiebreakBid(playerIdx, amount)
     if amount > player.money then return false, "资金不足" end
 
     state.currentBid = amount
-    secureCurrentBid.set(amount)
     state.currentBidder = playerIdx
     state.bidHistory[#state.bidHistory + 1] = {
         playerIdx = playerIdx,
@@ -548,9 +528,6 @@ end
 
 -- 实时竞拍结束
 function GameState.EndTiebreak()
-    -- 反作弊：校验出价未被篡改
-    GameState.ValidateBids()
-
     if state.currentBidder > 0 then
         state.winner = state.currentBidder
         state.winnerPaid = state.currentBid
@@ -583,8 +560,7 @@ function GameState.SettleWarehouseValue()
     if state.settled then return end  -- 防止重复结算
     state.settled = true
 
-    -- 反作弊：结算前校验所有出价和资金
-    GameState.ValidateBids()
+    -- 反作弊：结算前校验资金
     for idx = 1, #state.players do
         GameState.ValidateMoney(idx)
     end
@@ -729,41 +705,6 @@ function GameState.GetRegionId()           return state.regionId or "" end
 -- ============================================================================
 -- 安全资金操作（AntiCheat 集成）
 -- ============================================================================
-
---- 校验出价数据是否被篡改，被篡改则恢复
-function GameState.ValidateBids()
-    -- 校验 sealedBids
-    for idx, sv in pairs(secureSealedBids) do
-        local secureVal = sv.get()
-        if state.sealedBids[idx] ~= secureVal then
-            print("[AntiCheat] WARNING: sealedBids[" .. idx .. "] tampered! "
-                .. tostring(state.sealedBids[idx]) .. " -> restoring to " .. secureVal)
-            state.sealedBids[idx] = secureVal
-        end
-    end
-    -- 校验 currentBid
-    if secureCurrentBid then
-        local secureVal = secureCurrentBid.get()
-        if state.currentBid ~= secureVal then
-            print("[AntiCheat] WARNING: currentBid tampered! "
-                .. state.currentBid .. " -> restoring to " .. secureVal)
-            state.currentBid = secureVal
-        end
-    end
-    -- 校验 roundBids
-    for round, roundSv in pairs(secureRoundBids) do
-        if state.roundBids[round] then
-            for idx, sv in pairs(roundSv) do
-                local secureVal = sv.get()
-                if state.roundBids[round][idx] ~= secureVal then
-                    print("[AntiCheat] WARNING: roundBids[" .. round .. "][" .. idx .. "] tampered! "
-                        .. tostring(state.roundBids[round][idx]) .. " -> restoring to " .. secureVal)
-                    state.roundBids[round][idx] = secureVal
-                end
-            end
-        end
-    end
-end
 
 --- 校验玩家资金是否被篡改，被篡改则恢复
 GameState.ValidateMoney = function(playerIdx) MoneyManager.ValidateMoney(playerIdx) end

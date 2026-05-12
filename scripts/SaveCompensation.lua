@@ -1,15 +1,15 @@
 -- ============================================================================
 -- SaveCompensation.lua - 一次性补偿模块
--- 检测今日已领取的在线里程碑 + 广告里程碑，对照实际门票/角色币数量，补足差额
--- 每天只运行一次（以 comp_date 云端 key 防重）
+-- 检测已领取的在线里程碑 + 广告里程碑，对照实际门票/角色币数量，补足差额
+-- 每个用户只运行一次（以 comp_done 云端 key 防重）
 -- ============================================================================
 
 ---@diagnostic disable: undefined-global
 
 local SaveCompensation = {}
 
-local KEY_COMP_DATE    = "comp_date"     -- 上次补偿日期
-local KEY_COMP_LOG     = "comp_log"      -- 上次补偿记录（字符串，供调试）
+local KEY_COMP_DONE    = "comp_done"     -- 是否已补偿过（"1" = 已完成）
+local KEY_COMP_LOG     = "comp_log"      -- 补偿记录（字符串，供调试）
 
 local ran = false  -- 防止同一次启动重复执行
 
@@ -96,13 +96,12 @@ local function DoCompensate(onlineBits, adBits, dailyCount)
         end
     end
 
-    -- ---- 3. 写入补偿记录 ----
-    local today   = TodayStr()
+    -- ---- 3. 写入补偿记录（标记为已完成，永不再运行） ----
     local logStr  = #log > 0 and table.concat(log, "; ") or "无需补偿"
 
     if clientCloud then
         local batch = clientCloud:BatchSet()
-        batch:Set(KEY_COMP_DATE, today)
+        batch:Set(KEY_COMP_DONE, "1")
         batch:Set(KEY_COMP_LOG,  logStr)
         batch:Save("comp", {
             ok    = function() print("[SaveCompensation] 补偿记录已写入云端: " .. logStr) end,
@@ -126,19 +125,19 @@ function SaveCompensation.RunOnce()
         return
     end
 
-    -- 先读取云端 comp_date，判断今天是否已补偿过
+    -- 读取云端 comp_done，判断是否已补偿过
     local today = TodayStr()
     local batch = clientCloud:BatchGet()
-    batch:Key(KEY_COMP_DATE)
+    batch:Key(KEY_COMP_DONE)
     batch:Fetch({
         ok = function(values, _)
-            local lastDate = values[KEY_COMP_DATE] or ""
-            if lastDate == today then
-                print("[SaveCompensation] 今日已补偿过 (" .. today .. ")，跳过")
+            local done = values[KEY_COMP_DONE] or ""
+            if done == "1" then
+                print("[SaveCompensation] 该用户已补偿过，跳过")
                 return
             end
 
-            -- 读取今日数据（SaveFramework 已完成 Init，各模块数据已就绪）
+            -- 读取当前数据（SaveFramework 已完成 Init，各模块数据已就绪）
             local ok1, AdCardPanel       = pcall(require, "UI.AdCardPanel")
             local ok2, OnlineRewardPanel = pcall(require, "UI.OnlineRewardPanel")
             if not ok1 or not ok2 then

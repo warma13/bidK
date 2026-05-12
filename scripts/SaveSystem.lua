@@ -33,7 +33,7 @@ local SaveSystem = {}
 -- 常量
 -- ============================================================================
 
-local CURRENT_VERSION = 1           -- 存档数据版本号
+local CURRENT_VERSION = 2           -- 存档数据版本号（对应项目 v1.1.11）
 local CHUNK_SIZE = 8000             -- 单 key 最大字节数（留余量）
 local MODULE_NAME = "save"          -- 在 SaveFramework 中的模块名
 
@@ -292,7 +292,6 @@ local function loadLocal()
     saveData.tickets = saveData.tickets or {}
     saveData.characterCoins = saveData.characterCoins or 0
     saveData.unlockedCharacters = saveData.unlockedCharacters or {}
-    AntiCheat.snapshot("tickets", saveData.tickets)
     print("[SaveSystem] Local load OK (" .. #saveData.items .. " items)")
     return true
 end
@@ -302,7 +301,43 @@ end
 -- ============================================================================
 
 local MIGRATIONS = {
-    -- [1] = function(data) ... end,  -- v1 → v2 时添加
+    -- v1 → v2: 用当前物品池价格更新已保存物品的 baseValue
+    [1] = function(data)
+        -- 加载所有物品池模块
+        local pools = {
+            require("Config.Warehouses.ItemPool"),
+            require("Config.Warehouses.QuantumLab"),
+            require("Config.Warehouses.BondedPort"),
+            require("Config.Warehouses.DataCenter"),
+        }
+        -- 建立 name → value 查找表
+        local priceMap = {}
+        for _, pool in ipairs(pools) do
+            if pool.categories then
+                for _, cat in ipairs(pool.categories) do
+                    if cat.items then
+                        for _, item in ipairs(cat.items) do
+                            if item.name and item.value then
+                                priceMap[item.name] = item.value
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        -- 更新已保存物品的 baseValue
+        local updated = 0
+        if data.items then
+            for _, item in ipairs(data.items) do
+                local newPrice = priceMap[item.name]
+                if newPrice and newPrice ~= item.baseValue then
+                    item.baseValue = newPrice
+                    updated = updated + 1
+                end
+            end
+        end
+        print("[SaveSystem] Migration v1→v2: updated " .. updated .. " item prices")
+    end,
 }
 
 local function runMigrations()
@@ -408,7 +443,6 @@ SaveFramework.Register(MODULE_NAME, {
         saveData.tickets = saveData.tickets or {}
         saveData.characterCoins = saveData.characterCoins or 0
         saveData.unlockedCharacters = saveData.unlockedCharacters or {}
-        AntiCheat.snapshot("tickets", saveData.tickets)
 
         runMigrations()
         saveConfirmed = true
@@ -698,12 +732,7 @@ end
 
 function SaveSystem.AddTickets(ticketId, count, skipSave)
     if not saveData.tickets then saveData.tickets = {} end
-    if not AntiCheat.verify("tickets", saveData.tickets) then
-        print("[SaveSystem] Ticket tamper detected on AddTickets! Rejecting.")
-        return
-    end
     saveData.tickets[ticketId] = (saveData.tickets[ticketId] or 0) + (count or 1)
-    AntiCheat.snapshot("tickets", saveData.tickets)
     if not skipSave then
         SaveSystem.SaveNow()
     end
@@ -711,14 +740,9 @@ function SaveSystem.AddTickets(ticketId, count, skipSave)
 end
 
 function SaveSystem.ConsumeTicket(ticketId)
-    if not AntiCheat.verify("tickets", saveData.tickets) then
-        print("[SaveSystem] Ticket tamper detected on ConsumeTicket! Rejecting.")
-        return false
-    end
     local cur = SaveSystem.GetTicketCount(ticketId)
     if cur <= 0 then return false end
     saveData.tickets[ticketId] = cur - 1
-    AntiCheat.snapshot("tickets", saveData.tickets)
     SaveFramework.MarkDirty(MODULE_NAME)
     print("[SaveSystem] Ticket consumed: " .. ticketId .. " → " .. saveData.tickets[ticketId])
     return true
@@ -765,7 +789,6 @@ end
 function SaveSystem.DebugSetTicket(ticketId, count)
     if not saveData.tickets then saveData.tickets = {} end
     saveData.tickets[ticketId] = math.max(0, count)
-    AntiCheat.snapshot("tickets", saveData.tickets)
     SaveFramework.MarkDirty(MODULE_NAME)
     print("[SaveSystem][Debug] Ticket set: " .. ticketId .. " = " .. saveData.tickets[ticketId])
 end

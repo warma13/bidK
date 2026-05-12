@@ -36,31 +36,30 @@ local WAREHOUSE_TIERS = {
 }
 
 --- 计算 tier 分布的先验乘数
---- 使用加权中位数：找到累计权重达到 50% 的 tier，取该 tier 的中点值
---- 这比均值更保守，因为分布右偏（少数 jackpot 拉高均值）
---- junk(22%) + poor(25%) = 47%，中位数落在 normal tier 前端 → ≈0.65x
+--- 使用加权 P40 分位（比中位数更保守）
+--- junk(22%) + poor(25%) = 47%，P40 落在 poor tier 后段 → ≈0.52x
+local PRIOR_PERCENTILE = 0.40  -- 先验分位数（0.5=中位数，0.4=偏保守）
+
 local function computeTierPriorMult()
     local totalWeight = 0
     for _, t in ipairs(WAREHOUSE_TIERS) do
         totalWeight = totalWeight + t.weight
     end
-    local halfWeight = totalWeight * 0.5
+    local targetWeight = totalWeight * PRIOR_PERCENTILE
     local acc = 0
     for _, t in ipairs(WAREHOUSE_TIERS) do
         local prevAcc = acc
         acc = acc + t.weight
-        if acc >= halfWeight then
-            -- 中位数落在此 tier 中
-            -- 在 tier 内部按权重进度线性插值
-            local progress = (halfWeight - prevAcc) / t.weight
+        if acc >= targetWeight then
+            local progress = (targetWeight - prevAcc) / t.weight
             return t.multMin + (t.multMax - t.multMin) * progress
         end
     end
-    return 0.65  -- fallback
+    return 0.50  -- fallback
 end
 
---- 先验乘数：tier 分布的加权中位数
---- 代表"在不知道具体仓库分层的情况下，仓库实际价值对 expectedValue 的最佳猜测"
+--- 先验乘数：tier 分布的加权 P40 分位
+--- 偏保守：AI 倾向于假设仓库低于中位数，避免高价值仓库过度出价
 local TIER_PRIOR_MULT = computeTierPriorMult()
 
 -- ============================================================================

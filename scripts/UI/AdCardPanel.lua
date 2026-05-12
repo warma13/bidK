@@ -687,11 +687,9 @@ function AdCardPanel.CreatePopup()
             }
         end
 
-        -- 7个里程碑平均分配高度，每行约 14%
-        local rowHeight = math.floor(100 / #AC.DAILY_MILESTONES)
         msChildren[#msChildren + 1] = UI.Panel {
             width = "100%",
-            height = rowHeight .. "%",
+            flex = 1, flexShrink = 1,
             flexDirection = "row",
             alignItems = "center",
             gap = sz(6),
@@ -745,9 +743,9 @@ function AdCardPanel.CreatePopup()
         flexDirection = "column",
         gap = sz(4),
         children = {
-            -- 标题行（固定高度约 8%）
+            -- 标题行
             UI.Panel {
-                width = "100%", height = "8%",
+                width = "100%", flexShrink = 0,
                 flexDirection = "row", alignItems = "center", gap = sz(6),
                 children = {
                     UI.Label { text = "💳", fontSize = sz(16) },
@@ -758,9 +756,9 @@ function AdCardPanel.CreatePopup()
                     },
                 },
             },
-            -- 当前等级卡片（固定高度约 22%）
+            -- 当前等级卡片
             UI.Panel {
-                width = "100%", height = "22%",
+                width = "100%", flexShrink = 0,
                 backgroundColor = { 35, 40, 60, 200 },
                 borderRadius = sz(6),
                 padding = sz(8), gap = sz(4),
@@ -777,16 +775,22 @@ function AdCardPanel.CreatePopup()
                     progressBarContainer,
                 },
             },
-            -- 等级一览（占 45%）
-            UI.Panel {
-                width = "100%", height = "45%",
-                flexDirection = "column", gap = sz(2),
-                overflow = "hidden",
-                children = tierChildren,
+            -- 等级一览（弹性填充 + 滚动）
+            UI.ScrollView {
+                width = "100%", flex = 1, flexShrink = 1,
+                scrollY = true,
+                scrollbarInteractive = false,
+                children = {
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "column", gap = sz(2),
+                        children = tierChildren,
+                    },
+                },
             },
-            -- 看广告区（占 25%，底部）
+            -- 看广告区（底部固定）
             UI.Panel {
-                width = "100%", height = "25%",
+                width = "100%", flexShrink = 0,
                 flexDirection = "column",
                 justifyContent = "center",
                 gap = sz(4),
@@ -802,9 +806,9 @@ function AdCardPanel.CreatePopup()
         flexDirection = "column",
         gap = sz(4),
         children = {
-            -- 标题行（固定高度约 8%）
+            -- 标题行
             UI.Panel {
-                width = "100%", height = "8%",
+                width = "100%", flexShrink = 0,
                 flexDirection = "row", alignItems = "center", gap = sz(6),
                 children = {
                     UI.Label { text = "🎯", fontSize = sz(16) },
@@ -815,9 +819,9 @@ function AdCardPanel.CreatePopup()
                     },
                 },
             },
-            -- 里程碑列表（占剩余 92%）
+            -- 里程碑列表（弹性填充）
             UI.Panel {
-                width = "100%", height = "92%",
+                width = "100%", flex = 1, flexShrink = 1,
                 flexDirection = "column", gap = sz(2),
                 overflow = "hidden",
                 children = msChildren,

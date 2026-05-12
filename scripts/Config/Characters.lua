@@ -275,11 +275,11 @@ M.CHARACTERS = {
         avatar = "Textures/characters/wu_jianzhi.png",
         portrait = "Textures/characters/portraits/portrait_wu_jianzhi.png",
         ability = "慧眼识珠",
-        desc = "第1轮：看到仓库全部物品的轮廓\n第3轮：看透紫色及以上随机2件的全部信息",
+        desc = "拍卖开始时，显示白色、绿色、蓝色品质藏品的总价值和品质",
         specialty = nil,
         revealEvents = {
-            { trigger = "round_1", target = "all",           category = nil, level = "L1" },
-            { trigger = "round_3", target = "rare_random_2", category = nil, level = "L3" },
+            { trigger = "round_1", target = "all", rarity = {"white","green","blue"}, level = "L2" },
+            { trigger = "round_1", target = "all", rarity = {"white","green","blue"}, level = "L0V" },
         },
         personality = {
             style = "sniper",

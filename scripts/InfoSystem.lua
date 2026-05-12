@@ -187,6 +187,22 @@ function InfoSystem.FilterByCategory(category)
     return result
 end
 
+--- 按品质过滤物品（与 FilterByCategory 对称）
+function InfoSystem.FilterByRarity(items, rarity)
+    if not rarity then return items end
+    local rSet = {}
+    if type(rarity) == "string" then
+        rSet[rarity] = true
+    elseif type(rarity) == "table" then
+        for _, r in ipairs(rarity) do rSet[r] = true end
+    end
+    local result = {}
+    for _, item in ipairs(items) do
+        if rSet[item.rarity] then result[#result + 1] = item end
+    end
+    return result
+end
+
 --- 获取品类显示名称
 function InfoSystem.GetCategoryDisplayName(category)
     if not category then return nil end
@@ -255,6 +271,7 @@ function InfoSystem.SelectItems(target, candidates)
         end
         return InfoSystem.PickRandomItems(rares, n)
     end
+
     return {}
 end
 
@@ -264,6 +281,7 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
     local target = event.target
     local category = event.category
     local candidates = InfoSystem.FilterByCategory(category)
+    candidates = InfoSystem.FilterByRarity(candidates, event.rarity)
     local catName = InfoSystem.GetCategoryDisplayName(category)
 
     if level == "L0" then
@@ -275,6 +293,24 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
             text = "仓库共有 " .. #candidates .. " 件物品"
         end
         -- (仓深感知已移除)
+        return { text = text, icon = "" }
+    end
+
+    if level == "L0V" then
+        -- 已过滤物品的总价值（纯文本，不揭示）
+        local totalVal = 0
+        local rarSet = {}
+        local rarNames = {}
+        for _, item in ipairs(candidates) do
+            totalVal = totalVal + (item.realValue or Config.GetItemRealValue(item))
+            if not rarSet[item.rarity] then
+                rarSet[item.rarity] = true
+                local rar = Config.GetRarity(item.rarity)
+                rarNames[#rarNames + 1] = rar.name
+            end
+        end
+        local qualityStr = table.concat(rarNames, "、")
+        local text = qualityStr .. "品质藏品共" .. #candidates .. "件，总价值 " .. FormatValue(totalVal)
         return { text = text, icon = "" }
     end
 
