@@ -474,7 +474,7 @@ function SettingsPanel.CreatePopup()
 
     versionStatusLabel = UI.Label {
         text = "", fontSize = sz(11), fontColor = C.textMuted,
-        visible = false, flexShrink = 0,
+        visible = false, flexShrink = 0, width = "100%",
     }
 
     -- 如果已经检测到新版本，立即显示提示
@@ -605,6 +605,28 @@ function SettingsPanel.CreatePopup()
     }
 
     return popupOverlay
+end
+
+-- ============================================================================
+-- Debug 接口（仅供 DebugPanel 使用）
+-- ============================================================================
+
+--- 获取版本检测调试信息
+function SettingsPanel.DebugGetVersionInfo()
+    local localEncoded = EncodeVersion(LOCAL_VERSION)
+    return {
+        localVersion = LOCAL_VERSION,
+        localEncoded = localEncoded,
+        hasNewVersion = hasNewVersion,
+        lastCheckTime = lastCheckTime,
+        initCheckDone = _initCheckDone,
+        timerRunning = _versionTimerRunning,
+    }
+end
+
+--- 手动触发版本检测
+function SettingsPanel.DebugDoVersionCheck()
+    DoVersionCheck()
 end
 
 return SettingsPanel

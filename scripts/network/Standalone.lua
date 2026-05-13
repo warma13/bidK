@@ -25,11 +25,13 @@ local Standalone = {}
 -- ============================================================================
 local function RegisterModules()
     local FloatingMessage = require("UI.FloatingMessage")
+    local DebugPanel = require("UI.DebugPanel")
     GameLoop.RegisterAlways("FloatingMessage",  function(dt) FloatingMessage.Update(dt) end)
     GameLoop.RegisterAlways("SaveFramework",    function(dt) SaveFramework.Update(dt) end)
     GameLoop.RegisterAlways("SaveSystem",       function(dt) SaveSystem.Update(dt) end)
     GameLoop.RegisterAlways("GameController",   function(dt) GameController.HandleUpdate(dt) end)
     GameLoop.RegisterAlways("OnlineReward",     function(dt) OnlineRewardPanel.Update(dt) end)
+    GameLoop.RegisterAlways("DebugPanel",       function(_dt) DebugPanel.HandleUpdate() end)
 end
 
 -- ============================================================================

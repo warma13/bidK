@@ -27,7 +27,7 @@ M.REGIONS = {
         difficulties = {
             {
                 level = "suburb", label = "1万场",
-                entryFee = 500,
+                entryFee = 0,
                 startingMoney = 80000,
                 warehouseValue = 10000,
                 assetRequirement = 10000,

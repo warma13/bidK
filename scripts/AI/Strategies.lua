@@ -519,6 +519,32 @@ local function shouldAllIn(round, multiplier, compositePrice, estimate, minWinBi
         baseProb = baseProb + 0.10  -- 追赢只需不到30%的钱，风险低
     end
 
+    -- 信息置信度：避免"盲梭"
+    -- confidence = 已知品质物品数 / 总物品数
+    -- 信息不足时降低梭哈意愿，避免 AI 在不了解仓库时就全押
+    local infoConf = (opts.analysis and opts.analysis.confidence) or 0
+    if infoConf < 0.5 then
+        -- conf=0.0 → penalty -0.50（几乎没信息，大幅降低）
+        -- conf=0.2 → penalty -0.30
+        -- conf=0.3 → penalty -0.20
+        -- conf=0.5 → penalty  0（已知一半物品，足够判断）
+        local infoPenalty = (0.5 - infoConf) * 1.0
+        baseProb = baseProb - infoPenalty
+    end
+
+    -- 估值膨胀惩罚：当 estimate 远超区域期望值时降低梭哈意愿
+    -- 红色等高方差品质物品可能导致 estimate 被极度拉高，
+    -- 但大多数仓库（75%概率 junk/poor/normal）实际价值远低于估值
+    -- 如果 estimate > 2× expectedValue，说明 AI 可能过度乐观
+    local ev = opts.expectedValue or 0
+    if ev > 0 and estimate > ev * 2.0 then
+        -- ratio=2.0 → penalty 0.0;  ratio=3.0 → penalty -0.15
+        -- ratio=4.0 → penalty -0.30; ratio=5.0+ → penalty -0.45
+        local ratio = estimate / ev
+        local inflationPenalty = math.min(0.45, (ratio - 2.0) * 0.15)
+        baseProb = baseProb - inflationPenalty
+    end
+
     baseProb = math.max(0.0, math.min(1.0, baseProb))
     return math.random() < baseProb
 end
@@ -599,6 +625,8 @@ local function baseCompeteBid(estimate, player, round, expectedValue, playerIdx,
         local allIn = shouldAllIn(round, multiplier, compositePrice, estimate, minWinBid, player, {
             style = opts.allInStyle or p.style,
             money = player.money,
+            analysis = analysis,
+            expectedValue = expectedValue,
         })
 
         if allIn then

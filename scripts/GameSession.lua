@@ -636,7 +636,7 @@ function GameSession.HandleUpdate(dt)
     end
 
     SafeCall("TiebreakPanel.Update", TiebreakPanel.Update, dt)
-    SafeCall("DebugPanel.HandleUpdate", DebugPanel.HandleUpdate)
+    -- DebugPanel.HandleUpdate 已由 GameLoop.RegisterAlways 统一驱动
     SafeCall("Utils.UpdateMessageTimer", Utils.UpdateMessageTimer, dt)
 
     if LootPanel.IsHitAreasDirty() then

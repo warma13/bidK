@@ -118,6 +118,7 @@ local function loadPool(warehouseTypeId)
                     rarity   = item.quality or "white",
                     category = cat.id,
                     value    = item.value or 0,
+                    weight   = item.weight or 1,  -- 出现权重（权重越高越常见）
                 }
             end
         end
@@ -135,43 +136,60 @@ end
 function EstimateValue.Init(warehouseTypeId)
     local pool = loadPool(warehouseTypeId)
 
-    -- 计算池平均值
-    local totalValue = 0
-    for _, item in ipairs(pool) do
-        totalValue = totalValue + item.value
-    end
-    poolAvg = #pool > 0 and (totalValue / #pool) or 1
+    -- ===== 使用出现权重(weight)加权平均 =====
+    -- 物品池中每个物品有 weight 字段，表示出现概率权重
+    -- 例如：汉代陶俑(red, weight=500, value=5万) 比 阿波罗导航计算机(red, weight=1, value=1364万)
+    -- 出现概率高 500 倍。AI 估计"随机红色物品值多少"应按此权重加权。
 
-    -- 按稀有度分组求平均
-    local raritySum = {}
-    local rarityCount = {}
+    -- 计算池加权平均值
+    local totalWeightedValue = 0
+    local totalWeight = 0
+    for _, item in ipairs(pool) do
+        totalWeightedValue = totalWeightedValue + item.value * item.weight
+        totalWeight = totalWeight + item.weight
+    end
+    poolAvg = totalWeight > 0 and (totalWeightedValue / totalWeight) or 1
+
+    -- 按稀有度分组，计算加权平均
+    local rarityWeightedSum = {}   -- [rarity] = sum(value * weight)
+    local rarityTotalWeight = {}   -- [rarity] = sum(weight)
+    local rarityUnweightedSum = {} -- [rarity] = sum(value)  (仅用于日志对比)
+    local rarityItemCount = {}     -- [rarity] = count
     for _, item in ipairs(pool) do
         local r = item.rarity
-        raritySum[r] = (raritySum[r] or 0) + item.value
-        rarityCount[r] = (rarityCount[r] or 0) + 1
+        rarityWeightedSum[r] = (rarityWeightedSum[r] or 0) + item.value * item.weight
+        rarityTotalWeight[r] = (rarityTotalWeight[r] or 0) + item.weight
+        rarityUnweightedSum[r] = (rarityUnweightedSum[r] or 0) + item.value
+        rarityItemCount[r] = (rarityItemCount[r] or 0) + 1
     end
 
     rarityRelative = {}
     rarityAvgValue = {}
-    for r, sum in pairs(raritySum) do
-        local avg = sum / rarityCount[r]
-        rarityRelative[r] = avg / poolAvg
-        rarityAvgValue[r] = avg  -- 该稀有度物品在本仓库池中的真实均价
+    for r, wSum in pairs(rarityWeightedSum) do
+        local wAvg = wSum / rarityTotalWeight[r]                       -- 加权平均（按出现概率）
+        local uAvg = rarityUnweightedSum[r] / rarityItemCount[r]       -- 无权重平均（仅日志）
+        rarityRelative[r] = wAvg / poolAvg
+        rarityAvgValue[r] = wAvg
+        -- 日志：显示加权 vs 无权重的差异，方便调试
+        if math.abs(wAvg - uAvg) / math.max(uAvg, 1) > 0.3 then
+            print(string.format("[EstimateValue]   rarity %s WEIGHTED avg=%.0f vs UNWEIGHTED avg=%.0f (%.0f%% diff, %d items)",
+                r, wAvg, uAvg, (wAvg - uAvg) / uAvg * 100, rarityItemCount[r]))
+        end
     end
 
-    -- 按类别分组求平均
-    local catSum = {}
-    local catCount = {}
+    -- 按类别分组，计算加权平均
+    local catWeightedSum = {}
+    local catTotalWeight = {}
     for _, item in ipairs(pool) do
         local c = item.category
-        catSum[c] = (catSum[c] or 0) + item.value
-        catCount[c] = (catCount[c] or 0) + 1
+        catWeightedSum[c] = (catWeightedSum[c] or 0) + item.value * item.weight
+        catTotalWeight[c] = (catTotalWeight[c] or 0) + item.weight
     end
 
     categoryRelative = {}
-    for c, sum in pairs(catSum) do
-        local avg = sum / catCount[c]
-        categoryRelative[c] = avg / poolAvg
+    for c, wSum in pairs(catWeightedSum) do
+        local wAvg = wSum / catTotalWeight[c]
+        categoryRelative[c] = wAvg / poolAvg
     end
 
     initialized = true

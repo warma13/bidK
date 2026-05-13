@@ -69,13 +69,28 @@ local function buildTables(whTypeId)
         end
     end
 
-    -- 权重：优先 whCfg.categoryWeights，其次 ItemPool 默认权重，最后为 1
+    -- 权重：与 WarehouseGenerator.getPool() 保持一致
+    -- 当 whCfg.categoryWeights 存在时，不在其中的品类权重为 0（不会出现在仓库中）
+    -- 否则使用 ItemPool 默认权重
     local categoryWeights = {}
     for _, cat in ipairs(allCategories) do
-        categoryWeights[cat.id] = (whCfg.categoryWeights and whCfg.categoryWeights[cat.id])
-                                   or itemPoolMod.categoryWeights[cat.id]
-                                   or 1
+        local cw
+        if whCfg.categoryWeights then
+            cw = whCfg.categoryWeights[cat.id] or 0
+        else
+            cw = itemPoolMod.categoryWeights[cat.id] or 1
+        end
+        categoryWeights[cat.id] = cw
     end
+
+    -- 过滤掉权重为 0 的品类（与 WarehouseGenerator 一致：这些品类不会出现在仓库中）
+    local filteredCategories = {}
+    for _, cat in ipairs(allCategories) do
+        if categoryWeights[cat.id] > 0 then
+            filteredCategories[#filteredCategories + 1] = cat
+        end
+    end
+    allCategories = filteredCategories
 
     -- === min 查找表（用于最低估价） ===
     local qualityMinValue = {}       -- { [quality] = minValue }

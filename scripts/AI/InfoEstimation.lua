@@ -94,6 +94,7 @@ local RARITY_WEIGHT = {
     blue   = 3.5,
     purple = 5.0,
     gold   = 8.0,
+    red    = 12.0,
 }
 local EXPECTED_AVG_RARITY = 2.0  -- 物品池大致的平均品质权重
 

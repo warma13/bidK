@@ -10,6 +10,7 @@ local AuctionEngine = require("AuctionEngine")
 local SaveSystem = require("SaveSystem")
 local SaveFramework = require("SaveFramework")
 local MoneyHUD = require("UI.MoneyHUD")
+local SettingsPanel = require("UI.SettingsPanel")
 local Utils = require("UI.Utils")
 
 local DebugPanel = {}
@@ -298,6 +299,45 @@ function DebugPanel.CreateDebugPanel()
     children[#children + 1] = UI.Panel {
         width = "100%", height = 1, backgroundColor = { 80, 90, 120, 120 }
     }
+
+    -- ---- 版本检测调试区 ----
+    local versionInfoLabel = UI.Label {
+        id = "debugVersionInfo",
+        text = "", fontSize = 10,
+        fontColor = { 160, 170, 200, 255 },
+        width = "100%",
+    }
+    labels["_versionInfo"] = {
+        label = versionInfoLabel,
+        get = function()
+            local info = SettingsPanel.DebugGetVersionInfo()
+            local status = info.hasNewVersion and "有新版本" or "已是最新"
+            local lastCheck = info.lastCheckTime > 0
+                and os.date("%H:%M:%S", info.lastCheckTime) or "未检测"
+            return string.format(
+                "本地: v%s (%d) | %s\n上次: %s | 定时: %s",
+                info.localVersion, info.localEncoded, status,
+                lastCheck, info.timerRunning and "开" or "关"
+            )
+        end,
+    }
+    children[#children + 1] = UI.Label {
+        text = "版本检测", fontSize = 11,
+        fontColor = { 255, 200, 80, 200 },
+    }
+    children[#children + 1] = versionInfoLabel
+    children[#children + 1] = UI.Button {
+        text = "手动检测版本", width = "100%", height = 28, fontSize = 11,
+        onClick = function()
+            Utils.PlayClick()
+            SettingsPanel.DebugDoVersionCheck()
+            Utils.ShowMessage("[Debug] 已触发版本检测")
+        end,
+    }
+
+    children[#children + 1] = UI.Panel {
+        width = "100%", height = 1, backgroundColor = { 80, 90, 120, 120 }
+    }
     children[#children + 1] = UI.Button {
         text = "保存", width = "100%", height = 28, fontSize = 11,
         variant = "primary",
@@ -311,7 +351,7 @@ function DebugPanel.CreateDebugPanel()
     debugPanel = UI.Panel {
         position = "absolute",
         left = "50%", top = "50%",
-        marginLeft = -130, marginTop = -200,
+        marginLeft = -130, marginTop = -250,
         width = 260,
         backgroundColor = { 12, 15, 26, 240 },
         borderRadius = 4,
