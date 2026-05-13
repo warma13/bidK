@@ -21,8 +21,7 @@ local C = Config.COLORS
 -- ============================================================================
 
 local VERSION_REWARDS = {
-    { version = "1.0.8", coins = 625000, label = "v1.0.8 更新奖励" },
-    { version = "1.0.27", coins = 25000000, label = "v1.0.27 更新奖励" },
+    { version = "1.1.12", coins = 2000000, label = "v1.1.12 更新奖励" },
 }
 
 -- 云端键名前缀：ver_reward_1_0_7 = 1 表示已领取
@@ -158,19 +157,32 @@ end
 -- ============================================================================
 
 function VersionRewardPanel.CreateButton()
+    local sz = Utils.sz
+    -- 重置弹窗状态，防止跨界面残留
+    popupVisible = false
+
     btnBadge = UI.Panel {
         position = "absolute",
         right = -3, top = -3,
-        width = 8, height = 8,
-        borderRadius = 4,
+        width = sz(10), height = sz(10),
+        borderRadius = sz(5),
         backgroundColor = { 255, 60, 60, 255 },
         visible = false,
+        pointerEvents = "none",
     }
 
+    -- 云端已加载时立即刷新红点状态
+    if cloudLoaded then
+        btnBadge:SetVisible(HasUnclaimedRewards())
+    end
+
     return UI.Panel {
+        height = sz(38),
         backgroundColor = { 0, 0, 0, 120 },
         borderRadius = 0,
-        paddingHorizontal = 10, paddingVertical = 5,
+        paddingHorizontal = sz(14),
+        flexDirection = "row",
+        alignItems = "center",
         cursor = "pointer",
         onClick = function()
             Utils.PlayClick()
@@ -183,7 +195,8 @@ function VersionRewardPanel.CreateButton()
         children = {
             UI.Label {
                 text = "版本奖励",
-                fontSize = 11, fontColor = { 200, 205, 220, 220 },
+                fontSize = sz(15), fontColor = { 200, 205, 220, 220 },
+                pointerEvents = "none",
             },
             btnBadge,
         },

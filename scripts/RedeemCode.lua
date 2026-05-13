@@ -117,6 +117,29 @@ function RedeemCode.Verify(code, currentUserId)
 end
 
 -- ============================================================================
+-- 全服通用兑换码（每人限用一次，serial 32-63 保留给通用码）
+-- ============================================================================
+
+-- 通用码表：code → { amount, serial }
+-- serial 从 32 开始，与用户码（0-31）互不冲突
+local UNIVERSAL_CODES = {
+    ["AUCTION-2M-GIFT"] = { amount = 2000000, serial = 32 },
+}
+
+--- 验证全服通用码
+---@param code string 兑换码字符串
+---@return table|nil result { amount, serial, universal=true }
+---@return string|nil error 错误码: "not_universal"
+function RedeemCode.VerifyUniversal(code)
+    code = code:gsub("%s+", ""):upper()
+    local entry = UNIVERSAL_CODES[code]
+    if not entry then
+        return nil, "not_universal"
+    end
+    return { amount = entry.amount, serial = entry.serial, universal = true }
+end
+
+-- ============================================================================
 -- 云端已兑换记录（位掩码，最多 64 个序号）
 -- ============================================================================
 

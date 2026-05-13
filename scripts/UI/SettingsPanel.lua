@@ -129,17 +129,20 @@ local function DoRedeem()
         return
     end
 
-    -- 验证兑换码
-    local result, err = RedeemCode.Verify(code, userId)
+    -- 验证兑换码：先尝试全服通用码，再尝试用户码
+    local result, err = RedeemCode.VerifyUniversal(code)
     if not result then
-        if err == "invalid_format" then
-            SetRedeemStatus("兑换码格式错误", C.danger)
-        elseif err == "wrong_user" then
-            SetRedeemStatus("该兑换码不属于当前账号", C.danger)
-        else
-            SetRedeemStatus("无效的兑换码", C.danger)
+        result, err = RedeemCode.Verify(code, userId)
+        if not result then
+            if err == "invalid_format" then
+                SetRedeemStatus("兑换码格式错误", C.danger)
+            elseif err == "wrong_user" then
+                SetRedeemStatus("该兑换码不属于当前账号", C.danger)
+            else
+                SetRedeemStatus("无效的兑换码", C.danger)
+            end
+            return
         end
-        return
     end
 
     -- 检查是否已兑换

@@ -16,7 +16,7 @@ local Config = {}
 
 Config.GAME = {
     Title = "拍卖之王",
-    Version = "1.1.11",
+    Version = "1.1.12",
     MaxPlayers = 4,
     WarehouseColumns = 30,      -- 玩家仓库格子列数
     WarehouseMaxRows = 21,      -- 玩家仓库格子最大行数（满级 5+4*4=21）

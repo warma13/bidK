@@ -13,6 +13,7 @@ local SettingsPanel = require("UI.SettingsPanel")
 local AdCardPanel = require("UI.AdCardPanel")
 local OnlineRewardPanel = require("UI.OnlineRewardPanel")
 local StatsPanel = require("UI.StatsPanel")
+local VersionRewardPanel = require("UI.VersionRewardPanel")
 
 local MenuScreen = {}
 
@@ -297,6 +298,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback)
                     AdCardPanel.CreateButton(),
                     OnlineRewardPanel.CreateButton(),
                     announcementBtn,
+                    VersionRewardPanel.CreateButton(),
                 },
             },
             SettingsPanel.CreatePopup(),
@@ -305,6 +307,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback)
             AdCardPanel.CreatePopup(),
             OnlineRewardPanel.CreatePopup(),
             announcementPopup,
+            VersionRewardPanel.CreatePopup(),
         }
     }
     UI.SetRoot(UI.SafeAreaView {
