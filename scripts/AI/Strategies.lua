@@ -558,9 +558,14 @@ local function baseCompeteBid(estimate, player, round, expectedValue, playerIdx,
     local effectiveEstimate = estimate * bidScale
 
     -- ========== 第一阶段：底价 ==========
-    -- 底价基于 effectiveEstimate（已按倍率缩放），而非原始 estimate
-    local floorRatio = opts.floorRatio or 0.50
-    local floor = effectiveEstimate * floorRatio
+    -- 底价基于原始 estimate，按倍率动态调整底价比例：
+    -- 倍率高（×2.0）→ floorRatio 低（~0.30），赢家要付双倍不值得硬拼
+    -- 倍率低（×1.01）→ floorRatio 高（~0.80），几乎原价成交，底价贴近估值
+    -- bidScale 接近1时 floorRatio 接近0.80；bidScale 接近0.33时 floorRatio 接近0.40
+    -- 低倍率轮次（sealed bid）底价贴近估值；高倍率轮次保持低底价
+    local floorRatio = opts.floorRatio or (0.40 + bidScale * 0.40)  -- range: [0.40, 0.80]
+    -- 底价不能超过 effectiveEstimate（有效估值上限）
+    local floor = math.min(estimate * floorRatio, effectiveEstimate * 0.95)
 
     -- 竞争自适应底价：对手少时底价可以更低（更有可能低价捡漏）
     if opponentInfo.activeCount <= 1 and round >= 3 then

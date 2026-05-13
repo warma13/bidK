@@ -4,6 +4,12 @@
 --   "min"      : 最低估价（保守，用于出价上限保护）
 --   "expected" : 期望估价（中性，用于仓库质量判断）
 -- 动态加载当前仓库类型对应的物品池，按品类权重计算池均价
+--
+-- 【重要提示：与 warehouseValue 的关系】
+-- WarehouseGenerator 的分层设计中，warehouseValue 是"高点"（约 80-87 分位），
+-- 大多数仓库实际价值约为 warehouseValue 的 0.66× 左右（加权均值）。
+-- 因此本模块的 CalculateExpected() 返回的期望估价通常会低于 warehouseValue，
+-- 这是符合设计预期的——AI 估价反映物品条件期望，不以 warehouseValue 为锚点。
 -- ============================================================================
 
 local Config = require("Config")
@@ -24,77 +30,52 @@ function EstimateValue.InjectDeps(gameState)
 end
 
 -- ============================================================================
--- 仓库类型 → 物品配置模块映射（与 WarehouseGenerator 保持一致）
--- ============================================================================
-
-local warehouseModules = {
-    grocery    = "Config.Warehouses.ItemPool",
-    techpark   = "Config.Warehouses.TechPark",
-    datacenter = { "Config.Warehouses.DataCenter", "Config.Warehouses.ItemPool" },
-    quantumlab = { "Config.Warehouses.QuantumLab", "Config.Warehouses.ItemPool" },
-    bondedport = { "Config.Warehouses.BondedPort", "Config.Warehouses.ItemPool" },
-    shipwreck  = { "Config.Warehouses.Shipwreck", "Config.Warehouses.BondedPort", "Config.Warehouses.ItemPool" },
-}
-
--- ============================================================================
 -- 查找表缓存（按仓库类型缓存）
 -- ============================================================================
 
 --- 缓存结构: tableCache[whTypeId] = { min = {...}, avg = {...}, poolAvg = number }
 local tableCache = {}
 
---- 加载并合并多个模块的品类和权重（与 WarehouseGenerator 逻辑一致）
---- 多模块时：先加载的模块品类优先（去重 by id），categoryWeights 取并集（先出现的优先）
----@param moduleSpec string|table 模块名或模块名数组
----@return table mergedCategories 合并后的品类列表
----@return table mergedWeights 合并后的品类权重
-local function loadAndMergeModules(moduleSpec)
-    local modules = type(moduleSpec) == "table" and moduleSpec or { moduleSpec }
-    local mergedCategories = {}
-    local mergedWeights = {}
-    local seenCatIds = {}
-
-    for _, modName in ipairs(modules) do
-        local mod = require(modName)
-
-        -- 合并品类权重（先出现的优先）
-        if mod.categoryWeights then
-            for catId, w in pairs(mod.categoryWeights) do
-                if not mergedWeights[catId] then
-                    mergedWeights[catId] = w
-                end
-            end
-        end
-
-        -- 合并品类列表（去重 by id）
-        if mod.categories then
-            for _, cat in ipairs(mod.categories) do
-                if not seenCatIds[cat.id] then
-                    seenCatIds[cat.id] = true
-                    mergedCategories[#mergedCategories + 1] = cat
-                end
-            end
-        end
-    end
-
-    return mergedCategories, mergedWeights
-end
-
 --- 构建指定仓库类型的 min 和 avg 查找表
+--- 直接从 Config.WAREHOUSE_TYPES[whTypeId] 读取 categoryWeights + allowedCategories
 ---@param whTypeId string 仓库类型ID
 ---@return table tables { min, avg, poolAvg }
 local function buildTables(whTypeId)
     if tableCache[whTypeId] then return tableCache[whTypeId] end
 
-    local moduleSpec = warehouseModules[whTypeId]
-    if not moduleSpec then
-        -- fallback 到 grocery
-        moduleSpec = warehouseModules["grocery"]
-        whTypeId = "grocery"
+    -- 从 Config.WAREHOUSE_TYPES 获取仓库配置，fallback 到 suburb_basement
+    local whCfg = Config.WAREHOUSE_TYPES[whTypeId]
+    if not whCfg then
+        whTypeId = "suburb_basement"
         if tableCache[whTypeId] then return tableCache[whTypeId] end
+        whCfg = Config.WAREHOUSE_TYPES[whTypeId] or {}
     end
 
-    local allCategories, categoryWeights = loadAndMergeModules(moduleSpec)
+    -- 解析 allowedCategories
+    local allowed = nil
+    if whCfg.allowedCategories then
+        allowed = {}
+        for _, catId in ipairs(whCfg.allowedCategories) do
+            allowed[catId] = true
+        end
+    end
+
+    -- 从 ItemPool 获取所有品类，按 allowedCategories 过滤
+    local itemPoolMod = require("Config.Warehouses.ItemPool")
+    local allCategories = {}
+    for _, cat in ipairs(itemPoolMod.categories) do
+        if not allowed or allowed[cat.id] then
+            allCategories[#allCategories + 1] = cat
+        end
+    end
+
+    -- 权重：优先 whCfg.categoryWeights，其次 ItemPool 默认权重，最后为 1
+    local categoryWeights = {}
+    for _, cat in ipairs(allCategories) do
+        categoryWeights[cat.id] = (whCfg.categoryWeights and whCfg.categoryWeights[cat.id])
+                                   or itemPoolMod.categoryWeights[cat.id]
+                                   or 1
+    end
 
     -- === min 查找表（用于最低估价） ===
     local qualityMinValue = {}       -- { [quality] = minValue }
@@ -208,6 +189,41 @@ local function buildTables(whTypeId)
         poolMedian = weightedValues[mid]
     end
 
+    -- 池几何均价（poolAvg 与 poolMedian 的几何平均）
+    -- 物品价值分布通常为极端右偏（白色 100 到红色 2800万），
+    -- 算术均值被高价物品严重拉高，中位数被大量廉价物品严重拉低；
+    -- 几何均价（sqrt(avg × median)）是更合理的单件价值估计
+    local poolGeoMean = 0
+    if poolAvg > 0 and poolMedian > 0 then
+        poolGeoMean = math.sqrt(poolAvg * poolMedian)
+    else
+        poolGeoMean = math.max(poolAvg, poolMedian)
+    end
+
+    -- 每格最低价密度：池内所有物品中 value/cells 的最小值（白色最低价 / 最大格子数 的保守估计）
+    -- 用途：totalCells × minValuePerCell = 整个仓库的绝对最低价下界
+    local minValuePerCell = math.huge
+    for _, cat in ipairs(allCategories) do
+        for _, item in ipairs(cat.items) do
+            local cells = (item.cols or 1) * (item.rows or 1)
+            if cells > 0 then
+                local density = item.value / cells
+                if density < minValuePerCell then
+                    minValuePerCell = density
+                end
+            end
+        end
+    end
+    if minValuePerCell == math.huge then minValuePerCell = 0 end
+
+    -- 每格品质最低价密度：{ [rarityId] = minValue/cell }
+    local qualityMinValuePerCell = {}
+    for q, minV in pairs(qualityMinValue) do
+        -- 对应品质下 1×1 物品的最低价（保守取 qualityMinValue / 1）
+        -- 实际上用品质 × 尺寸最小密度更准确，但 qualityMinValue 本身已是最保守的
+        qualityMinValuePerCell[q] = minV  -- 1×1 时每格就等于最低价
+    end
+
     local tables = {
         min = {
             qualityMinValue = qualityMinValue,
@@ -221,6 +237,9 @@ local function buildTables(whTypeId)
         },
         poolAvg = poolAvg,
         poolMedian = poolMedian,
+        poolGeoMean = poolGeoMean,
+        minValuePerCell = minValuePerCell,
+        qualityMinValuePerCell = qualityMinValuePerCell,
     }
     tableCache[whTypeId] = tables
     return tables
@@ -254,9 +273,10 @@ local function getExpectedValue(tables, level, item)
     local q = item.rarity
     local sk = item.w .. "x" .. item.h
 
-    -- 对于未完全揭示的物品，使用 poolMedian（加权中位数）替代 poolAvg（算术平均）
-    -- 因为物品池呈极端右偏分布（白色10-60, 红色8M-28M），算术平均被极端值拉高约20倍
-    local fallback = tables.poolMedian
+    -- 对于未完全揭示的物品，使用 poolGeoMean（几何均价）作为 fallback
+    -- poolMedian 被大量廉价物品拉低，poolAvg 被少量极高价物品拉高；
+    -- 几何均价 sqrt(poolAvg × poolMedian) 取两者均衡，更接近实际每件物品的期望贡献
+    local fallback = tables.poolGeoMean
 
     if level >= 2 then
         -- L2：已知品质（通常也知道品类）
@@ -338,6 +358,88 @@ local function collectValueHintLow(publicInfos, skillInfos)
     return bestLow
 end
 
+--- 收集 total_cells / avg_cells_per_item 信息：返回 { totalCells, totalCount } 或 nil
+--- 优先选格子数最多的（信息最充分），多轮信息取 totalCells 最大值
+local function collectTotalCellsInfo(publicInfos, skillInfos)
+    local bestTotalCells = nil
+    local bestTotalCount = nil
+
+    local function check(info)
+        if info.type == "total_cells" and info.totalCells and info.totalCount then
+            if not bestTotalCells or info.totalCells > bestTotalCells then
+                bestTotalCells = info.totalCells
+                bestTotalCount = info.totalCount
+            end
+        end
+        if info.type == "avg_cells_per_item" and info.avgCellsPerItem and info.totalCount then
+            -- avg × count = totalCells 的另一种来源
+            local tc = math.floor(info.avgCellsPerItem * info.totalCount + 0.5)
+            if not bestTotalCells or tc > bestTotalCells then
+                bestTotalCells = tc
+                bestTotalCount = info.totalCount
+            end
+        end
+    end
+
+    for _, info in ipairs(publicInfos) do check(info) end
+    for _, info in ipairs(skillInfos) do
+        check(info)
+        if info.extraInfos then
+            for _, extra in ipairs(info.extraInfos) do check(extra) end
+        end
+    end
+
+    if bestTotalCells and bestTotalCount then
+        return { totalCells = bestTotalCells, totalCount = bestTotalCount }
+    end
+    return nil
+end
+
+--- 收集 random_avg_value 信息：返回仓库质量比值（sampleAvgValue / poolGeoMean），或 nil
+--- 比值 > 1 = 好仓（样品均价高于池几何均价），比值 < 1 = 坏仓
+--- 用于调整未知物品的期望估价方向，不用作绝对下限
+local function collectSampleQualityRatio(publicInfos, skillInfos, poolGeoMean)
+    if not poolGeoMean or poolGeoMean <= 0 then return nil end
+    local bestSampleAvg = nil
+    local function check(info)
+        if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 then
+            if not bestSampleAvg or info.sampleAvgValue > bestSampleAvg then
+                bestSampleAvg = info.sampleAvgValue
+            end
+        end
+    end
+    for _, info in ipairs(publicInfos) do check(info) end
+    for _, info in ipairs(skillInfos) do
+        check(info)
+        if info.extraInfos then
+            for _, extra in ipairs(info.extraInfos) do check(extra) end
+        end
+    end
+    if not bestSampleAvg then return nil end
+    return bestSampleAvg / poolGeoMean
+end
+
+--- 收集 L0V 技能信息中的已知批次总价值约束
+--- 返回 [{ totalValue, itemIdxs }] 列表
+local function collectKnownLotValues(skillInfos)
+    local lots = {}
+    local function extract(info)
+        if info.knownTotalValue and info.coveredItemIdxs and #info.coveredItemIdxs > 0 then
+            lots[#lots + 1] = {
+                totalValue = info.knownTotalValue,
+                itemIdxs   = info.coveredItemIdxs,
+            }
+        end
+    end
+    for _, info in ipairs(skillInfos) do
+        extract(info)
+        if info.extraInfos then
+            for _, extra in ipairs(info.extraInfos) do extract(extra) end
+        end
+    end
+    return lots
+end
+
 -- ============================================================================
 -- 核心算法：最低估价 (min 模式)
 -- ============================================================================
@@ -358,7 +460,7 @@ function EstimateValue.Calculate(infoState, whTypeId)
         return 0, 0, #items
     end
 
-    local tables = buildTables(whTypeId or "grocery")
+    local tables = buildTables(whTypeId or "suburb_basement")
 
     local publicInfos = infoState.publicInfos or {}
     local skillInfos = infoState.skillInfos or {}
@@ -382,17 +484,33 @@ function EstimateValue.Calculate(infoState, whTypeId)
 
     local knownCount = #fullyRevealed + #qualityRevealed
 
+    -- 追踪每件物品的当前最低估价（供 L0V 约束使用）
+    local perItemMin = {}  -- [item.idx] = 当前最低估价
+
     -- 累加已知物品的最低估价
     local totalMin = 0
 
     -- level 3：直接用真实价值
     for _, item in ipairs(fullyRevealed) do
-        totalMin = totalMin + (item.realValue or 0)
+        local v = item.realValue or 0
+        totalMin = totalMin + v
+        perItemMin[item.idx] = v
     end
 
     -- level 2：用该品质+尺寸在物品池中的最低价
     for _, item in ipairs(qualityRevealed) do
-        totalMin = totalMin + getMinValue(tables, item.rarity, item.w, item.h)
+        local v = getMinValue(tables, item.rarity, item.w, item.h)
+        totalMin = totalMin + v
+        perItemMin[item.idx] = v
+    end
+
+    -- 仓库质量信号：用于调整 L0/L1 未知物品估值
+    -- min 模式：仅在坏仓（ratio < 1）时向下收紧，好仓保持保守不动
+    local qualityRatio = collectSampleQualityRatio(publicInfos, skillInfos, tables.poolGeoMean)
+    local unknownMult = 1.0
+    if qualityRatio and qualityRatio < 1.0 then
+        -- 阻尼：取平方根，防止小样本极端偏低拖垮整体
+        unknownMult = math.sqrt(qualityRatio)
     end
 
     -- 处理未知物品（通过品质名额约束）
@@ -431,6 +549,7 @@ function EstimateValue.Calculate(infoState, whTypeId)
                 local wc = getMinValue(tables, "white", item.w, item.h)
                 itemWhiteCost[i] = wc
                 whiteBase = whiteBase + wc
+                perItemMin[item.idx] = wc  -- 初始按 white 记录
             end
 
             local quotasByRarity = {}
@@ -445,26 +564,56 @@ function EstimateValue.Calculate(infoState, whTypeId)
                     if not assigned[i] then
                         local rarCost = getMinValue(tables, rarId, item.w, item.h)
                         local delta = rarCost - itemWhiteCost[i]
-                        candidates[#candidates + 1] = { idx = i, delta = delta }
+                        candidates[#candidates + 1] = { idx = i, item = item, delta = delta, rarCost = rarCost }
                     end
                 end
                 table.sort(candidates, function(a, b) return a.delta < b.delta end)
                 local take = math.min(count, #candidates)
                 for j = 1, take do
-                    assigned[candidates[j].idx] = true
-                    whiteBase = whiteBase + candidates[j].delta
+                    local c = candidates[j]
+                    assigned[c.idx] = true
+                    whiteBase = whiteBase + c.delta
+                    perItemMin[c.item.idx] = c.rarCost  -- 更新为分配到的稀有度最低价
                 end
             end
 
-            totalMin = totalMin + whiteBase
+            -- 坏仓信号：对未知物品整体向下收紧（min 模式仅在 ratio<1 时生效）
+            totalMin = totalMin + whiteBase * unknownMult
         else
             for _, item in ipairs(unknownItems) do
-                totalMin = totalMin + getMinValue(tables, "white", item.w, item.h)
+                local v = getMinValue(tables, "white", item.w, item.h) * unknownMult
+                totalMin = totalMin + v
+                perItemMin[item.idx] = v
             end
         end
     else
         for _, item in ipairs(unknownItems) do
-            totalMin = totalMin + getMinValue(tables, "white", item.w, item.h)
+            local v = getMinValue(tables, "white", item.w, item.h) * unknownMult
+            totalMin = totalMin + v
+            perItemMin[item.idx] = v
+        end
+    end
+
+    -- L0V 约束：已知批次总价值作为下界
+    -- 若某技能揭示"白绿蓝共X件总价Y"，则这些物品的最低估价之和至少为 Y
+    local knownLots = collectKnownLotValues(skillInfos)
+    for _, lot in ipairs(knownLots) do
+        local lotCurrentSum = 0
+        for _, idx in ipairs(lot.itemIdxs) do
+            lotCurrentSum = lotCurrentSum + (perItemMin[idx] or 0)
+        end
+        if lotCurrentSum < lot.totalValue then
+            totalMin = totalMin + (lot.totalValue - lotCurrentSum)
+        end
+    end
+
+    -- totalCells 约束：总格子数 × 每格最低价密度 = 绝对最低价下界
+    -- "总格数乘以价值最低价，那不就是最低价吗"
+    local cellsInfo = collectTotalCellsInfo(publicInfos, skillInfos)
+    if cellsInfo then
+        local cellsFloor = cellsInfo.totalCells * tables.minValuePerCell
+        if cellsFloor > totalMin then
+            totalMin = cellsFloor
         end
     end
 
@@ -490,19 +639,36 @@ function EstimateValue.CalculateExpected(infoState, whTypeId)
         return 0, 0, 0, 0
     end
 
-    local tables = buildTables(whTypeId or "grocery")
+    local tables = buildTables(whTypeId or "suburb_basement")
 
     if not infoState then
-        -- 无信息状态，全部按池加权中位数
-        return tables.poolMedian * #items, tables.poolAvg, #items, tables.poolMedian
+        -- 无信息状态，全部按几何均价估算（比中位数更准确的 L0 估计）
+        return tables.poolGeoMean * #items, tables.poolAvg, #items, tables.poolMedian
     end
 
     local revealLevels = infoState.itemRevealLevels or {}
+    local publicInfos = infoState.publicInfos or {}
+    local skillInfos  = infoState.skillInfos  or {}
+
+    -- 仓库质量信号：好仓/坏仓调整 L0/L1 未知物品的期望估价
+    -- expected 模式双向生效（阻尼平方根），L2/L3 已有具体信息不受影响
+    local qualityRatio = collectSampleQualityRatio(publicInfos, skillInfos, tables.poolGeoMean)
+    local dampedMult = 1.0
+    if qualityRatio then
+        dampedMult = math.sqrt(qualityRatio)
+        -- 限制范围，防止极端样本歪曲整体
+        dampedMult = math.max(0.5, math.min(2.0, dampedMult))
+    end
 
     local expectedTotal = 0
     for _, item in ipairs(items) do
         local level = revealLevels[item.idx] or 0
-        expectedTotal = expectedTotal + getExpectedValue(tables, level, item)
+        local est = getExpectedValue(tables, level, item)
+        -- L0/L1 物品尚无品质/精确信息，按仓库质量信号调整
+        if level < 2 then
+            est = est * dampedMult
+        end
+        expectedTotal = expectedTotal + est
     end
 
     return expectedTotal, tables.poolAvg, #items, tables.poolMedian
@@ -516,7 +682,7 @@ end
 --- @param whTypeId string|nil 仓库类型ID
 --- @return number poolAvg
 function EstimateValue.GetPoolAverage(whTypeId)
-    local tables = buildTables(whTypeId or "grocery")
+    local tables = buildTables(whTypeId or "suburb_basement")
     return tables.poolAvg
 end
 
@@ -524,16 +690,18 @@ end
 --- @param whTypeId string|nil 仓库类型ID
 --- @return number poolMedian
 function EstimateValue.GetPoolMedian(whTypeId)
-    local tables = buildTables(whTypeId or "grocery")
+    local tables = buildTables(whTypeId or "suburb_basement")
     return tables.poolMedian
 end
 
---- 注册新的仓库类型模块映射（供外部扩展）
---- @param whTypeId string 仓库类型ID
---- @param moduleName string 模块路径
-function EstimateValue.RegisterWarehouseModule(whTypeId, moduleName)
-    warehouseModules[whTypeId] = moduleName
-    tableCache[whTypeId] = nil  -- 清除旧缓存
+--- 清除指定仓库类型的查找表缓存（供外部调用，一般不需要）
+--- @param whTypeId string|nil 仓库类型ID（nil=清除所有）
+function EstimateValue.ClearCache(whTypeId)
+    if whTypeId then
+        tableCache[whTypeId] = nil
+    else
+        tableCache = {}
+    end
 end
 
 return EstimateValue

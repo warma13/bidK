@@ -180,12 +180,12 @@ local function OnBidButtonClicked()
                 end
             end
 
-            -- 条件2：超过场次期望值的两倍
+            -- 条件2：超过场次入场门槛的两倍
             if not confirmReason then
-                local expectedValue = GS.GetExpectedValue()
-                if amount > expectedValue * 2 then
+                local assetReq = GS.GetAssetRequirement()
+                if assetReq > 0 and amount > assetReq * 2 then
                     confirmReason = "本次出价 " .. Utils.FormatMoney(amount)
-                        .. " 超过仓库期望价值（" .. Utils.FormatMoney(expectedValue) .. "）的两倍，确认出价吗？"
+                        .. " 超过本场门槛（" .. Utils.FormatMoney(assetReq) .. "）的两倍，确认出价吗？"
                 end
             end
 

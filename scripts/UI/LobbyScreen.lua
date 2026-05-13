@@ -15,7 +15,7 @@ local LobbyScreen = {}
 
 ---@param regionIdx number
 ---@param onBackCallback fun()
----@param onStartCallback fun(regionId: string, charIdx: number, diffIdx: number)
+---@param onStartCallback fun(regionId: string, charIdx: number, diffIdx: number, whTypeId: string)
 function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     UIState.currentScreen = "lobby"
     UIState.selectedRegionIdx = regionIdx
@@ -126,6 +126,16 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         fontColor = C.textSecondary, lineHeight = 1.3,
         whiteSpace = "normal", width = "100%", flexShrink = 1,
     }
+    -- 仓库指定门票显示（非神秘仓库时显示，用 SetVisible 控制）
+    local whTicketIcon = UI.Panel {
+        width = 16, height = 16,
+        backgroundFit = "contain",
+        flexShrink = 0, visible = false,
+    }
+    local whTicketLabel = UI.Label {
+        text = "", fontSize = 10,
+        fontColor = { 255, 200, 80, 255 }, flexShrink = 0, visible = false,
+    }
 
     -- =========================================================================
     -- 难度选择
@@ -155,6 +165,9 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         text = "", fontSize = 10,
         fontColor = { 255, 200, 80, 255 }, flexShrink = 0,
     }
+
+    -- 仓库选择状态（提前声明，供开始行动按钮闭包引用）
+    local selectedWhTypeIdx = 1
 
     -- 开始行动按钮（提前创建以便 refreshDiffSelection 更新文本）
     local startBtnRef = UI.Button {
@@ -194,8 +207,30 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                     return
                 end
             end
+            -- 检查仓库指定门票：非神秘仓库需要消耗一张区域指定券
+            if selectedWhTypeIdx ~= 1 and region.ticket then
+                if SaveSystem.GetTicketCount(region.ticket) <= 0 then
+                    local ticketConf = Config.TICKETS[region.ticket]
+                    local ticketName = (ticketConf and ticketConf.name) or "指定券"
+                    Utils.ShowMessage("需要持有「" .. ticketName .. "」才能指定仓库")
+                    print("[LobbyScreen] No warehouse ticket: " .. region.ticket)
+                    return
+                end
+            end
             if onStartCallback then
-                onStartCallback(region.id, selectedCharIdx, UIState.selectedDifficultyIdx)
+                -- 第1个位置（神秘仓库）→ 传 nil，由外部走轮盘抽选动画
+                -- 其他位置（指定仓库）→ 先消耗区域指定券，再直接传固定类型
+                local whTypeId
+                if selectedWhTypeIdx == 1 then
+                    whTypeId = nil  -- 交给 GameController.ShowMapSelection 触发轮盘
+                else
+                    -- 消耗一张区域指定券
+                    if region.ticket then
+                        SaveSystem.ConsumeTicket(region.ticket)
+                    end
+                    whTypeId = region.warehouseTypes[selectedWhTypeIdx]
+                end
+                onStartCallback(region.id, selectedCharIdx, UIState.selectedDifficultyIdx, whTypeId)
             end
         end,
     }
@@ -430,41 +465,154 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     end
 
     -- =========================================================================
-    -- 刷新仓库信息
+    -- 仓库选择状态
     -- =========================================================================
+    -- selectedWhTypeIdx 已在上方提前声明
+    ---@type Panel|nil
+    local lobbyRootRef = nil
+
+    -- 刷新仓库信息面板（名字 + 描述）
     local function refreshWarehouseInfo()
-        local typeNames = {}
-        for _, typeId in ipairs(region.warehouseTypes) do
-            local wt = Config.WAREHOUSE_TYPES[typeId]
-            if wt then typeNames[#typeNames + 1] = wt.name end
+        local typeId = region.warehouseTypes[selectedWhTypeIdx]
+        local wt = typeId and Config.WAREHOUSE_TYPES[typeId]
+        if wt then
+            warehouseNameLabel:SetText(wt.name or typeId)
+            warehouseDescLabel:SetText(wt.desc or region.desc or "")
+        else
+            warehouseNameLabel:SetText(region.name)
+            warehouseDescLabel:SetText(region.desc or "")
         end
-        warehouseNameLabel:SetText(table.concat(typeNames, " / "))
-        warehouseDescLabel:SetText(region.desc)
+
+        -- 仓库指定门票：神秘仓库（idx=1）免费；其他显示区域门票数量
+        local ticketId = region.ticket
+        if selectedWhTypeIdx == 1 or not ticketId then
+            -- 神秘仓库 / 无门票配置：隐藏
+            whTicketIcon:SetVisible(false)
+            whTicketLabel:SetVisible(false)
+        else
+            local ticketConf = Config.TICKETS[ticketId]
+            local count = SaveSystem.GetTicketCount(ticketId)
+            -- 更新图标
+            if ticketConf and ticketConf.icon then
+                whTicketIcon:SetStyle({ backgroundImage = ticketConf.icon })
+                whTicketIcon:SetVisible(true)
+            else
+                whTicketIcon:SetVisible(false)
+            end
+            -- 更新数量文字和颜色
+            local ticketName = (ticketConf and ticketConf.name) or "指定券"
+            whTicketLabel:SetText(ticketName .. " ×" .. count)
+            if count > 0 then
+                whTicketLabel:SetStyle({ fontColor = { 255, 200, 80, 255 } })
+            else
+                whTicketLabel:SetStyle({ fontColor = { 255, 100, 100, 255 } })
+            end
+            whTicketLabel:SetVisible(true)
+        end
     end
 
     -- =========================================================================
-    -- 底部：仓库类型图标
+    -- 底部：仓库类型图标（可点击切换）
     -- =========================================================================
-    local warehouseIcons = {}
-    for _, key in ipairs(region.warehouseTypes) do
+    -- whIconPanels[i] = { panel, nameLabel }  用于刷新高亮和名字显示
+    local whIconPanels = {}
+
+    local function refreshWhIcons()
+        for i, entry in ipairs(whIconPanels) do
+            local panel      = entry.panel
+            local nameLabel  = entry.nameLabel
+            local iconWidget = entry.iconWidget
+            if i == selectedWhTypeIdx then
+                -- 激活：黄绿背景 + 显示名字 + 图标变黑
+                panel:SetStyle({
+                    backgroundColor = { 180, 220, 80, 255 },
+                    paddingRight = 10,
+                })
+                nameLabel:SetVisible(true)
+                if iconWidget then
+                    iconWidget:SetStyle({ imageTint = { 0, 0, 0, 255 } })
+                end
+            else
+                -- 未激活：透明背景 + 隐藏名字 + 图标恢复白色
+                panel:SetStyle({
+                    backgroundColor = { 0, 0, 0, 0 },
+                    paddingRight = 0,
+                })
+                nameLabel:SetVisible(false)
+                if iconWidget then
+                    iconWidget:SetStyle({ imageTint = { 255, 255, 255, 255 } })
+                end
+            end
+        end
+    end
+
+    -- 构建图标列表（含分割线）
+    local warehouseIconItems = {}
+    for i, key in ipairs(region.warehouseTypes) do
         local wt = Config.WAREHOUSE_TYPES[key]
         if wt then
-            warehouseIcons[#warehouseIcons + 1] = UI.Panel {
-                height = 40,
-                paddingHorizontal = 8,
-                backgroundColor = { 60, 65, 90, 240 },
-                borderRadius = 0, borderWidth = 2,
-                borderColor = C.accent,
-                justifyContent = "center", alignItems = "center",
+            local nameLabel = UI.Label {
+                text = wt.name or key,
+                fontSize = 11, fontColor = { 20, 25, 10, 255 },
+                fontWeight = "bold",
                 flexShrink = 0,
-                children = {
-                    UI.Label {
-                        text = wt.name or key,
-                        fontSize = 10, fontColor = C.textPrimary,
-                        textAlign = "center",
-                    },
-                },
+                visible = false,  -- 默认隐藏，激活后显示
             }
+            -- icon 支持图片路径或 emoji 文字
+            local isImgIcon = wt.icon and wt.icon ~= "" and wt.icon:sub(1, 6) == "image/"
+            local iconWidget
+            if isImgIcon then
+                iconWidget = UI.Panel {
+                    width = 28, height = 28,
+                    backgroundImage = wt.icon,
+                    backgroundFit = "contain",
+                    imageTint = { 255, 255, 255, 255 },
+                    flexShrink = 0,
+                }
+            else
+                iconWidget = UI.Label {
+                    text = (wt.icon and wt.icon ~= "") and wt.icon or "🏚",
+                    fontSize = 20, textAlign = "center",
+                    flexShrink = 0,
+                }
+            end
+            local idx = i
+            local iconPanel = UI.Panel {
+                height = 44,
+                paddingLeft = 10, paddingRight = 0,
+                paddingVertical = 0,
+                backgroundColor = { 0, 0, 0, 0 },
+                borderRadius = 6,
+                flexDirection = "row",
+                justifyContent = "center", alignItems = "center",
+                gap = 6, flexShrink = 0,
+                cursor = "pointer",
+                onTap = function()
+                    Utils.PlayClick()
+                    selectedWhTypeIdx = idx
+                    -- 切换背景图
+                    local selKey = region.warehouseTypes[idx]
+                    local selWt = selKey and Config.WAREHOUSE_TYPES[selKey]
+                    local newBg = (selWt and selWt.bg and selWt.bg ~= "") and selWt.bg
+                                  or ((region.bg and region.bg ~= "") and region.bg or nil)
+                    if lobbyRootRef then
+                        lobbyRootRef:SetStyle({ backgroundImage = newBg })
+                    end
+                    refreshWarehouseInfo()
+                    refreshWhIcons()
+                end,
+                children = { iconWidget, nameLabel },
+            }
+            whIconPanels[i] = { panel = iconPanel, nameLabel = nameLabel, iconWidget = iconWidget }
+            warehouseIconItems[#warehouseIconItems + 1] = iconPanel
+
+            -- 除最后一项外，每个图标后加竖线分隔
+            if i < #region.warehouseTypes then
+                warehouseIconItems[#warehouseIconItems + 1] = UI.Panel {
+                    width = 1, height = 24, flexShrink = 0,
+                    backgroundColor = { 80, 85, 100, 160 },
+                }
+            end
         end
     end
 
@@ -541,6 +689,10 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                     warehouseNameLabel,
                     warehouseDescLabel,
                     UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 4,
+                        children = { whTicketIcon, whTicketLabel },
+                    },
+                    UI.Panel {
                         flexDirection = "row", justifyContent = "space-between",
                         children = {
                             UI.Label { text = "拍卖轮数", fontSize = 10, fontColor = C.textMuted },
@@ -563,7 +715,11 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     -- =========================================================================
     -- 主布局: column { topBar, contentRow, bottomBar }
     -- =========================================================================
-    local lobbyBg = (region.bg and region.bg ~= "") and region.bg or nil
+    -- 初始背景：优先第一个仓库类型的 bg，回退到 region.bg
+    local firstWhKey = region.warehouseTypes and region.warehouseTypes[1]
+    local firstWt = firstWhKey and Config.WAREHOUSE_TYPES[firstWhKey]
+    local lobbyBg = (firstWt and firstWt.bg and firstWt.bg ~= "") and firstWt.bg
+                    or ((region.bg and region.bg ~= "") and region.bg or nil)
     local lobbyRoot = UI.Panel {
         width = "100%", height = "100%",
         backgroundColor = C.bgDark,
@@ -624,25 +780,38 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                 justifyContent = "space-between",
                 paddingHorizontal = 12, paddingBottom = 8,
                 children = {
-                    -- 左侧：返回 + 仓库图标
+                    -- 左侧：返回按钮（独立在外） + 仓库图标栏
                     UI.Panel {
-                        height = 50,
                         flexDirection = "row", alignItems = "center",
-                        backgroundColor = { 0, 0, 0, 180 },
-                        borderRadius = 4, paddingHorizontal = 8,
-                        gap = 8, flexShrink = 0,
+                        gap = 8, flexShrink = 1,
                         children = {
+                            -- 返回按钮（独立，不在仓库容器内）
                             UI.Button {
                                 text = "←", fontSize = 18,
-                                width = 40, height = 40,
+                                width = 44, height = 44,
+                                flexShrink = 0,
                                 onClick = function()
                                     Utils.PlayClick()
                                     if onBackCallback then onBackCallback() end
                                 end,
                             },
-                            UI.Panel {
-                                flexDirection = "row", gap = 4, alignItems = "center",
-                                children = warehouseIcons,
+                            -- 仓库图标栏（圆角容器，自适应宽度，可横向滚动）
+                            UI.ScrollView {
+                                flexShrink = 1,
+                                height = 52,
+                                scrollX = true, scrollY = false,
+                                showScrollbar = false,
+                                backgroundColor = { 15, 18, 25, 210 },
+                                borderRadius = 26,
+                                paddingHorizontal = 8,
+                                children = {
+                                    UI.Panel {
+                                        flexDirection = "row", gap = 0,
+                                        alignItems = "center",
+                                        height = 52,
+                                        children = warehouseIconItems,
+                                    },
+                                },
                             },
                         },
                     },
@@ -677,6 +846,9 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         },
     }
 
+    -- 绑定 lobbyRoot 引用，供仓库切换时更新背景
+    lobbyRootRef = lobbyRoot
+
     -- 创建最终根容器
     local finalRoot = UI.Panel {
         width = "100%", height = "100%",
@@ -694,6 +866,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     -- 初始化
     refreshCharInfo()
     refreshWarehouseInfo()
+    refreshWhIcons()
     refreshDiffSelection()
 end
 

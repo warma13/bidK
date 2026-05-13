@@ -57,7 +57,15 @@ function GameController.ShowLobby(regionIdx)
     LobbyScreen.Show(
         regionIdx,
         function() GameController.ShowMap() end,
-        function(regionId, charIdx, diffIdx) GameController.ShowMapSelection(regionId, charIdx, diffIdx) end
+        function(regionId, charIdx, diffIdx, whTypeId)
+            if whTypeId then
+                -- 指定仓库：直接启动，无动画
+                GameSession.Start(regionId, charIdx, diffIdx, whTypeId)
+            else
+                -- 神秘仓库：走轮盘抽选动画
+                GameController.ShowMapSelection(regionId, charIdx, diffIdx)
+            end
+        end
     )
 end
 

@@ -33,7 +33,7 @@ local SaveSystem = {}
 -- 常量
 -- ============================================================================
 
-local CURRENT_VERSION = 2           -- 存档数据版本号（对应项目 v1.1.11）
+local CURRENT_VERSION = 3           -- 存档数据版本号（对应项目 v1.1.11）
 local CHUNK_SIZE = 8000             -- 单 key 最大字节数（留余量）
 local MODULE_NAME = "save"          -- 在 SaveFramework 中的模块名
 
@@ -68,6 +68,8 @@ local saveData = {
         wins = 0,
         totalProfit = 0,
         totalItemsWon = 0,
+        maxProfit = 0,
+        highestBid = 0,
     },
     settings = {
         bgmVolume = 100,
@@ -214,6 +216,9 @@ local function mergeGroups(groups)
             data.stats[k] = v
         end
     end
+    -- 补齐新字段默认值（兼容旧存档）
+    data.stats.maxProfit   = data.stats.maxProfit   or 0
+    data.stats.highestBid  = data.stats.highestBid  or 0
 
     data.settings = {
         bgmVolume = 100,
@@ -337,6 +342,25 @@ local MIGRATIONS = {
             end
         end
         print("[SaveSystem] Migration v1→v2: updated " .. updated .. " item prices")
+    end,
+
+    -- v2 → v3: 将旧 port_1000w / port_5000w 门票兑换为深海打捞站 + 文化艺术区指定门票
+    -- 兑换比例：旧门票总张数 n，各发 n×5 张新门票
+    [2] = function(data)
+        data.tickets = data.tickets or {}
+        local old1000w = data.tickets["port_1000w"] or 0
+        local old5000w = data.tickets["port_5000w"] or 0
+        local n = old1000w + old5000w
+        if n > 0 then
+            local reward = n * 5
+            data.tickets["ticket_deepsea"]  = (data.tickets["ticket_deepsea"]  or 0) + reward
+            data.tickets["ticket_culture"]  = (data.tickets["ticket_culture"]  or 0) + reward
+            data.tickets["port_1000w"] = nil
+            data.tickets["port_5000w"] = nil
+            print("[SaveSystem] Migration v2→v3: 旧门票 " .. n .. " 张 → 深海/文化各 " .. reward .. " 张")
+        else
+            print("[SaveSystem] Migration v2→v3: 无旧门票，跳过")
+        end
     end,
 }
 
@@ -555,6 +579,39 @@ function SaveSystem.MarkDirty()
     SaveFramework.MarkDirty(MODULE_NAME)
 end
 
+--- 将完整 save 数据写入外部 batch（用于与其他模块合并一次写入）
+function SaveSystem.WriteToBatch(batch)
+    saveData.timestamp = os.time()
+    saveData.playTime = playTime
+
+    local groups = splitIntoGroups()
+    local headKeys = {}
+
+    for groupName, groupData in pairs(groups) do
+        local chunks, checksums, lengths = encodeAndChunk(groupData)
+        local keyBase = "save_" .. groupName
+        if #chunks == 1 then
+            batch:Set(keyBase, chunks[1])
+            headKeys[groupName] = { cs = checksums, len = lengths }
+        else
+            for i, chunk in ipairs(chunks) do
+                batch:Set(keyBase .. "_" .. (i - 1), chunk)
+            end
+            headKeys[groupName] = { chunks = #chunks, cs = checksums, len = lengths }
+        end
+    end
+
+    local head = {
+        format = 1,
+        version = saveData.version,
+        timestamp = os.time(),
+        keys = headKeys,
+    }
+    batch:Set(KEY_HEAD, head)
+    -- 同步本地缓存
+    saveLocal()
+end
+
 --- 每帧调用（仅跟踪 playTime，框架 Update 由 Standalone 调用）
 function SaveSystem.Update(dt)
     if not initialized then return end
@@ -621,14 +678,24 @@ function SaveSystem.RemoveItems(itemsToRemove)
     print("[SaveSystem] Removed " .. removed .. " items. Remaining: " .. #saveData.items)
 end
 
-function SaveSystem.RecordGameResult(isWin, profit)
+---@param isWin boolean
+---@param profit number
+---@param myBid number|nil  本局玩家出价（赢局传实际付款额，输局传出价额）
+function SaveSystem.RecordGameResult(isWin, profit, myBid)
     saveData.stats.totalGames = (saveData.stats.totalGames or 0) + 1
     if isWin then
         saveData.stats.wins = (saveData.stats.wins or 0) + 1
     end
     saveData.stats.totalProfit = (saveData.stats.totalProfit or 0) + profit
+    if profit > (saveData.stats.maxProfit or 0) then
+        saveData.stats.maxProfit = profit
+    end
+    if myBid and myBid > (saveData.stats.highestBid or 0) then
+        saveData.stats.highestBid = myBid
+    end
     print("[SaveSystem] Game recorded. Total: " .. saveData.stats.totalGames
-        .. ", Wins: " .. saveData.stats.wins)
+        .. ", Wins: " .. saveData.stats.wins
+        .. ", MaxProfit: " .. (saveData.stats.maxProfit or 0))
 end
 
 ---@return table
@@ -735,6 +802,9 @@ function SaveSystem.AddTickets(ticketId, count, skipSave)
     saveData.tickets[ticketId] = (saveData.tickets[ticketId] or 0) + (count or 1)
     if not skipSave then
         SaveSystem.SaveNow()
+    else
+        -- skipSave=true 时调用方负责通过 WriteToBatch 写入，但仍标脏保底
+        SaveFramework.MarkDirty(MODULE_NAME)
     end
     print("[SaveSystem] Ticket added: " .. ticketId .. " +" .. (count or 1) .. " → " .. saveData.tickets[ticketId])
 end

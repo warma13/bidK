@@ -1,0 +1,415 @@
+-- ============================================================================
+-- SaveFramework.lua - 统一存档框架（注册制 + 单次云端加载 + 批量保存）
+-- ============================================================================
+-- 核心思路（来自 4 层存档架构）：
+--   1. 调度：注册制，每个模块 Register 自己的 load/save/defaults
+--   2. 所有权：数据由各模块 local 变量持有，框架不存储业务数据
+--   3. 脏标记：模块修改数据后调用 MarkDirty，框架延迟合并保存
+--   4. 效率：单次 BatchGet 加载所有模块，单次 BatchSet 保存所有脏模块
+--
+-- 解决的核心问题：
+--   旧架构中 MoneyHUD / SaveSystem / AdCardPanel / SettingsPanel 各自独立
+--   调用 clientCloud，启动时 5+ 个并发云端操作 → 引擎卡死
+--   新架构：启动时 1 次 BatchGet，保存时 1 次 BatchSet
+-- ============================================================================
+
+---@diagnostic disable: undefined-global
+
+local SaveFramework = {}
+
+-- ============================================================================
+-- 注册表
+-- ============================================================================
+
+local modules = {}          -- { name -> moduleConfig }
+local moduleOrder = {}      -- 注册顺序（保证加载/保存顺序确定）
+local initialized = false
+local initGeneration = 0    -- 防止重复 Init 的回调冲突
+
+-- ============================================================================
+-- 脏标记 + 自动保存
+-- ============================================================================
+
+local dirtySet = {}         -- { name -> true }
+local hasDirty = false
+local dirtyTimer = 0
+local DIRTY_DELAY = 5       -- 脏数据延迟合并（秒）
+
+local autoSaveTimer = 0
+local SAVE_INTERVAL = 60    -- 自动保存间隔（秒）
+
+-- ============================================================================
+-- 对局暂停
+-- ============================================================================
+
+local gamePaused = false
+local pendingSave = false   -- 对局中积累的脏数据，结束后一次性保存
+
+-- ============================================================================
+-- 写入并发控制
+-- ============================================================================
+
+local writeInFlight = false -- 是否有 BatchSet 正在进行
+local pendingFlush = false  -- writeInFlight 期间又有新的保存请求
+
+-- ============================================================================
+-- 重试
+-- ============================================================================
+
+local retryCount = 0
+local retryTimer = 0
+local MAX_RETRY = 3
+local RETRY_INTERVAL = 10
+local needRetry = false
+
+-- ============================================================================
+-- "保存中..." 提示（不对后台自动保存显示）
+-- ============================================================================
+
+local SILENT_LABELS = {
+    dirty_delay = true,
+    auto_save = true,
+    retry = true,
+    pending_flush = true,
+    resume_after_game = true,
+}
+
+local function ShowSaving(label)
+    if SILENT_LABELS[label] then return end
+    pcall(function()
+        local FloatingMessage = require("UI.FloatingMessage")
+        FloatingMessage.Show("保存中...")
+    end)
+end
+
+-- ============================================================================
+-- 注册模块
+-- ============================================================================
+
+--- 注册一个存档模块
+---@param name string 模块名（唯一标识）
+---@param config table { cloudKeys, speculativeKeys, load, save, defaults, onSaved }
+function SaveFramework.Register(name, config)
+    if modules[name] then
+        print("[SaveFramework] WARNING: overwriting module '" .. name .. "'")
+    end
+    modules[name] = {
+        cloudKeys       = config.cloudKeys or {},        -- BatchGet 时需要的 key 列表
+        speculativeKeys = config.speculativeKeys or {},  -- 投机性 key（可能不存在，用于分片预取）
+        load            = config.load,                   -- function(values, iscores) 从云端数据恢复
+        save            = config.save,                   -- function(batch) 往 batch 上追加 Set/SetInt
+        defaults        = config.defaults,               -- function() 无云端数据时初始化默认值
+        onSaved         = config.onSaved,                -- function() 云端保存成功后回调（可选）
+    }
+    moduleOrder[#moduleOrder + 1] = name
+    print("[SaveFramework] Registered module: " .. name)
+end
+
+-- ============================================================================
+-- 初始化（单次 BatchGet 加载所有模块的云端数据）
+-- ============================================================================
+
+function SaveFramework.Init(onReady)
+    if initialized then
+        if onReady then onReady(true) end
+        return
+    end
+
+    initGeneration = initGeneration + 1
+    local gen = initGeneration
+
+    -- 收集所有 key（去重）
+    local allKeys = {}
+    local seen = {}
+    for _, name in ipairs(moduleOrder) do
+        local mod = modules[name]
+        for _, key in ipairs(mod.cloudKeys) do
+            if not seen[key] then
+                seen[key] = true
+                allKeys[#allKeys + 1] = key
+            end
+        end
+        for _, key in ipairs(mod.speculativeKeys) do
+            if not seen[key] then
+                seen[key] = true
+                allKeys[#allKeys + 1] = key
+            end
+        end
+    end
+
+    print("[SaveFramework] Init: " .. #moduleOrder .. " modules, " .. #allKeys .. " cloud keys")
+
+    if not clientCloud or #allKeys == 0 then
+        -- 无 clientCloud 或无 key，用默认值
+        for _, name in ipairs(moduleOrder) do
+            local mod = modules[name]
+            if mod.defaults then pcall(mod.defaults) end
+        end
+        initialized = true
+        print("[SaveFramework] Init OK (no cloud)")
+        if onReady then onReady(true) end
+        return
+    end
+
+    -- 单次 BatchGet
+    local batch = clientCloud:BatchGet()
+    for _, key in ipairs(allKeys) do
+        batch:Key(key)
+    end
+
+    batch:Fetch({
+        ok = function(values, iscores)
+            if gen ~= initGeneration then return end
+
+            -- 按注册顺序分发给各模块（pcall 隔离：一个模块崩溃不影响其他模块）
+            for _, name in ipairs(moduleOrder) do
+                local mod = modules[name]
+                if mod.load then
+                    local ok, err = pcall(mod.load, values, iscores)
+                    if not ok then
+                        print("[SaveFramework] load ERROR [" .. name .. "]: " .. tostring(err))
+                        if mod.defaults then pcall(mod.defaults) end
+                    end
+                end
+            end
+
+            initialized = true
+            print("[SaveFramework] Init OK, all modules loaded")
+            if onReady then onReady(true) end
+        end,
+        error = function(code, reason)
+            if gen ~= initGeneration then return end
+            print("[SaveFramework] Init FAILED: " .. tostring(reason))
+
+            -- 全部用默认值兜底
+            for _, name in ipairs(moduleOrder) do
+                local mod = modules[name]
+                if mod.defaults then pcall(mod.defaults) end
+            end
+            initialized = true
+            if onReady then onReady(false) end
+        end,
+    })
+end
+
+function SaveFramework.IsReady()
+    return initialized
+end
+
+-- ============================================================================
+-- 脏标记
+-- ============================================================================
+
+function SaveFramework.MarkDirty(name)
+    if not modules[name] then return end
+    dirtySet[name] = true
+    hasDirty = true
+    dirtyTimer = DIRTY_DELAY
+end
+
+-- ============================================================================
+-- 保存（所有脏模块合并为一次 BatchSet）
+-- ============================================================================
+
+function SaveFramework.Save(label)
+    if not initialized or not clientCloud then return end
+
+    -- 收集脏模块
+    local dirtyNames = {}
+    for _, name in ipairs(moduleOrder) do
+        if dirtySet[name] then
+            dirtyNames[#dirtyNames + 1] = name
+        end
+    end
+
+    if #dirtyNames == 0 then return end
+
+    -- 并发控制：如果有写入正在进行，排队
+    if writeInFlight then
+        pendingFlush = true
+        return
+    end
+
+    writeInFlight = true
+
+    -- 用户主动触发的保存显示"保存中..."
+    ShowSaving(label or "fw_save")
+
+    local batch = clientCloud:BatchSet()
+
+    for _, name in ipairs(dirtyNames) do
+        local mod = modules[name]
+        if mod.save then
+            local ok, err = pcall(mod.save, batch)
+            if not ok then
+                print("[SaveFramework] save ERROR [" .. name .. "]: " .. tostring(err))
+            end
+        end
+    end
+
+    local dirtyStr = table.concat(dirtyNames, ",")
+    batch:Save(label or "fw_save", {
+        ok = function()
+            writeInFlight = false
+            retryCount = 0
+            needRetry = false
+
+            -- 清除已保存模块的脏标记
+            for _, name in ipairs(dirtyNames) do
+                dirtySet[name] = nil
+            end
+            -- 重新检查是否还有脏模块（保存期间可能有新的 MarkDirty）
+            hasDirty = false
+            for _ in pairs(dirtySet) do hasDirty = true; break end
+
+            print("[SaveFramework] Save OK [" .. dirtyStr .. "]")
+
+            -- 回调各模块
+            for _, name in ipairs(dirtyNames) do
+                local mod = modules[name]
+                if mod.onSaved then pcall(mod.onSaved) end
+            end
+
+            pcall(function()
+                local FloatingMessage = require("UI.FloatingMessage")
+                FloatingMessage.Show("已保存")
+            end)
+
+            -- 如果保存期间有新的保存请求，立即执行
+            if pendingFlush then
+                pendingFlush = false
+                SaveFramework.Save("pending_flush")
+            end
+        end,
+        error = function(code, reason)
+            writeInFlight = false
+            print("[SaveFramework] Save FAILED [" .. dirtyStr .. "]: " .. tostring(reason))
+            needRetry = true
+
+            if pendingFlush then
+                pendingFlush = false
+            end
+        end,
+    })
+end
+
+function SaveFramework.SaveNow(label)
+    dirtyTimer = 0
+    SaveFramework.Save(label or "save_now")
+end
+
+-- ============================================================================
+-- 直通批量保存（用于 AddMoneyFromMenu 等需要自定义回调的场景）
+-- 绕过脏标记系统，直接执行一次 BatchSet，带 ok/error 回调
+-- ============================================================================
+
+--- @param label string 描述
+--- @param setup function(batch) 调用方往 batch 上追加 Set/SetInt
+--- @param opts table { ok?: function, error?: function(code,reason) }
+function SaveFramework.DirectSave(label, setup, opts)
+    opts = opts or {}
+    if not clientCloud then
+        if opts.ok then opts.ok() end
+        return
+    end
+
+    -- 并发控制
+    if writeInFlight then
+        -- 排队：延迟 100ms 后重试（简单策略，避免丢失回调）
+        local retrySetup = setup
+        local retryOpts = opts
+        local retryLabel = label
+        -- 不重试，直接告诉调用方失败（让 UI 提示用户重试）
+        print("[SaveFramework] DirectSave blocked (write in flight): " .. label)
+        if opts.error then opts.error(-1, "write_in_flight") end
+        return
+    end
+
+    writeInFlight = true
+
+    -- DirectSave 均为用户主动操作，显示"保存中..."
+    if not opts.silent then
+        ShowSaving(label)
+    end
+
+    local batch = clientCloud:BatchSet()
+    setup(batch)
+
+    batch:Save(label, {
+        ok = function()
+            writeInFlight = false
+            if opts.ok then opts.ok() end
+            -- 处理排队的 framework save
+            if pendingFlush then
+                pendingFlush = false
+                SaveFramework.Save("pending_flush")
+            end
+        end,
+        error = function(code, reason)
+            writeInFlight = false
+            if opts.error then opts.error(code, reason) end
+        end,
+    })
+end
+
+-- ============================================================================
+-- 对局暂停/恢复
+-- ============================================================================
+
+function SaveFramework.PauseForGame()
+    gamePaused = true
+    pendingSave = false
+    print("[SaveFramework] PAUSED for game session")
+end
+
+function SaveFramework.ResumeAfterGame()
+    gamePaused = false
+    print("[SaveFramework] RESUMED")
+    if pendingSave or hasDirty then
+        pendingSave = false
+        SaveFramework.Save("resume_after_game")
+    end
+end
+
+-- ============================================================================
+-- 每帧更新
+-- ============================================================================
+
+function SaveFramework.Update(dt)
+    if not initialized then return end
+
+    if gamePaused then
+        if hasDirty then pendingSave = true end
+        return
+    end
+
+    -- 脏标记延迟保存
+    if hasDirty and dirtyTimer > 0 then
+        dirtyTimer = dirtyTimer - dt
+        if dirtyTimer <= 0 then
+            SaveFramework.Save("dirty_delay")
+        end
+    end
+
+    -- 自动保存
+    autoSaveTimer = autoSaveTimer + dt
+    if autoSaveTimer >= SAVE_INTERVAL then
+        autoSaveTimer = 0
+        if hasDirty then
+            SaveFramework.Save("auto_save")
+        end
+    end
+
+    -- 重试
+    if needRetry then
+        retryTimer = retryTimer + dt
+        if retryTimer >= RETRY_INTERVAL and retryCount < MAX_RETRY then
+            retryTimer = 0
+            retryCount = retryCount + 1
+            print("[SaveFramework] Retry " .. retryCount .. "/" .. MAX_RETRY)
+            SaveFramework.Save("retry")
+        end
+    end
+end
+
+return SaveFramework

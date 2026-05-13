@@ -63,6 +63,36 @@ Config.TICKETS = {
         name = "5000万场门票",
         icon = "Textures/tickets/port_ticket_5000w.png",
     },
+
+    -- 七大区域仓库指定门票
+    ticket_suburb = {
+        name = "城郊仓库指定券",
+        icon = "image/icon_suburb_supermarket.png",
+    },
+    ticket_industrial = {
+        name = "工业仓库指定券",
+        icon = "image/icon_ind_machinery.png",
+    },
+    ticket_commercial = {
+        name = "商业仓库指定券",
+        icon = "image/icon_com_department.png",
+    },
+    ticket_port = {
+        name = "港口仓库指定券",
+        icon = "image/icon_port_bonded.png",
+    },
+    ticket_techpark = {
+        name = "科技仓库指定券",
+        icon = "image/icon_cult_auction.png",
+    },
+    ticket_culture = {
+        name = "文化仓库指定券",
+        icon = "image/icon_cult_museum.png",
+    },
+    ticket_deepsea = {
+        name = "深海仓库指定券",
+        icon = "image/icon_sea_wreck.png",
+    },
 }
 
 -- ============================================================================

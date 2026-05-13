@@ -1,6 +1,2 @@
-/*
-!/scripts
-!/assets
-scripts/**/.luarc.json
-**/*.meta
-*.sh
+.build/
+dist/

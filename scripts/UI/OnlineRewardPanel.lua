@@ -227,8 +227,9 @@ local function ClaimMilestone(msIndex)
 
     -- 先在本地乐观更新门票（确保同一次云端写入）
     local SaveSystem = require("SaveSystem")
+    local ticketCount = ms.ticketCount or 1
     if ms.ticket then
-        SaveSystem.AddTickets(ms.ticket, 1, true)  -- skipSave
+        SaveSystem.AddTickets(ms.ticket, ticketCount, true)  -- skipSave
     end
 
     MoneyManager.AddMoneyFromMenu(ms.coins, "在线奖励" .. ms.label, {
@@ -236,9 +237,9 @@ local function ClaimMilestone(msIndex)
             batch:SetInt(KEY_CLAIMED_BITS, claimedBits)
             batch:Set(KEY_ONLINE_DATE, onlineDate)
             batch:SetInt(KEY_ONLINE_SECS, math.floor(onlineSeconds))
-            -- 门票数据一并写入
+            -- 门票数据合并写入同一次 batch
             if ms.ticket then
-                SaveSystem.MarkDirty()
+                SaveSystem.WriteToBatch(batch)
             end
         end,
         ok = function()
@@ -246,7 +247,9 @@ local function ClaimMilestone(msIndex)
             Utils.PlaySfx("bid_success")
             local rewardMsg = ms.label .. "在线奖励: +" .. Utils.FormatMoney(ms.coins)
             if ms.ticket then
-                rewardMsg = rewardMsg .. " +门票"
+                local tc = Config.TICKETS[ms.ticket]
+                local tname = (tc and tc.name) or "指定券"
+                rewardMsg = rewardMsg .. " +" .. tname .. "×" .. ticketCount
             end
             FloatingMessage.Show(rewardMsg)
             print("[OnlineReward] Milestone " .. ms.label .. " claimed!")
@@ -255,7 +258,7 @@ local function ClaimMilestone(msIndex)
             claimedBits = claimedBits & ~bit
             -- 回滚门票
             if ms.ticket then
-                SaveSystem.AddTickets(ms.ticket, -1, true)
+                SaveSystem.AddTickets(ms.ticket, -ticketCount, true)
             end
             OnlineRewardPanel.RefreshAll()
             FloatingMessage.Show("领取失败，请重试")
@@ -451,6 +454,7 @@ function OnlineRewardPanel.CreatePopup()
         }
         if ms.ticket then
             local tConf = Config.TICKETS[ms.ticket]
+            local tCount = ms.ticketCount or 1
             if tConf and tConf.icon then
                 cardChildren[#cardChildren + 1] = UI.Panel {
                     flexDirection = "row", alignItems = "center",
@@ -462,7 +466,7 @@ function OnlineRewardPanel.CreatePopup()
                             backgroundFit = "contain", flexShrink = 0,
                         },
                         UI.Label {
-                            text = "×1",
+                            text = "×" .. tCount,
                             fontSize = sz(7), fontColor = { 180, 230, 255, 255 },
                         },
                     },
@@ -478,7 +482,7 @@ function OnlineRewardPanel.CreatePopup()
                             pointerEvents = "none",
                         },
                         UI.Label {
-                            text = "×1",
+                            text = "×" .. tCount,
                             fontSize = sz(7), fontColor = { 180, 230, 255, 255 },
                         },
                     },

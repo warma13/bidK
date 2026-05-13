@@ -203,41 +203,49 @@ local function refreshPopupContent()
         local ticketChildren = {}
         local sz = Utils.sz
         local seen = {}
-        for _, region in ipairs(Config.REGIONS) do
-            for _, diff in ipairs(region.difficulties or {}) do
-                if diff.requiredTicket and not seen[diff.requiredTicket] then
-                    seen[diff.requiredTicket] = true
-                    local count = SaveSystem.GetTicketCount(diff.requiredTicket)
-                    local ticketConf = Config.TICKETS[diff.requiredTicket]
-                    local ticketIconPath = ticketConf and ticketConf.icon or nil
-                    local ticketName = ticketConf and ticketConf.name or diff.requiredTicket
-                    ticketChildren[#ticketChildren + 1] = UI.Panel {
-                        width = "100%", flexDirection = "row",
-                        justifyContent = "space-between", alignItems = "center",
+
+        -- 辅助：添加一张门票行
+        local function addTicketRow(ticketId)
+            if not ticketId or seen[ticketId] then return end
+            seen[ticketId] = true
+            local count = SaveSystem.GetTicketCount(ticketId)
+            local ticketConf = Config.TICKETS[ticketId]
+            local ticketIconPath = ticketConf and ticketConf.icon or nil
+            local ticketName = ticketConf and ticketConf.name or ticketId
+            ticketChildren[#ticketChildren + 1] = UI.Panel {
+                width = "100%", flexDirection = "row",
+                justifyContent = "space-between", alignItems = "center",
+                children = {
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = sz(6),
                         children = {
-                            UI.Panel {
-                                flexDirection = "row", alignItems = "center", gap = sz(6),
-                                children = {
-                                    ticketIconPath and UI.Panel {
-                                        width = sz(28), height = sz(18),
-                                        backgroundImage = ticketIconPath,
-                                        backgroundFit = "contain", flexShrink = 0,
-                                    } or UI.Label { text = "🎫", fontSize = sz(16) },
-                                    UI.Label {
-                                        text = ticketName,
-                                        fontSize = sz(12),
-                                        fontColor = { 200, 205, 220, 255 },
-                                    },
-                                },
-                            },
+                            ticketIconPath and UI.Panel {
+                                width = sz(28), height = sz(18),
+                                backgroundImage = ticketIconPath,
+                                backgroundFit = "contain", flexShrink = 0,
+                            } or UI.Label { text = "🎫", fontSize = sz(16) },
                             UI.Label {
-                                text = "×" .. count,
-                                fontSize = sz(14), fontWeight = "bold",
-                                fontColor = count > 0 and { 255, 200, 80, 255 } or { 255, 100, 100, 255 },
+                                text = ticketName,
+                                fontSize = sz(12),
+                                fontColor = { 200, 205, 220, 255 },
                             },
                         },
-                    }
-                end
+                    },
+                    UI.Label {
+                        text = "×" .. count,
+                        fontSize = sz(14), fontWeight = "bold",
+                        fontColor = count > 0 and { 255, 200, 80, 255 } or { 255, 100, 100, 255 },
+                    },
+                },
+            }
+        end
+
+        for _, region in ipairs(Config.REGIONS) do
+            -- 区域指定门票（指定仓库类型所需）
+            addTicketRow(region.ticket)
+            -- 难度门票
+            for _, diff in ipairs(region.difficulties or {}) do
+                addTicketRow(diff.requiredTicket)
             end
         end
         if #ticketChildren == 0 then

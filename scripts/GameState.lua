@@ -107,14 +107,15 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
     state.warehouseTypeId = warehouseTypeId or "grocery"
     state.regionId = regionId
 
-    -- 存储区域期望值（AI 决策锚点）
+    -- 存储仓库价值（AI 决策锚点；warehouseValue 是高点/天花板，非平均值）
     local region = state.warehouseData.region
     local difficulties = region and region.difficulties or {}
     local difficulty = difficulties[diffIdx or 1] or difficulties[1]
-    state.expectedValue = difficulty and difficulty.expectedValue or 100000
+    state.expectedValue = difficulty and (difficulty.warehouseValue or difficulty.expectedValue) or 100000
     state.startingMoney = difficulty and difficulty.startingMoney or Config.GAME.StartingMoney
     state.entryFee = difficulty and difficulty.entryFee or 0
     state.diffLabel = difficulty and difficulty.label or ""
+    state.assetRequirement = difficulty and difficulty.assetRequirement or 0
 
     -- 保护仓库总价值
     secureTotalValue = AntiCheat.SecureValue(state.warehouseTotalValue)
@@ -594,8 +595,15 @@ function GameState.SettleWarehouseValue()
 
     -- 记录战绩（战利品不再自动入库，由 GameOverDialog 的回收/返回流程处理）
     local winnerPlayer = state.players[winner]
+    -- 玩家本局出价（人类玩家是 index 1）
+    local humanBid = state.sealedBids[1] or state.roundBids[state.currentRound] and state.roundBids[state.currentRound][1] or 0
+    -- 取所有轮次中玩家出价最高值
+    for _, roundBids in pairs(state.roundBids) do
+        local b = roundBids[1] or 0
+        if b > humanBid then humanBid = b end
+    end
     if winnerPlayer and winnerPlayer.isHuman and SaveSystem.IsReady() then
-        SaveSystem.RecordGameResult(true, profit)
+        SaveSystem.RecordGameResult(true, profit, humanBid)
         SaveSystem.MarkDirty()
 
         -- 兜底：立即将战利品保存到云端，防止玩家杀进程导致物品丢失
@@ -607,8 +615,8 @@ function GameState.SettleWarehouseValue()
             profit = profit,
         })
     elseif SaveSystem.IsReady() then
-        -- 人类玩家输了，也记录战绩
-        SaveSystem.RecordGameResult(false, 0)
+        -- 人类玩家输了，也记录战绩（传入本局最高出价）
+        SaveSystem.RecordGameResult(false, 0, humanBid)
         SaveSystem.MarkDirty()
     end
 
@@ -679,7 +687,8 @@ function GameState.GetWarehouseTotalValue()
     return state.warehouseTotalValue
 end
 function GameState.GetWarehouseData() return state.warehouseData end
-function GameState.GetExpectedValue()  return state.expectedValue or 100000 end
+function GameState.GetExpectedValue()      return state.expectedValue or 100000 end
+function GameState.GetAssetRequirement()   return state.assetRequirement or 0 end
 function GameState.GetSealedBids()     return state.sealedBids end
 function GameState.GetBidLocked()      return state.bidLocked end
 function GameState.GetRevealIndex()    return state.revealIndex end

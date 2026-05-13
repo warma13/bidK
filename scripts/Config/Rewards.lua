@@ -23,12 +23,12 @@ M.AD_CARD = {
 
     -- 每日里程碑奖励（当日看广告达到指定次数可领取）
     DAILY_MILESTONES = {
-        { adsRequired = 5,  coins = 1500000, label = "看5次",  ticket = "port_1000w" },
-        { adsRequired = 10, coins = 2000000, label = "看10次", ticket = "port_1000w" },
-        { adsRequired = 15, coins = 2500000, label = "看15次", ticket = "port_5000w" },
-        { adsRequired = 20, coins = 3000000, label = "看20次", ticket = "port_5000w" },
-        { adsRequired = 25, coins = 4000000, label = "看25次", ticket = "port_5000w" },
-        { adsRequired = 30, coins = 5000000, label = "看30次", ticket = "port_5000w" },
+        { adsRequired = 5,  coins = 1500000, label = "看5次",  ticket = "ticket_suburb",     ticketCount = 10 },
+        { adsRequired = 10, coins = 2000000, label = "看10次", ticket = "ticket_industrial",  ticketCount = 10 },
+        { adsRequired = 15, coins = 2500000, label = "看15次", ticket = "ticket_commercial",  ticketCount = 10 },
+        { adsRequired = 20, coins = 3000000, label = "看20次", ticket = "ticket_port",        ticketCount = 10 },
+        { adsRequired = 25, coins = 4000000, label = "看25次", ticket = "ticket_techpark",    ticketCount = 10 },
+        { adsRequired = 30, coins = 5000000, label = "看30次", ticket = "ticket_culture",     ticketCount = 10 },
     },
 }
 
@@ -41,10 +41,10 @@ M.ONLINE_REWARD = {
         { minutes = 1,   coins = 100000,  label = "1分钟"  },
         { minutes = 3,   coins = 200000,  label = "3分钟"  },
         { minutes = 10,  coins = 300000,  label = "10分钟" },
-        { minutes = 30,  coins = 500000,  label = "30分钟", ticket = "port_1000w" },
-        { minutes = 60,  coins = 1000000, label = "1小时",  ticket = "port_1000w" },
-        { minutes = 120, coins = 3000000, label = "2小时",  ticket = "port_5000w" },
-        { minutes = 180, coins = 5000000, label = "3小时",  ticket = "port_5000w" },
+        { minutes = 30,  coins = 500000,  label = "30分钟", ticket = "ticket_suburb",     ticketCount = 10 },
+        { minutes = 60,  coins = 1000000, label = "1小时",  ticket = "ticket_commercial",  ticketCount = 10 },
+        { minutes = 120, coins = 3000000, label = "2小时",  ticket = "ticket_techpark",    ticketCount = 10 },
+        { minutes = 180, coins = 5000000, label = "3小时",  ticket = "ticket_deepsea",     ticketCount = 10 },
     },
 }
 

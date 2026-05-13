@@ -7,16 +7,7 @@ local Config = require("Config")
 
 local WG = {}
 
--- 仓库类型 → 物品配置模块的映射
--- 值为字符串时使用单个模块，值为数组时合并多个模块的物品池
-local warehouseModules = {
-    grocery  = "Config.Warehouses.ItemPool",
-    techpark = "Config.Warehouses.TechPark",
-    datacenter = { "Config.Warehouses.DataCenter", "Config.Warehouses.ItemPool" },
-    quantumlab = { "Config.Warehouses.QuantumLab", "Config.Warehouses.ItemPool" },
-    bondedport = { "Config.Warehouses.BondedPort", "Config.Warehouses.ItemPool" },
-    shipwreck  = { "Config.Warehouses.Shipwreck", "Config.Warehouses.BondedPort", "Config.Warehouses.ItemPool" },
-}
+-- 仓库类型配置直接从 Config.WAREHOUSE_TYPES[whTypeId] 读取（不再需要独立映射表）
 
 -- 常量
 local COLS = Config.GAME.LootColumns         -- 10
@@ -26,17 +17,25 @@ local MAX_CELLS = COLS * MAX_ROWS            -- 200
 -- ============================================================================
 -- 仓库分层系统（Tier）
 -- 先掷骰决定本仓库的价值档位，再在档位区间内采样
--- 加权期望 ≈ 1.0×，保持长期经济平衡
+--
+-- 设计理念：warehouseValue（原 expectedValue）是"高点"而非平均值。
+-- 大多数仓库（约 80-85%）实际价值低于 warehouseValue，
+-- 只有少数宝藏/jackpot 仓库才会超过它，给玩家带来惊喜感。
+--
+-- 加权期望校验（multAvg = (multMin+multMax)/2）：
+-- 25×0.10 + 23×0.25 + 22×0.50 + 13×0.83 + 9×1.40 + 6×2.50 + 2×4.35
+-- = 2.50 + 5.75 + 11.00 + 10.79 + 12.60 + 15.00 + 8.70 = 66.34 / 100 ≈ 0.66×
+-- 约 87% 的仓库(trash+junk+poor+normal)价值 ≤ warehouseValue；
+-- 约 13% 可能超过（good 上限 1.80×，treasure 上限 3.20×，jackpot 上限 5.50×）
 -- ============================================================================
--- 加权期望校验：
--- 22×0.20 + 25×0.45 + 28×0.925 + 15×1.675 + 7×2.80 + 3×4.50 = 99.78 / 100 ≈ 1.00×
 local WAREHOUSE_TIERS = {
-    { id = "junk",     weight = 22, multMin = 0.10, multMax = 0.30, fillerRatio = 0.90, budgetK = 2.0 },
-    { id = "poor",     weight = 25, multMin = 0.30, multMax = 0.60, fillerRatio = 0.80, budgetK = 1.8 },
-    { id = "normal",   weight = 28, multMin = 0.60, multMax = 1.25, fillerRatio = 0.75, budgetK = 1.5 },
-    { id = "good",     weight = 15, multMin = 1.25, multMax = 2.10, fillerRatio = 0.60, budgetK = 1.0 },
-    { id = "treasure", weight = 7,  multMin = 2.10, multMax = 3.50, fillerRatio = 0.45, budgetK = 0.7 },
-    { id = "jackpot",  weight = 3,  multMin = 3.50, multMax = 5.50, fillerRatio = 0.35, budgetK = 0.5 },
+    { id = "trash",    weight = 25, multMin = 0.05, multMax = 0.15, fillerRatio = 0.95, budgetK = 2.0 },
+    { id = "junk",     weight = 23, multMin = 0.15, multMax = 0.35, fillerRatio = 0.90, budgetK = 1.8 },
+    { id = "poor",     weight = 22, multMin = 0.35, multMax = 0.65, fillerRatio = 0.82, budgetK = 1.6 },
+    { id = "normal",   weight = 13, multMin = 0.65, multMax = 1.00, fillerRatio = 0.75, budgetK = 1.4 },
+    { id = "good",     weight = 9,  multMin = 1.00, multMax = 1.80, fillerRatio = 0.60, budgetK = 1.0 },
+    { id = "treasure", weight = 6,  multMin = 1.80, multMax = 3.20, fillerRatio = 0.45, budgetK = 0.7 },
+    { id = "jackpot",  weight = 2,  multMin = 3.20, multMax = 5.50, fillerRatio = 0.35, budgetK = 0.5 },
 }
 
 --- 按权重随机选取仓库分层
@@ -232,7 +231,7 @@ local function countOccupied(grid)
 end
 
 -- ============================================================================
--- 物品生成（按仓库类型动态加载物品池）
+-- 物品生成（从统一物品池按仓库配置筛选）
 -- ============================================================================
 
 -- 缓存：whTypeId → { sizeGroups, allItems }
@@ -240,64 +239,94 @@ local poolCache = {}
 
 -- entry 结构: { item=模板, catIcon=品类图标, catId=品类ID, w=列数, h=行数, catWeight=品类权重 }
 
--- 从单个模块加载物品到 sizeGroups / allItems
-local function loadModuleItems(moduleName, sizeGroups, allItems, seenNames)
-    local mod = require(moduleName)
-    for _, cat in ipairs(mod.categories) do
-        local catWeight = mod.categoryWeights[cat.id] or 1
-        for _, item in ipairs(cat.items) do
-            -- 跳过重名物品（多模块合并时去重）
-            if seenNames[item.name] then goto skipItem end
-            seenNames[item.name] = true
-
-            local w = item.cols
-            local h = item.rows
-            local entry = {
-                item = item,
-                catIcon = cat.icon,
-                catId = cat.id,
-                w = w,
-                h = h,
-                catWeight = catWeight,
-            }
-            allItems[#allItems + 1] = entry
-
-            local cells = w * h
-            local groupIdx = Config.ITEM_SIZE_GROUPS[cells] or 1
-            local group = sizeGroups[groupIdx]
-            group[#group + 1] = entry
-
-            ::skipItem::
-        end
-    end
-end
-
+--- 构建仓库物品池（统一池模式）
+--- 直接从 Config.WAREHOUSE_TYPES[whTypeId] 读取 categoryWeights + allowedCategories
 local function getPool(whTypeId)
     if poolCache[whTypeId] then return poolCache[whTypeId] end
 
-    local moduleSpec = warehouseModules[whTypeId]
-    if not moduleSpec then
-        -- fallback 到 grocery
-        moduleSpec = warehouseModules["grocery"]
-        whTypeId = "grocery"
+    -- 如果找不到仓库类型，fallback 到 suburb_basement（最简单的通用仓库）
+    local whCfg = Config.WAREHOUSE_TYPES[whTypeId]
+    if not whCfg then
+        whTypeId = "suburb_basement"
         if poolCache[whTypeId] then return poolCache[whTypeId] end
+        whCfg = Config.WAREHOUSE_TYPES[whTypeId]
     end
 
     local sizeGroups = { {}, {}, {}, {}, {} }
     local allItems = {}
-    local seenNames = {}
 
-    if type(moduleSpec) == "table" then
-        -- 多模块合并：按顺序加载，先加载的优先（去重）
-        for _, modName in ipairs(moduleSpec) do
-            loadModuleItems(modName, sizeGroups, allItems, seenNames)
+    local allowed = nil
+    if whCfg.allowedCategories then
+        allowed = {}
+        for _, catId in ipairs(whCfg.allowedCategories) do
+            allowed[catId] = true
         end
-    else
-        -- 单模块
-        loadModuleItems(moduleSpec, sizeGroups, allItems, seenNames)
     end
 
-    local pool = { sizeGroups = sizeGroups, allItems = allItems }
+    local itemPoolMod = require("Config.Warehouses.ItemPool")
+    local seenNames = {}
+    -- 仓库的主题标签加成表：{ tagId = bonusMult, ... }，无则为 nil
+    local prefTags = whCfg.preferredTags
+
+    for _, cat in ipairs(itemPoolMod.categories) do
+        if not allowed or allowed[cat.id] then
+            local catWeight
+            if whCfg.categoryWeights then
+                catWeight = whCfg.categoryWeights[cat.id] or 0
+            else
+                catWeight = itemPoolMod.categoryWeights[cat.id] or 1
+            end
+            if catWeight <= 0 then goto skipCategory end
+
+            for _, item in ipairs(cat.items) do
+                if seenNames[item.name] then goto skipItem end
+                seenNames[item.name] = true
+
+                local w = item.cols
+                local h = item.rows
+
+                -- 计算标签加成：取物品所有 tag 中命中 preferredTags 的最大 bonus
+                local tagBonus = 1.0
+                if prefTags and item.tags then
+                    for _, tag in ipairs(item.tags) do
+                        local bonus = prefTags[tag]
+                        if bonus and bonus > tagBonus then
+                            tagBonus = bonus
+                        end
+                    end
+                end
+
+                local entry = {
+                    item = item,
+                    catIcon = cat.icon,
+                    catId = cat.id,
+                    w = w,
+                    h = h,
+                    catWeight = catWeight,
+                    tagBonus = tagBonus,
+                }
+                allItems[#allItems + 1] = entry
+
+                local cells = w * h
+                local groupIdx = Config.ITEM_SIZE_GROUPS[cells] or 1
+                sizeGroups[groupIdx][#sizeGroups[groupIdx] + 1] = entry
+
+                ::skipItem::
+            end
+        end
+        ::skipCategory::
+    end
+
+    -- 计算池内最低单件价值（用于阶段1/3的价格上限基础）
+    local poolMinValue = math.huge
+    for _, e in ipairs(allItems) do
+        if e.item.value < poolMinValue then
+            poolMinValue = e.item.value
+        end
+    end
+    if poolMinValue == math.huge then poolMinValue = 1 end
+
+    local pool = { sizeGroups = sizeGroups, allItems = allItems, poolMinValue = poolMinValue }
     poolCache[whTypeId] = pool
     return pool
 end
@@ -310,7 +339,7 @@ local function pickWeightedBudget(pool, targetPerPick, k)
     local total = 0
     for _, e in ipairs(pool) do
         local itemWeight = e.item.weight or 1
-        e._dynWeight = e.catWeight * itemWeight * budgetWeight(e.item.value, targetPerPick, k)
+        e._dynWeight = e.catWeight * itemWeight * budgetWeight(e.item.value, targetPerPick, k) * (e.tagBonus or 1.0)
         total = total + e._dynWeight
     end
     if total <= 0 then return pool[1] end
@@ -329,14 +358,14 @@ local function pickWeightedCategory(pool)
     local total = 0
     for _, e in ipairs(pool) do
         local itemWeight = e.item.weight or 1
-        total = total + e.catWeight * itemWeight
+        total = total + e.catWeight * itemWeight * (e.tagBonus or 1.0)
     end
     if total <= 0 then return pool[1] end
     local r = math.random() * total
     local acc = 0
     for _, e in ipairs(pool) do
         local itemWeight = e.item.weight or 1
-        acc = acc + e.catWeight * itemWeight
+        acc = acc + e.catWeight * itemWeight * (e.tagBonus or 1.0)
         if r <= acc then return e end
     end
     return pool[#pool]
@@ -462,13 +491,15 @@ end
 
 --- 生成本局的目标价值和格子占比
 --- 使用分层系统：先掷骰决定 tier，再在 tier 区间内均匀采样
---- @param whType table 仓库类型配置
+--- warehouseValue 是"高点"（约 80-87 分位），大多数仓库低于此值
+--- @param whType table 仓库类型配置（需含 warehouseValue 字段）
 --- @param whTypeId string 仓库类型ID
 --- @return number targetValue 本局目标价值
 --- @return number targetCells 本局目标占用格子数
 --- @return table tier 选中的分层配置
 local function sampleSessionParams(whType, whTypeId)
-    local baseValue = whType.expectedValue
+    -- warehouseValue 是高点（ceiling），不是期望值
+    local baseValue = whType.warehouseValue
 
     -- 1. 掷骰决定仓库分层
     local tier = rollTier()
@@ -487,8 +518,8 @@ local function sampleSessionParams(whType, whTypeId)
     local targetValue = baseValue * mult
     -- 裁剪到物品池可达范围
     targetValue = math.max(boundMin, math.min(boundMax, targetValue))
-    -- 最低不低于 baseValue 的 5%（jackpot 仓不受此限制，junk 仓保底）
-    targetValue = math.max(baseValue * 0.05, targetValue)
+    -- 绝对保底：不低于 warehouseValue 的 2%（对应 trash 仓底部）
+    targetValue = math.max(baseValue * 0.02, targetValue)
 
     return targetValue, targetCells, tier
 end
@@ -531,13 +562,15 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
     end
     local whType = Config.WAREHOUSE_TYPES[whTypeId]
     if not whType then
-        whTypeId = "grocery"
+        whTypeId = "suburb_basement"
         whType = Config.WAREHOUSE_TYPES[whTypeId]
     end
 
     -- 4. 合并参数：经济参数来自难度，结构参数来自仓库类型
+    -- warehouseValue 是"高点"（约 80-87 分位），不是期望值
+    -- 兼容旧字段名 expectedValue（如配置中尚未更名）
     local mergedWhType = {
-        expectedValue = difficulty.expectedValue,
+        warehouseValue = difficulty.warehouseValue or difficulty.expectedValue,
         sizeWeights = whType.sizeWeights,
     }
 
@@ -545,28 +578,35 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
     local targetValue, targetCells, tier = sampleSessionParams(mergedWhType, whTypeId)
 
     -- ================================================================
-    -- 两阶段选品：先选填充物（不受预算约束），再选高价物品（预算制）
-    -- 填充比例和预算集中度由 tier 决定
+    -- 三阶段选品
+    -- 阶段1：填充物（纯品类权重，不限单件价格，用总预算软上限控制）
+    -- 阶段2：高价物品（剩余格子，预算制驱动）
+    -- 阶段3：最小密度保障（确保至少 20% 格子有物品，无预算约束）
     -- ================================================================
     local usedNames = {}
     local selected = {}  -- { entry, ... }
     local totalSelectedCells = 0
     local totalSelectedValue = 0
 
-    -- 阶段1：填充物（tier 决定比例，纯品类权重，不考虑预算）
-    -- 填充物价值上限随 tier 调整：低 tier 严格限制，高 tier 允许更多高价填充
-    local fillerMaxRatio = (tier.multMax <= 0.60) and 0.15 or (tier.multMin >= 1.25 and 0.40 or 0.25)
-    local fillerMaxValue = targetValue * fillerMaxRatio
+    -- 阶段1：填充物（品类权重选取，带池感知单件价格上限）
+    -- 总预算软上限：fillerRatio × targetValue × 3
+    -- 单件上限：max(targetValue × 0.4, poolMinValue × 8)
+    --   目的：防止 suburb_hardware（poolMinValue≈50）选到50万的工业机器，
+    --          同时允许 cult_jewelry（poolMinValue≈500）选到中等价位饰品
+    local poolData = getPool(whTypeId)
+    local poolMinValue = poolData.poolMinValue
+    local phase1ItemCap = math.max(targetValue * 0.4, poolMinValue * 8)
+    local fillerBudgetCap = targetValue * tier.fillerRatio * 3
     local fillCells = math.floor(targetCells * tier.fillerRatio)
     local failCount = 0
     while totalSelectedCells < fillCells and failCount < 10 do
-        local entry = pickFromPool(whTypeId, whType, usedNames, nil, fillerMaxValue)
+        local entry = pickFromPool(whTypeId, whType, usedNames, nil, phase1ItemCap)
         local itemCells = entry.w * entry.h
         if totalSelectedCells + itemCells > fillCells + 5 then
-            -- 超限，尝试换更小的
+            -- 超格子数限制，尝试换更小的
             local found = false
             for _ = 1, 8 do
-                entry = pickFromPool(whTypeId, whType, usedNames, nil, fillerMaxValue)
+                entry = pickFromPool(whTypeId, whType, usedNames, nil, phase1ItemCap)
                 itemCells = entry.w * entry.h
                 if totalSelectedCells + itemCells <= fillCells + 5 then
                     found = true
@@ -578,6 +618,10 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
                 goto continuePhase1
             end
         end
+        -- 软预算上限：超出后停止阶段1（让剩余格子交给阶段2的预算制）
+        if totalSelectedValue + entry.item.value > fillerBudgetCap and totalSelectedCells > 0 then
+            break
+        end
         failCount = 0
         usedNames[entry.item.name] = true
         selected[#selected + 1] = entry
@@ -587,7 +631,7 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
     end
 
     -- 阶段2：高价物品（剩余格子，预算制驱动，集中度由 tier.budgetK 控制）
-    local remainBudget = targetValue - totalSelectedValue
+    local remainBudget = math.max(0, targetValue - totalSelectedValue)
     failCount = 0
     while totalSelectedCells < targetCells and failCount < 10 do
         local remainCells = targetCells - totalSelectedCells
@@ -619,6 +663,41 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
         totalSelectedValue = totalSelectedValue + entry.item.value
         remainBudget = remainBudget - entry.item.value
         ::continuePhase2::
+    end
+
+    -- 阶段3：最小密度保障（确保至少 20% 格子有物品，严格单件价格上限）
+    -- 单件上限：poolMinValue × 15，确保只选池内"低档"物品来填充视觉密度
+    --   suburb_hardware（poolMinValue≈50）: 上限≈750 → 只能是螺丝钉/小零件
+    --   cult_jewelry（poolMinValue≈500）: 上限≈7,500 → 只能是廉价时尚饰品
+    local phase3ItemCap = poolMinValue * 15
+    local MIN_FILL_CELLS = math.floor(MAX_CELLS * 0.20)
+    if totalSelectedCells < MIN_FILL_CELLS then
+        failCount = 0
+        while totalSelectedCells < MIN_FILL_CELLS and failCount < 15 do
+            local entry = pickFromPool(whTypeId, whType, usedNames, nil, phase3ItemCap)
+            local itemCells = entry.w * entry.h
+            if totalSelectedCells + itemCells > MIN_FILL_CELLS + 10 then
+                local found = false
+                for _ = 1, 5 do
+                    entry = pickFromPool(whTypeId, whType, usedNames, nil, phase3ItemCap)
+                    itemCells = entry.w * entry.h
+                    if totalSelectedCells + itemCells <= MIN_FILL_CELLS + 10 then
+                        found = true
+                        break
+                    end
+                end
+                if not found then
+                    failCount = failCount + 1
+                    goto continuePhase3
+                end
+            end
+            failCount = 0
+            usedNames[entry.item.name] = true
+            selected[#selected + 1] = entry
+            totalSelectedCells = totalSelectedCells + itemCells
+            totalSelectedValue = totalSelectedValue + entry.item.value
+            ::continuePhase3::
+        end
     end
 
     -- ================================================================
@@ -694,7 +773,8 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
         itemCount = #items,
     }
 
-    local tierMult = totalValue / difficulty.expectedValue
+    local warehouseValue = difficulty.warehouseValue or difficulty.expectedValue
+    local tierMult = totalValue / warehouseValue
     print("[WarehouseGenerator] Generated: " .. warehouseName .. " [TIER: " .. tier.id .. "]")
     print("  Region: " .. region.name .. ", Type: " .. whType.name .. ", Difficulty: " .. (difficulty.label or "?"))
     print("  Tier: " .. tier.id .. " (mult range: " .. tier.multMin .. "x ~ " .. tier.multMax .. "x"
@@ -703,7 +783,7 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
         .. " (" .. math.floor(targetCells/MAX_CELLS*100) .. "%)")
     print("  Actual: items=" .. #items .. ", cells=" .. occupiedCells .. ", value=" .. totalValue)
     print("  Rows used: " .. usedRows .. "/" .. MAX_ROWS)
-    print("  Value ratio: " .. string.format("%.2fx", tierMult) .. " of expected (" .. difficulty.expectedValue .. ")")
+    print("  Value ratio: " .. string.format("%.2fx", tierMult) .. " of warehouseValue (" .. warehouseValue .. ")")
 
     return result
 end

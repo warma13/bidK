@@ -1,0 +1,11 @@
+# Ignore everything by default
+*
+
+# Allow these directories
+!scripts/
+!scripts/**
+!assets/
+!assets/**
+
+# Allow gitignore itself
+!.gitignore

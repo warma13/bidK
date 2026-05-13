@@ -29,7 +29,7 @@ local function CountExpectedTickets(milestones, bits)
     for i, ms in ipairs(milestones) do
         local bit = 1 << (i - 1)
         if (bits & bit) ~= 0 and ms.ticket then
-            expected[ms.ticket] = (expected[ms.ticket] or 0) + 1
+            expected[ms.ticket] = (expected[ms.ticket] or 0) + (ms.ticketCount or 1)
         end
     end
     return expected

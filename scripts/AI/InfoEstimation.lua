@@ -29,6 +29,7 @@ end
 -- ============================================================================
 
 --- 根据信息中的 reveals 字段更新 itemRevealLevels
+--- 同时收集 L0V 技能信息中的已知批次总价值（knownLotValues）
 ---@param infoState table { publicInfos, skillInfos, itemRevealLevels }
 function InfoEstimation.UpdateRevealLevels(infoState)
     local levels = infoState.itemRevealLevels
@@ -59,6 +60,27 @@ function InfoEstimation.UpdateRevealLevels(infoState)
 
     for _, info in ipairs(infoState.publicInfos) do applyAll(info) end
     for _, info in ipairs(infoState.skillInfos) do applyAll(info) end
+
+    -- 收集 L0V 技能信息：knownTotalValue + coveredItemIdxs
+    -- L0V = 某品质批次的精确总价（如"白绿蓝共14件，总价值X"）
+    -- 这是一个硬约束下界：这些物品加总至少值 knownTotalValue
+    local knownLotValues = {}
+    local function collectL0V(info)
+        if info.knownTotalValue and info.coveredItemIdxs and #info.coveredItemIdxs > 0 then
+            knownLotValues[#knownLotValues + 1] = {
+                totalValue = info.knownTotalValue,
+                itemIdxs   = info.coveredItemIdxs,
+            }
+        end
+        if info.extraInfos then
+            for _, extra in ipairs(info.extraInfos) do
+                collectL0V(extra)
+            end
+        end
+    end
+    -- L0V 仅来自技能信息（角色私有）
+    for _, info in ipairs(infoState.skillInfos) do collectL0V(info) end
+    infoState.knownLotValues = knownLotValues
 end
 
 -- ============================================================================

@@ -1,0 +1,352 @@
+[2026-03-22 07:52:41] 📋 ==================================================
+[2026-03-22 07:52:41] 📋 构建开始
+[2026-03-22 07:52:41] 📋 ==================================================
+[2026-03-22 07:52:41] 📋 日志文件: /workspace/logs/build/build_20260322_075241.log
+[2026-03-22 07:52:41] 📋 入口文件: /workspace/scripts/main.lua
+[2026-03-22 07:52:41] 📋 脚本目录: /workspace/scripts
+[2026-03-22 07:52:41] 📋 工作目录: /workspace
+[2026-03-22 07:52:41] 📋 MCP 环境: production
+[2026-03-22 07:52:41] 📋 纹理压缩限制: 每次最多 10 张
+[2026-03-22 07:52:41] 📋 步骤 1: 验证入口 Lua 文件存在
+[2026-03-22 07:52:41] ✅ 入口文件存在
+[2026-03-22 07:52:41] 📋 ⏱️  耗时: 0.01s
+[2026-03-22 07:52:41] 📋 步骤 2: 验证 Lua 文件包含 Start() 函数
+[2026-03-22 07:52:41] ✅ Start() 函数验证通过
+[2026-03-22 07:52:41] 📋 ⏱️  耗时: 0.01s
+[2026-03-22 07:52:41] 📋 步骤 3: 验证 scripts 目录存在
+[2026-03-22 07:52:41] ✅ scripts 目录存在
+[2026-03-22 07:52:41] 📋 ⏱️  耗时: 0.05s
+[2026-03-22 07:52:41] 📋 步骤 4: 启动 Lua LSP watch 模式
+[2026-03-22 07:52:42] 📋 LSP watch 已运行 (PID: 5357)
+[2026-03-22 07:52:42] ✅ Lua LSP 检查通过: 0 个错误
+[2026-03-22 07:52:42] 📋 ⏱️  耗时: 0.02s
+[2026-03-22 07:52:42] 📋 步骤 5: 检查并初始化 .project 目录
+[2026-03-22 07:52:42] ✅ .project 目录已正确初始化
+[2026-03-22 07:52:42] 📋 ⏱️  耗时: 0.01s
+[2026-03-22 07:52:42] 📋 步骤 5.6: 检查/更新 multiplayer 配置
+[2026-03-22 07:52:42] ✅ 使用本地已有的 multiplayer 配置
+[2026-03-22 07:52:42] 📋 ⏱️  耗时: 0.01s
+[2026-03-22 07:52:42] 📋 步骤 6: 更新 project.json 的 entry
+[2026-03-22 07:52:42] 📋 更新 project.json: /workspace/.project/project.json
+[2026-03-22 07:52:42] 📋   设置 entry: main.lua
+[2026-03-22 07:52:42] ✅ project.json 更新完成
+[2026-03-22 07:52:42] 📋 步骤 6.1: 检查 project_id 一致性
+[2026-03-22 07:52:42] ✅ project_id 一致性检查通过: p_70vd
+[2026-03-22 07:52:42] 📋 ⏱️  耗时: 0.03s
+[2026-03-22 07:52:42] 📋 步骤 7: 调用 project_builder.py 进行构建
+[2026-03-22 07:52:42] 📋 已设置 AssetsCooking 可执行权限: /home/Maker/.sce/build/AssetsCooking
+[2026-03-22 07:52:42] 📋 已设置 TileTerrainCLI 可执行权限: /workspace/.cli/TileTerrainCLI
+[2026-03-22 07:52:42] 📋 已设置 download_tile_resources.py 可执行权限: /workspace/.cli/download_tile_resources.py
+[2026-03-22 07:52:42] 📋 执行脚本: /home/Maker/.sce/build/project_builder.py
+[2026-03-22 07:52:42] 📋 参数: --project /workspace --platform all --cooking /home/Maker/.sce/build/AssetsCooking --cooking-limit 10 --no-7z
+[2026-03-22 07:52:42] 📋 Python: python3
+[2026-03-22 07:53:06] 📋 project_builder.py stdout:
+[2026-03-22 07:53:06] 📋   [INFO] 开始构建项目: /workspace [平台: all]
+[2026-03-22 07:53:06] 📋   [INFO] [1/13] 初始化构建目录...
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (0.01s)
+[2026-03-22 07:53:06] 📋   [INFO] [2/13] 加载配置...
+[2026-03-22 07:53:06] 📋   [INFO]   解析平台配置: all
+[2026-03-22 07:53:06] 📋   [INFO]   项目: p_70vd v1.0.6
+[2026-03-22 07:53:06] 📋   [INFO]   入口: main.lua
+[2026-03-22 07:53:06] 📋   [INFO]   输出: /workspace/.project/../dist/1.0.6
+[2026-03-22 07:53:06] 📋   [INFO]   构建号: 46
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (0.01s)
+[2026-03-22 07:53:06] 📋   [INFO] [3/13] 加载远程资源...
+[2026-03-22 07:53:06] 📋   [INFO]   加载远端来源: engine (tag: stable)
+[2026-03-22 07:53:06] 📋   [INFO]     导入 4 个远端资源: engine
+[2026-03-22 07:53:06] 📋   [INFO]   加载远端来源: engine-res (tag: stable)
+[2026-03-22 07:53:06] 📋   [INFO]     导入 1224 个远端资源: engine-res
+[2026-03-22 07:53:06] 📋   [INFO]   加载远端来源: official-res (tag: stable)
+[2026-03-22 07:53:06] 📋   [INFO]     导入 25358 个远端资源: official-res
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (3.32s)
+[2026-03-22 07:53:06] 📋   [INFO] [4/13] 扫描本地资源...
+[2026-03-22 07:53:06] 📋   [INFO]   扫描目录: ../assets (prefix: ../assets)
+[2026-03-22 07:53:06] 📋   [INFO]   扫描目录: ../scripts (prefix: ../scripts)
+[2026-03-22 07:53:06] 📋   [INFO]   发现资源: 965 个
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (4.97s)
+[2026-03-22 07:53:06] 📋   [INFO] [5/13] 处理配置文件运行时变体...
+[2026-03-22 07:53:06] 📋   [INFO]   处理配置文件运行时变体: settings.json
+[2026-03-22 07:53:06] 📋   [INFO]     UUID: FiU5KSoyQiGlA6fMBhu0kw, hash: 82e0a33f
+[2026-03-22 07:53:06] 📋   [INFO]     自动添加 #config 到 preload_groups
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (0.01s)
+[2026-03-22 07:53:06] 📋   [INFO] [6/13] 解析别名...
+[2026-03-22 07:53:06] 📋   [INFO]   解析别名: 0 个
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (0.00s)
+[2026-03-22 07:53:06] 📋   [INFO] [7/13] 分配分组...
+[2026-03-22 07:53:06] 📋   [INFO]   添加远端资源: 1224 个
+[2026-03-22 07:53:06] 📋   [INFO]   分组完成，总资源: 2190 个
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (0.01s)
+[2026-03-22 07:53:06] 📋   [INFO] [8/13] 展开引用...
+[2026-03-22 07:53:06] 📋   [INFO]   递归收集 uuid:// 和 alias:// 引用...（全量模式（兼容旧二进制））
+[2026-03-22 07:53:06] 📋   [INFO]   #blocking 组: 913 个阻塞类型资源
+[2026-03-22 07:53:06] 📋   [INFO]   完成 (0.12s)
+[2026-03-22 07:53:06] 📋   [INFO] [9/13] 资产烘焙...
+[2026-03-22 07:53:06] 📋   [INFO]   使用 AssetsCooking: /home/Maker/.sce/build/AssetsCooking
+[2026-03-22 07:53:06] 📋   [INFO]   发现 868 个纹理文件
+[2026-03-22 07:53:06] 📋   [INFO]   生成 tasks.json: 868 个任务
+[2026-03-22 07:53:06] 📋   [WARN]     压缩失败 [FdS0KV035rm-DB9ZP76ce_Ty_f092c97b@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:06] 📋   [WARN]     压缩失败 [FdS0KV035rm-DB9ZP76ce_Ty_f092c97b@android]: Skipped due to cooking limit
+[2026-03-22 07:53:06] 📋   [WARN]     压缩失败 [FdS0KV035rm-DB9ZP76ce_Ty_f092c97b@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AzJDGSwuQKjrSbgTtS9fom0K_4a4f8d27@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AzJDGSwuQKjrSbgTtS9fom0K_4a4f8d27@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AzJDGSwuQKjrSbgTtS9fom0K_4a4f8d27@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [F9XkYQDHAFni7uWTTWeVZDbG_c7c45db5@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [F9XkYQDHAFni7uWTTWeVZDbG_c7c45db5@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [F9XkYQDHAFni7uWTTWeVZDbG_c7c45db5@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GAcSAYYM2xwsHWpXu-5gDes0_226b1aaa@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GAcSAYYM2xwsHWpXu-5gDes0_226b1aaa@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GAcSAYYM2xwsHWpXu-5gDes0_226b1aaa@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CussAXSjPER6pjldCZjk8KEc_0747a5d7@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CussAXSjPER6pjldCZjk8KEc_0747a5d7@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CussAXSjPER6pjldCZjk8KEc_0747a5d7@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D_KzEbbt1mAb7wy7WSuNQUMR_7fe5a571@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D_KzEbbt1mAb7wy7WSuNQUMR_7fe5a571@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D_KzEbbt1mAb7wy7WSuNQUMR_7fe5a571@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BgEOSQeRuYZ6ORAfhjtw0Vzg_b44f41fc@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BgEOSQeRuYZ6ORAfhjtw0Vzg_b44f41fc@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BgEOSQeRuYZ6ORAfhjtw0Vzg_b44f41fc@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GQWvIfTGZQ9P0i0W6Nc2Dmiq_9962cc46@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GQWvIfTGZQ9P0i0W6Nc2Dmiq_9962cc46@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GQWvIfTGZQ9P0i0W6Nc2Dmiq_9962cc46@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Htj-KXGLjGshHPsncvAaybwy_92ada3af@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Htj-KXGLjGshHPsncvAaybwy_92ada3af@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Htj-KXGLjGshHPsncvAaybwy_92ada3af@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Akk6efK2PJgNSIqglCyp_xrw_4bab2220@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Akk6efK2PJgNSIqglCyp_xrw_4bab2220@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Akk6efK2PJgNSIqglCyp_xrw_4bab2220@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EDzqiRwBv6CLjcWH0xd1zxaH_725bb6ca@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EDzqiRwBv6CLjcWH0xd1zxaH_725bb6ca@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EDzqiRwBv6CLjcWH0xd1zxaH_725bb6ca@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BPq7iaN1Ush5uChZfDMqGuL5_12b6468e@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BPq7iaN1Ush5uChZfDMqGuL5_12b6468e@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BPq7iaN1Ush5uChZfDMqGuL5_12b6468e@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DoghcSCbp7iO6KCHbAJ6SR6N_5046496d@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DoghcSCbp7iO6KCHbAJ6SR6N_5046496d@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DoghcSCbp7iO6KCHbAJ6SR6N_5046496d@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AuGj-eu46wyYSFV5r5EgB0g9_9fe9e9d0@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AuGj-eu46wyYSFV5r5EgB0g9_9fe9e9d0@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AuGj-eu46wyYSFV5r5EgB0g9_9fe9e9d0@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AH_MQSOR4-oYB3r5sGvi5co0_c471144b@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AH_MQSOR4-oYB3r5sGvi5co0_c471144b@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AH_MQSOR4-oYB3r5sGvi5co0_c471144b@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HAvLwQZTBFwNn6xdSVomrFUk_3145810d@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HAvLwQZTBFwNn6xdSVomrFUk_3145810d@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HAvLwQZTBFwNn6xdSVomrFUk_3145810d@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GmXvWbPx3g77W-_9J0cyUM7F_18c98f84@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GmXvWbPx3g77W-_9J0cyUM7F_18c98f84@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GmXvWbPx3g77W-_9J0cyUM7F_18c98f84@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BAReeRZPDNE1Cmi9n9ZK9OIN_3b668345@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BAReeRZPDNE1Cmi9n9ZK9OIN_3b668345@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BAReeRZPDNE1Cmi9n9ZK9OIN_3b668345@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EV2c2TWrmLU9m8BD8shpzrA3_33e4f2c5@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EV2c2TWrmLU9m8BD8shpzrA3_33e4f2c5@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EV2c2TWrmLU9m8BD8shpzrA3_33e4f2c5@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BQc3gbBa-Gju4sPlmle5dVI5_f25d93ac@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BQc3gbBa-Gju4sPlmle5dVI5_f25d93ac@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BQc3gbBa-Gju4sPlmle5dVI5_f25d93ac@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GsjZiXrZcIhwnuZZoWOCJ4IB_21ba4fcb@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GsjZiXrZcIhwnuZZoWOCJ4IB_21ba4fcb@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GsjZiXrZcIhwnuZZoWOCJ4IB_21ba4fcb@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Dt6sERN6e4aTl5l5Vig4QIPn_33b69d55@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Dt6sERN6e4aTl5l5Vig4QIPn_33b69d55@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Dt6sERN6e4aTl5l5Vig4QIPn_33b69d55@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GFnR6cAtFlvSl5sU04xARvp5_7039d1e8@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GFnR6cAtFlvSl5sU04xARvp5_7039d1e8@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GFnR6cAtFlvSl5sU04xARvp5_7039d1e8@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Ar20cbfgxVs2w5OLVL5HSQrm_b52fedba@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Ar20cbfgxVs2w5OLVL5HSQrm_b52fedba@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Ar20cbfgxVs2w5OLVL5HSQrm_b52fedba@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Gzagic3gezeCNe9ENOZrg950_bbd426af@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Gzagic3gezeCNe9ENOZrg950_bbd426af@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Gzagic3gezeCNe9ENOZrg950_bbd426af@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GMQdYdzJBj9OBTbYn6fsWVJw_680e0814@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GMQdYdzJBj9OBTbYn6fsWVJw_680e0814@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GMQdYdzJBj9OBTbYn6fsWVJw_680e0814@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HdTaUUFqcS_3B0KJJ0M9XKDd_90cbfee2@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HdTaUUFqcS_3B0KJJ0M9XKDd_90cbfee2@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HdTaUUFqcS_3B0KJJ0M9XKDd_90cbfee2@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FljwoXb4YtuDa6CvYxCmFwFJ_000790e1@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FljwoXb4YtuDa6CvYxCmFwFJ_000790e1@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FljwoXb4YtuDa6CvYxCmFwFJ_000790e1@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GDmlGfgNtbVoJCYmZqnvPNXq_87329f56@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GDmlGfgNtbVoJCYmZqnvPNXq_87329f56@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GDmlGfgNtbVoJCYmZqnvPNXq_87329f56@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DXc6WVfPWht__jpztz23kdKk_20346758@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DXc6WVfPWht__jpztz23kdKk_20346758@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DXc6WVfPWht__jpztz23kdKk_20346758@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GLKNuc-XvMFBEa7JC7s5xgJA_a9905f04@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GLKNuc-XvMFBEa7JC7s5xgJA_a9905f04@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GLKNuc-XvMFBEa7JC7s5xgJA_a9905f04@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CJGDgRh3_XroSSKebhcwwn-W_8c2954cc@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CJGDgRh3_XroSSKebhcwwn-W_8c2954cc@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CJGDgRh3_XroSSKebhcwwn-W_8c2954cc@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FTQ-IXXi2Q5cEWZLGKrZjuhS_d20f0232@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FTQ-IXXi2Q5cEWZLGKrZjuhS_d20f0232@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FTQ-IXXi2Q5cEWZLGKrZjuhS_d20f0232@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FTCxcdURsIA3u5iZLQ9YFvwu_c78205f9@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FTCxcdURsIA3u5iZLQ9YFvwu_c78205f9@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FTCxcdURsIA3u5iZLQ9YFvwu_c78205f9@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DusZAc-v35Ev0H99YrLuPFYf_5427af3e@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DusZAc-v35Ev0H99YrLuPFYf_5427af3e@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DusZAc-v35Ev0H99YrLuPFYf_5427af3e@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GsPz6TqBzlTxk65Uiiwd1pWT_fa083be2@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GsPz6TqBzlTxk65Uiiwd1pWT_fa083be2@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GsPz6TqBzlTxk65Uiiwd1pWT_fa083be2@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DZ2zgbouAJ_vEydBMllGpx_h_22a4a691@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DZ2zgbouAJ_vEydBMllGpx_h_22a4a691@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DZ2zgbouAJ_vEydBMllGpx_h_22a4a691@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D13tuTXTx43oQIo4OGJyH6ml_cb02a598@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D13tuTXTx43oQIo4OGJyH6ml_cb02a598@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D13tuTXTx43oQIo4OGJyH6ml_cb02a598@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GaWeYa2W1igielzyqu1vuGO2_6a6cfb62@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GaWeYa2W1igielzyqu1vuGO2_6a6cfb62@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GaWeYa2W1igielzyqu1vuGO2_6a6cfb62@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D-YyoQrjYDnHo0ZsbW6bnlRs_a9014440@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D-YyoQrjYDnHo0ZsbW6bnlRs_a9014440@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [D-YyoQrjYDnHo0ZsbW6bnlRs_a9014440@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AlepEfMnRS339xmeOrpGmyeC_8c0b5b86@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AlepEfMnRS339xmeOrpGmyeC_8c0b5b86@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AlepEfMnRS339xmeOrpGmyeC_8c0b5b86@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EcGcEepXp6wd1oXphI9TG_Ek_e5a4f8b1@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EcGcEepXp6wd1oXphI9TG_Ek_e5a4f8b1@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EcGcEepXp6wd1oXphI9TG_Ek_e5a4f8b1@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CA6GQcxSGs3p-bHUH7jYVXVi_d909d5f4@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CA6GQcxSGs3p-bHUH7jYVXVi_d909d5f4@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CA6GQcxSGs3p-bHUH7jYVXVi_d909d5f4@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EcApAT3J-8Vq8MOhTi2jqONB_dcc11304@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EcApAT3J-8Vq8MOhTi2jqONB_dcc11304@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [EcApAT3J-8Vq8MOhTi2jqONB_dcc11304@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [E7JpCfXfo1WyEjaV9kC4jScP_7f5e60b6@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [E7JpCfXfo1WyEjaV9kC4jScP_7f5e60b6@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [E7JpCfXfo1WyEjaV9kC4jScP_7f5e60b6@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FeEOwf-rWKGmlhoRcC0-tdYV_a7bdbc72@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FeEOwf-rWKGmlhoRcC0-tdYV_a7bdbc72@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FeEOwf-rWKGmlhoRcC0-tdYV_a7bdbc72@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BcsLUbTmBo43N9Un2h2OtsGo_0342a9be@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BcsLUbTmBo43N9Un2h2OtsGo_0342a9be@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BcsLUbTmBo43N9Un2h2OtsGo_0342a9be@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DADNUS6xOOEy6q3g0NZsmrDP_68d142d1@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DADNUS6xOOEy6q3g0NZsmrDP_68d142d1@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [DADNUS6xOOEy6q3g0NZsmrDP_68d142d1@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FqRkYTHnSSSIbcLBaSH_aB-T_00af71fb@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FqRkYTHnSSSIbcLBaSH_aB-T_00af71fb@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FqRkYTHnSSSIbcLBaSH_aB-T_00af71fb@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Gzi0cXYrnnze8Tjjg4I3vRLH_6390f720@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Gzi0cXYrnnze8Tjjg4I3vRLH_6390f720@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Gzi0cXYrnnze8Tjjg4I3vRLH_6390f720@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [C7gnidTydTXml9cpDUCdZGOn_8bb74301@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [C7gnidTydTXml9cpDUCdZGOn_8bb74301@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [C7gnidTydTXml9cpDUCdZGOn_8bb74301@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HpvIgUVgWPvXgxMAQUIwnqd__dface37d@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HpvIgUVgWPvXgxMAQUIwnqd__dface37d@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HpvIgUVgWPvXgxMAQUIwnqd__dface37d@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [H4XAATXgUNI0qavQaQ5eSeeb_5f3278ef@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [H4XAATXgUNI0qavQaQ5eSeeb_5f3278ef@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [H4XAATXgUNI0qavQaQ5eSeeb_5f3278ef@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [E5E0Mb4SskWLmhXPNYU8wFiG_889a356b@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [E5E0Mb4SskWLmhXPNYU8wFiG_889a356b@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [E5E0Mb4SskWLmhXPNYU8wFiG_889a356b@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [B2BUiYxsWfYgT_h6cGE1mF1c_2760c72e@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [B2BUiYxsWfYgT_h6cGE1mF1c_2760c72e@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [B2BUiYxsWfYgT_h6cGE1mF1c_2760c72e@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GYC7uc1V7gEANZ6fpuI5gMKG_d9ef641d@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GYC7uc1V7gEANZ6fpuI5gMKG_d9ef641d@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [GYC7uc1V7gEANZ6fpuI5gMKG_d9ef641d@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [G7-IGa2jIkIjp4KaGyn04K0m_cbbdb7f6@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [G7-IGa2jIkIjp4KaGyn04K0m_cbbdb7f6@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [G7-IGa2jIkIjp4KaGyn04K0m_cbbdb7f6@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FoQ7KWru6ArBIYTbUWso6LUX_c417551d@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FoQ7KWru6ArBIYTbUWso6LUX_c417551d@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [FoQ7KWru6ArBIYTbUWso6LUX_c417551d@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CCfv8W435PhoiZfFbjehtOvF_4b64864b@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CCfv8W435PhoiZfFbjehtOvF_4b64864b@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [CCfv8W435PhoiZfFbjehtOvF_4b64864b@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Bp_X4T0TID7VJO7foovtvOM__2ecc7511@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Bp_X4T0TID7VJO7foovtvOM__2ecc7511@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [Bp_X4T0TID7VJO7foovtvOM__2ecc7511@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HO8NsZfgf9p_UZMScaLfoDq6_8fcb9826@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HO8NsZfgf9p_UZMScaLfoDq6_8fcb9826@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [HO8NsZfgf9p_UZMScaLfoDq6_8fcb9826@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BOujOe1P3qpUdppAqLaTe33t_28fe81e3@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BOujOe1P3qpUdppAqLaTe33t_28fe81e3@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BOujOe1P3qpUdppAqLaTe33t_28fe81e3@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BOFb2YBlEZnkN1gJWC-H5glP_b22e9b15@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BOFb2YBlEZnkN1gJWC-H5glP_b22e9b15@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BOFb2YBlEZnkN1gJWC-H5glP_b22e9b15@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AzsQoZxDztb65rCZaBpV2b91_611faa92@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AzsQoZxDztb65rCZaBpV2b91_611faa92@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [AzsQoZxDztb65rCZaBpV2b91_611faa92@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BWcuMUfJo3pjF7hWoerKBhu7_814d47cc@ios]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BWcuMUfJo3pjF7hWoerKBhu7_814d47cc@android]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [WARN]     压缩失败 [BWcuMUfJo3pjF7hWoerKBhu7_814d47cc@windows]: Skipped due to cooking limit
+[2026-03-22 07:53:07] 📋   [INFO]   批量压缩完成: 总计 2604, 成功 2409, 缓存命中 2399 (92.1%), 错误 195
+[2026-03-22 07:53:07] 📋   [INFO]   完成 (13.90s)
+[2026-03-22 07:53:07] 📋   [INFO] [10/13] 生成产物...
+[2026-03-22 07:53:07] 📋   [INFO]   清空版本目录: /workspace/.project/../dist/1.0.6
+[2026-03-22 07:53:07] 📋   [INFO]   生成: manifest-98b76d37.json (client)
+[2026-03-22 07:53:07] 📋   [INFO]   生成: manifest-4a4521ac.json (server)
+[2026-03-22 07:53:07] 📋   [INFO]   生成: engine-ef9e23e2.json
+[2026-03-22 07:53:07] 📋   [INFO]   生成: version.json
+[2026-03-22 07:53:07] 📋   [INFO]   生成: project.json
+[2026-03-22 07:53:07] 📋   [INFO]   生成: dist/project.json
+[2026-03-22 07:53:07] 📋   [INFO]   生成 tag: latest.json (默认)
+[2026-03-22 07:53:07] 📋   [INFO]   生成 tag: 1.x.x.json (默认)
+[2026-03-22 07:53:07] 📋   [INFO]   完成 (0.18s)
+[2026-03-22 07:53:07] 📋   [INFO] [11/13] 复制资产...
+[2026-03-22 07:53:07] 📋   [INFO]   复制资源到: /workspace/.project/../dist/assets
+[2026-03-22 07:53:07] 📋   [INFO]   已复制: 10 个文件
+[2026-03-22 07:53:07] 📋   [INFO]   完成 (0.90s)
+[2026-03-22 07:53:07] 📋   [INFO] [12/13] 清理旧版本...
+[2026-03-22 07:53:07] 📋   [INFO]   清理完成: 0 个旧版本, 5 个孤立资源
+[2026-03-22 07:53:07] 📋   [INFO]   完成 (0.96s)
+[2026-03-22 07:53:07] 📋   [INFO] [13/13] 输出统计...
+[2026-03-22 07:53:07] 📋   
+[2026-03-22 07:53:07] 📋   === 构建统计 ===
+[2026-03-22 07:53:07] 📋   项目根目录: /workspace
+[2026-03-22 07:53:07] 📋   目标平台: all
+[2026-03-22 07:53:07] 📋   资产目录: ../assets, ../scripts
+[2026-03-22 07:53:07] 📋   
+[2026-03-22 07:53:07] 📋   资源统计:
+[2026-03-22 07:53:07] 📋     扫描文件: 1931
+[2026-03-22 07:53:07] 📋     发现资源: 2189
+[2026-03-22 07:53:07] 📋     忽略文件: 0
+[2026-03-22 07:53:07] 📋     生成 meta: 0
+[2026-03-22 07:53:07] 📋     Client 资源: 2189
+[2026-03-22 07:53:07] 📋     Server 资源: 1
+[2026-03-22 07:53:07] 📋     复制资源: 10
+[2026-03-22 07:53:07] 📋     纹理压缩: 803
+[2026-03-22 07:53:07] 📋   
+[2026-03-22 07:53:07] 📋   Meta 缓存:
+[2026-03-22 07:53:07] 📋   
+[2026-03-22 07:53:07] 📋   === Meta 缓存统计 ===
+[2026-03-22 07:53:07] 📋   本地缓存: 965 条目
+[2026-03-22 07:53:07] 📋   命中次数: 0
+[2026-03-22 07:53:07] 📋   未命中次数: 965
+[2026-03-22 07:53:07] 📋   命中率: 0.0%
+[2026-03-22 07:53:07] 📋   加载次数: 965
+[2026-03-22 07:53:07] 📋   刷新次数: 0
+[2026-03-22 07:53:07] 📋   
+[2026-03-22 07:53:07] 📋   远端来源: 3 个
+[2026-03-22 07:53:07] 📋     - engine: 4 个文件
+[2026-03-22 07:53:07] 📋     - engine-res: 1224 个文件
+[2026-03-22 07:53:07] 📋     - official-res: 25358 个文件
+[2026-03-22 07:53:07] 📋   
+[2026-03-22 07:53:07] 📋   构建完成!
+[2026-03-22 07:53:07] 📋     版本: 1.0.6
+[2026-03-22 07:53:07] 📋     输出: /workspace/.project/../dist/1.0.6
+[2026-03-22 07:53:07] 📋     Client: manifest-98b76d37.json
+[2026-03-22 07:53:07] 📋     Server: manifest-4a4521ac.json
+[2026-03-22 07:53:07] 📋   [INFO]   完成 (0.00s)
+[2026-03-22 07:53:07] 📋   [INFO] 总耗时: 24.40s
+[2026-03-22 07:53:07] 📋   [INFO] 构建完成!
+[2026-03-22 07:53:07] 📋 设置目录权限...
+[2026-03-22 07:53:07] 📋 设置 dist 目录权限: /workspace/dist
+[2026-03-22 07:53:13] ✅ dist 目录权限已设置 (root:root, 755/644)
+[2026-03-22 07:53:13] 📋 设置目录权限: /workspace/logs
+[2026-03-22 07:53:13] 📋 设置目录权限: /workspace/.project
+[2026-03-22 07:53:13] 📋 设置目录权限: /workspace/.build
+[2026-03-22 07:53:15] ✅ 非 dist 目录权限已设置 (1000:1000)
+[2026-03-22 07:53:15] 📋 ⏱️  耗时: 33.12s
+[2026-03-22 07:53:15] ✅ ==================================================
+[2026-03-22 07:53:15] ✅ 构建完成！总耗时: 33.26s
+[2026-03-22 07:53:15] ✅ ==================================================

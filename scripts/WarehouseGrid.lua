@@ -86,9 +86,9 @@ end
 ---@param h number 高度（行数）
 ---@return boolean
 function WarehouseGrid.CanPlaceAt(inst, row, col, w, h)
-    -- 检查放置后不超过 totalCells 上限
-    local newCells = w * h
-    if inst.usedCells + newCells > inst.totalCells then
+    -- 校验矩形右下角格子索引不超出 totalCells 边界
+    -- （比 usedCells 累计更可靠：避免末行多余格导致 usedCells 虚高的误判）
+    if (row + h - 2) * COLS + (col + w - 1) > inst.totalCells then
         return false
     end
     return canPlaceAt(inst.grid, inst.rows, row, col, w, h)
@@ -101,14 +101,13 @@ end
 ---@return number|nil row
 ---@return number|nil col
 function WarehouseGrid.FindPosition(inst, w, h)
-    local newCells = w * h
-    if inst.usedCells + newCells > inst.totalCells then
-        return nil, nil
-    end
     for r = 1, inst.rows do
         for c = 1, COLS do
-            if canPlaceAt(inst.grid, inst.rows, r, c, w, h) then
-                return r, c
+            -- 校验矩形右下角格子索引不超出 totalCells 边界
+            if (r + h - 2) * COLS + (c + w - 1) <= inst.totalCells then
+                if canPlaceAt(inst.grid, inst.rows, r, c, w, h) then
+                    return r, c
+                end
             end
         end
     end

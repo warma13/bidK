@@ -2,8 +2,18 @@
 -- RevealPlanner.lua - 仓库公开信息揭示计划生成器
 -- 纯数据模块，不依赖 UI，根据仓库物品生成每轮的揭示计划
 --
--- 评分公式: S = ΔW(m) × T(n) × Q(q)
--- 每轮 5 个备选方案，随机抽取 1 个
+-- 每场竞拍共 5 轮，奇数轮（1 3 5）显示揭示信息，偶数轮（2 4）不揭示
+--
+-- 揭示类型（8 种）：
+--   total_cells         - 所有藏品格子总数（纯文字）
+--   quality_outline     - 所有 X 品质藏品的轮廓（L1）
+--   random_items_full   - 随机 N 件藏品完整信息（L3）
+--   random_items_quality- 随机 N 件藏品品质（L2）
+--   top_value_item      - 最高价值藏品完整信息（L3）
+--   top_cells_item      - 占格数最多的藏品完整信息（L3）
+--   quality_avg_cells   - X 品质藏品平均格子数（纯文字）
+--   quality_avg_value   - X 品质藏品平均价值（纯文字）
+--   quality_count       - 本场拍卖共有 X 品质藏品 N 件（纯文字）
 -- ============================================================================
 
 local Config = require("Config")
@@ -33,9 +43,9 @@ end
 local data = {
     items = {},                -- 仓库物品列表
     itemRevealLevels = {},     -- { [itemIdx] = 0|1|2|3 }
-    roundPlans = {},           -- { [round] = { info1, info2 } }
-    usedCategories = {},       -- 已使用的品类 { [catId] = true }
+    roundPlans = {},           -- { [round] = { info1, ... } }
     usedQualities = {},        -- 已使用的品质 { [qualityId] = true }
+    regionId = nil,            -- 当前仓库所属区域ID
 }
 
 -- ============================================================================
@@ -46,24 +56,24 @@ local stats = {}
 
 local function analyze(items)
     stats = {
-        totalCount = #items,
-        catItems = {},       -- { [catId] = { item, ... } }
-        catNames = {},       -- { [catId] = name }
-        catIds = {},         -- { catId, ... } 有物品的品类ID列表
-        qualityItems = {},   -- { [qualityId] = { item, ... } }
-        qualityIds = {},     -- { qualityId, ... } 有物品的品质ID列表（低→高）
+        totalCount    = #items,
+        totalCells    = 0,         -- 所有物品格子总数
+        qualityItems  = {},        -- { [qualityId] = { item, ... } }
+        qualityIds    = {},        -- 有物品的品质ID列表（低→高）
+        mostValuable  = nil,       -- 价值最高的物品
+        mostCells     = nil,       -- 占格数最多的物品
     }
 
+    local maxVal   = -1
+    local maxCells = -1
+
     for _, item in ipairs(items) do
-        local cat = item.category
-        if cat then
-            if not stats.catItems[cat] then
-                stats.catItems[cat] = {}
-                local catDef = Config.GetCategory(cat)
-                stats.catNames[cat] = catDef and catDef.name or cat
-            end
-            local list = stats.catItems[cat]
-            list[#list + 1] = item
+        local cells = (item.w or 1) * (item.h or 1)
+        stats.totalCells = stats.totalCells + cells
+
+        if cells > maxCells then
+            maxCells = cells
+            stats.mostCells = item
         end
 
         local q = item.rarity
@@ -74,10 +84,12 @@ local function analyze(items)
             local list = stats.qualityItems[q]
             list[#list + 1] = item
         end
-    end
 
-    for catId in pairs(stats.catItems) do
-        stats.catIds[#stats.catIds + 1] = catId
+        local val = item.realValue or Config.GetItemRealValue(item)
+        if val > maxVal then
+            maxVal = val
+            stats.mostValuable = item
+        end
     end
 
     for qId in pairs(stats.qualityItems) do
@@ -112,20 +124,7 @@ local function pickRandom(list, n)
     return result
 end
 
---- 从未使用的品类中随机选一个
-local function pickUnusedCategory()
-    local candidates = {}
-    for _, catId in ipairs(stats.catIds) do
-        if not data.usedCategories[catId] then
-            candidates[#candidates + 1] = catId
-        end
-    end
-    if #candidates == 0 then candidates = stats.catIds end
-    if #candidates == 0 then return nil end
-    return candidates[math.random(1, #candidates)]
-end
-
---- 从未使用的品质中随机选一个
+--- 从未使用的品质中随机选一个（preferHigh=true 时偏好高品质）
 local function pickUnusedQuality(preferHigh)
     local candidates = {}
     for _, qId in ipairs(stats.qualityIds) do
@@ -133,13 +132,21 @@ local function pickUnusedQuality(preferHigh)
             candidates[#candidates + 1] = qId
         end
     end
-    if #candidates == 0 then candidates = stats.qualityIds end
+    if #candidates == 0 then
+        -- 全部用过，重置
+        data.usedQualities = {}
+        candidates = {}
+        for _, qId in ipairs(stats.qualityIds) do
+            candidates[#candidates + 1] = qId
+        end
+    end
     if #candidates == 0 then return nil end
 
     if preferHigh then
         table.sort(candidates, function(a, b)
             return (QUALITY_ORDER[a] or 0) > (QUALITY_ORDER[b] or 0)
         end)
+        -- 从前两个高品质中随机选
         local top = math.min(2, #candidates)
         return candidates[math.random(1, top)]
     else
@@ -174,9 +181,9 @@ end
 --- 按品质分组统计描述文本
 local function qualityBreakdownText(items)
     local rarCounts = {}
-    local rarOrder = {}
+    local rarOrder  = {}
     for _, item in ipairs(items) do
-        local rar = Config.GetRarity(item.rarity)
+        local rar  = Config.GetRarity(item.rarity)
         local name = rar.name
         if not rarCounts[name] then
             rarCounts[name] = 0
@@ -191,19 +198,8 @@ local function qualityBreakdownText(items)
     return table.concat(parts, "、")
 end
 
---- 获取未完全揭示的物品候选
-local function getUnrevealedItems(belowLevel)
-    local candidates = {}
-    for _, item in ipairs(data.items) do
-        if item.idx and (data.itemRevealLevels[item.idx] or 0) < belowLevel then
-            candidates[#candidates + 1] = item
-        end
-    end
-    return candidates
-end
-
 -- ============================================================================
--- 全局 FormatValue（InfoSystem 也用到）
+-- 全局 FormatValue
 -- ============================================================================
 
 function FormatValue(val)
@@ -214,172 +210,61 @@ function FormatValue(val)
 end
 
 -- ============================================================================
--- 信息生成器
+-- 6 种信息生成器
 -- ============================================================================
 
 local generators = {}
 
--- ----- L2 品类全部品质 -----
--- R1: 6 × 1.0 × 37.7 ≈ 226
--- R3: 6 × 0.6 × 37.7 ≈ 136 (ΔW 可能因前轮揭示降低)
-function generators.category_quality(catId)
-    catId = catId or pickUnusedCategory()
-    if not catId then return nil end
-    local items = stats.catItems[catId]
-    if not items or #items == 0 then return nil end
-    local catName = stats.catNames[catId] or catId
-
-    data.usedCategories[catId] = true
+-- ----- 1. 所有藏品格子总数（纯文字，不揭示） -----
+function generators.total_cells()
     return {
-        type = "category_quality",
-        text = catName .. "类藏品共" .. #items .. "件：" .. qualityBreakdownText(items),
-        reveals = makeReveals(items, 2),
+        type        = "total_cells",
+        text        = "所有藏品总占用的格子数量为 " .. stats.totalCells .. " 格",
+        reveals     = {},
+        -- 机器可读字段
+        totalCells  = stats.totalCells,
+        totalCount  = stats.totalCount,
     }
 end
 
--- ----- L1 双品类全部轮廓 -----
--- R1: 3 × 1.0 × 75.4 ≈ 226
-function generators.dual_category_outline()
-    local candidates = {}
-    for _, catId in ipairs(stats.catIds) do
-        if not data.usedCategories[catId] then
-            candidates[#candidates + 1] = catId
-        end
-    end
-    if #candidates < 2 then
-        -- 不够2个未使用品类，用全部品类
-        candidates = {}
-        for _, catId in ipairs(stats.catIds) do
-            candidates[#candidates + 1] = catId
-        end
-    end
-    if #candidates < 2 then return nil end
-
-    local picked = pickRandom(candidates, 2)
-    local allItems = {}
-    local names = {}
-    for _, catId in ipairs(picked) do
-        data.usedCategories[catId] = true
-        local catName = stats.catNames[catId] or catId
-        names[#names + 1] = catName
-        for _, item in ipairs(stats.catItems[catId] or {}) do
-            allItems[#allItems + 1] = item
-        end
-    end
-
+-- ----- 1b. 每件藏品平均格子数（纯文字，不揭示） -----
+function generators.avg_cells_per_item()
+    if stats.totalCount == 0 then return nil end
+    local avg = stats.totalCells / stats.totalCount
     return {
-        type = "dual_category_outline",
-        text = "扫描到" .. table.concat(names, "和") .. "类共" .. #allItems .. "件藏品的轮廓",
-        reveals = makeReveals(allItems, 1),
+        type             = "avg_cells_per_item",
+        text             = "每件藏品平均占用的格子数量约为" .. string.format("%.2f", avg) .. "格",
+        reveals          = {},
+        -- 机器可读字段
+        avgCellsPerItem  = avg,
+        totalCount       = stats.totalCount,
     }
 end
 
--- ----- L1 单品类全部轮廓 -----
--- R2: 3 × 0.8 × 37.7 ≈ 90
--- R3: 3 × 0.6 × 37.7 ≈ 68
-function generators.category_outline(catId)
-    catId = catId or pickUnusedCategory()
-    if not catId then return nil end
-    local items = stats.catItems[catId]
-    if not items or #items == 0 then return nil end
-    local catName = stats.catNames[catId] or catId
-
-    data.usedCategories[catId] = true
-    return {
-        type = "category_outline",
-        text = "扫描到" .. catName .. "类" .. #items .. "件藏品的轮廓",
-        reveals = makeReveals(items, 1),
-    }
-end
-
--- ----- L2 某品质全部物品 -----
--- R1: 6 × 1.0 × 30(绿色ΣQ) ≈ 180
-function generators.quality_group_quality(qualityId)
+-- ----- 2. 所有 X 品质藏品的轮廓（L1） -----
+function generators.quality_outline(qualityId)
     qualityId = qualityId or pickUnusedQuality(false)
     if not qualityId then return nil end
     local items = stats.qualityItems[qualityId]
     if not items or #items == 0 then return nil end
-    local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
-
-    data.usedQualities[qualityId] = true
-    return {
-        type = "quality_group_quality",
-        text = "鉴别出全部" .. #items .. "件" .. colorName .. "品质藏品",
-        reveals = makeReveals(items, 2),
-    }
-end
-
--- ----- L1 品质尺寸线索 -----
--- R2: 3 × 0.8 × 40 ≈ 96
-function generators.rarity_size_hint(qualityId)
-    qualityId = qualityId or "gold"
-    local items = stats.qualityItems[qualityId]
-    if not items or #items == 0 then
-        qualityId = pickUnusedQuality(true)
-        if not qualityId then return nil end
-        items = stats.qualityItems[qualityId]
-        if not items or #items == 0 then return nil end
-    end
 
     local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
-    local totalCells = 0
-    for _, item in ipairs(items) do
-        totalCells = totalCells + (item.w or 1) * (item.h or 1)
-    end
-    local avgCells = math.floor(totalCells / #items + 0.5)
-
     data.usedQualities[qualityId] = true
     return {
-        type = "rarity_size_hint",
-        text = colorName .. "品质藏品共" .. #items .. "件，平均占" .. avgCells .. "格",
+        type    = "quality_outline",
+        text    = "扫描到全部 " .. #items .. " 件" .. colorName .. "品质藏品的轮廓",
         reveals = makeReveals(items, 1),
     }
 end
 
--- ----- L3 N 件随机完整信息 -----
--- R1(n=2): 10 × 1.0 × 8.8 ≈ 88
--- R2(n=1): 10 × 0.8 × 4.4 ≈ 35
--- R3(n=3): 10 × 0.6 × 13.2 ≈ 79
--- R4(n=1): 10 × 0.4 × 4.4 ≈ 18
+-- ----- 3. 随机 N 件藏品完整信息（L3） -----
 function generators.random_items_full(n)
-    n = n or 3
-    local candidates = getUnrevealedItems(3)
-    if #candidates == 0 then return nil end
-
-    local selected = pickRandom(candidates, n)
-    local parts = {}
-    for _, item in ipairs(selected) do
-        local rar = Config.GetRarity(item.rarity)
-        local val = item.realValue or Config.GetItemRealValue(item)
-        parts[#parts + 1] = item.name .. "（" .. rar.name .. "，" .. FormatValue(val) .. "）"
+    -- n 为 nil 时随机选 4 或 6
+    if not n then
+        n = (math.random(2) == 1) and 4 or 6
     end
-
-    return {
-        type = "random_items_full",
-        text = "发现" .. #selected .. "件藏品：" .. table.concat(parts, "、"),
-        reveals = makeReveals(selected, 3),
-    }
-end
-
--- ----- L3 N 件偏好高品质完整信息 -----
--- R3(n=1): 10 × 0.6 × 20(gold) ≈ 120
-function generators.random_highest_full(n)
-    n = n or 1
-    local candidates = getUnrevealedItems(3)
-    if #candidates == 0 then return nil end
-
-    -- 按品质排序，从高到低
-    table.sort(candidates, function(a, b)
-        return (QUALITY_ORDER[a.rarity] or 0) > (QUALITY_ORDER[b.rarity] or 0)
-    end)
-
-    -- 取前 n×3 个中随机 n 个（偏好高品质但保留随机性）
-    local pool = {}
-    local poolSize = math.min(n * 3, #candidates)
-    for i = 1, poolSize do
-        pool[#pool + 1] = candidates[i]
-    end
-    local selected = pickRandom(pool, n)
+    if #data.items == 0 then return nil end
+    local selected = pickRandom(data.items, n)
 
     local parts = {}
     for _, item in ipairs(selected) do
@@ -389,200 +274,294 @@ function generators.random_highest_full(n)
     end
 
     return {
-        type = "random_highest_full",
-        text = "发现珍品：" .. table.concat(parts, "、"),
+        type    = "random_items_full",
+        text    = "随机鉴定 " .. #selected .. " 件藏品：" .. table.concat(parts, "、"),
         reveals = makeReveals(selected, 3),
     }
 end
 
--- ----- L2 N 件随机品质 -----
--- R1(n=4): 6 × 1.0 × 17.6 ≈ 106
--- R2(n=3): 6 × 0.8 × 13.2 ≈ 63
--- R3(n=5): 6 × 0.6 × 22 ≈ 79
--- R4(n=2): 6 × 0.4 × 8.8 ≈ 21
--- R5(n=1): 6 × 0.2 × 4.4 ≈ 5
+-- ----- 4. 随机 N 件藏品品质（L2） -----
 function generators.random_items_quality(n)
-    n = n or 2
-    local candidates = getUnrevealedItems(2)
-    if #candidates == 0 then
-        candidates = getUnrevealedItems(3)
+    if not n then
+        n = (math.random(2) == 1) and 3 or 12
     end
-    if #candidates == 0 then return nil end
+    if #data.items == 0 then return nil end
+    local selected = pickRandom(data.items, n)
 
-    local selected = pickRandom(candidates, n)
     return {
-        type = "random_items_quality",
-        text = "鉴别" .. #selected .. "件品质：" .. qualityBreakdownText(selected),
+        type    = "random_items_quality",
+        text    = "鉴别 " .. #selected .. " 件藏品品质：" .. qualityBreakdownText(selected),
         reveals = makeReveals(selected, 2),
     }
 end
 
--- ----- L1 N 件随机轮廓 -----
--- R4(n=3): 3 × 0.4 × 13.2 ≈ 16
--- R5(n=1): 3 × 0.2 × 4.4 ≈ 3
-function generators.random_items_outline(n)
-    n = n or 3
-    local candidates = getUnrevealedItems(1)
-    if #candidates == 0 then
-        candidates = getUnrevealedItems(2)
-    end
-    if #candidates == 0 then return nil end
+-- ----- 5. 最高价值藏品完整信息（L3） -----
+function generators.top_value_item()
+    local item = stats.mostValuable
+    if not item then return nil end
 
-    local selected = pickRandom(candidates, n)
+    local rar = Config.GetRarity(item.rarity)
+    local val = item.realValue or Config.GetItemRealValue(item)
     return {
-        type = "random_items_outline",
-        text = "扫描到" .. #selected .. "件藏品的轮廓",
-        reveals = makeReveals(selected, 1),
+        type    = "top_value_item",
+        text    = "发现最高价值藏品：" .. item.name .. "（" .. rar.name .. "，" .. FormatValue(val) .. "）",
+        reveals = makeReveals({ item }, 3),
     }
 end
 
--- ----- L0 品质件数 -----
--- R4: 1 × 0.4 × 40(purple) ≈ 16
--- R5: 1 × 0.2 × 40(gold) ≈ 8
-function generators.rarity_count(qualityId)
+-- ----- 6. X 品质藏品平均格子数（纯文字，不揭示） -----
+function generators.quality_avg_cells(qualityId)
     qualityId = qualityId or pickUnusedQuality(true)
     if not qualityId then return nil end
     local items = stats.qualityItems[qualityId]
     if not items or #items == 0 then return nil end
+
+    local totalCells = 0
+    for _, item in ipairs(items) do
+        totalCells = totalCells + (item.w or 1) * (item.h or 1)
+    end
+    local avg = math.floor(totalCells / #items + 0.5)
     local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
 
     data.usedQualities[qualityId] = true
     return {
-        type = "rarity_count",
-        text = colorName .. "品质的藏品有 " .. #items .. " 件",
-        reveals = {},
+        type            = "quality_avg_cells",
+        text            = colorName .. "品质藏品共 " .. #items .. " 件，平均占 " .. avg .. " 格",
+        reveals         = {},
+        -- 机器可读字段
+        rarityId        = qualityId,
+        rarityCount     = #items,
+        rarityAvgCells  = avg,
     }
 end
 
--- ----- L0 总件数 -----
--- R5: 1 × 0.2 × 264 ≈ 53（纯数量信息）
-function generators.total_count()
+-- ----- 7. 占格数最多的藏品完整信息（L3） -----
+function generators.top_cells_item()
+    local item = stats.mostCells
+    if not item then return nil end
+
+    local rar   = Config.GetRarity(item.rarity)
+    local val   = item.realValue or Config.GetItemRealValue(item)
+    local cells = (item.w or 1) * (item.h or 1)
     return {
-        type = "total_count",
-        text = "仓库中共有 " .. stats.totalCount .. " 件藏品",
-        reveals = {},
+        type    = "top_cells_item",
+        text    = "占位格数最多的藏品：" .. item.name .. "（" .. rar.name .. "，占 " .. cells .. " 格，" .. FormatValue(val) .. "）",
+        reveals = makeReveals({ item }, 3),
     }
 end
 
--- ----- L0 品类件数 -----
--- R4: 1 × 0.4 × 37.7 ≈ 15
--- R5: 1 × 0.2 × 37.7 ≈ 8
-function generators.category_count(catId)
-    catId = catId or pickUnusedCategory()
-    if not catId then return nil end
-    local items = stats.catItems[catId]
+-- ----- 8. X 品质藏品平均价值（纯文字，不揭示） -----
+function generators.quality_avg_value(qualityId)
+    qualityId = qualityId or pickUnusedQuality(false)
+    if not qualityId then return nil end
+    local items = stats.qualityItems[qualityId]
     if not items or #items == 0 then return nil end
-    local catName = stats.catNames[catId] or catId
 
-    data.usedCategories[catId] = true
+    local totalVal = 0
+    for _, item in ipairs(items) do
+        totalVal = totalVal + (item.realValue or Config.GetItemRealValue(item))
+    end
+    local avg = totalVal / #items
+    local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
+
+    data.usedQualities[qualityId] = true
     return {
-        type = "category_count",
-        text = catName .. "类藏品有 " .. #items .. " 件",
-        reveals = {},
+        type             = "quality_avg_value",
+        text             = "所有" .. colorName .. "品质藏品的平均价值约为" .. string.format("%.2f", avg),
+        reveals          = {},
+        -- 机器可读字段
+        rarityId         = qualityId,
+        rarityCount      = #items,
+        rarityAvgValue   = avg,
+    }
+end
+
+-- ----- 9. 随机显示 1 件最高品质的藏品完整信息（L3） -----
+function generators.highest_quality_item()
+    -- 找出仓库中品质最高的等级
+    local topQualityId = nil
+    local topOrder = -1
+    for _, qId in ipairs(stats.qualityIds) do
+        local ord = QUALITY_ORDER[qId] or 0
+        if ord > topOrder and stats.qualityItems[qId] and #stats.qualityItems[qId] > 0 then
+            topOrder = ord
+            topQualityId = qId
+        end
+    end
+    if not topQualityId then return nil end
+
+    local items = stats.qualityItems[topQualityId]
+    local item  = items[math.random(1, #items)]
+    local rar   = Config.GetRarity(item.rarity)
+    local val   = item.realValue or Config.GetItemRealValue(item)
+    return {
+        type    = "highest_quality_item",
+        text    = "随机展示1件最高品质藏品：" .. item.name .. "（" .. rar.name .. "，" .. FormatValue(val) .. "）",
+        reveals = makeReveals({ item }, 3),
+    }
+end
+
+-- ----- 10. X 品质藏品总占格子数（纯文字，不揭示） -----
+function generators.quality_total_cells(qualityId)
+    qualityId = qualityId or pickUnusedQuality(false)
+    if not qualityId then return nil end
+    local items = stats.qualityItems[qualityId]
+    if not items or #items == 0 then return nil end
+
+    local totalCells = 0
+    for _, item in ipairs(items) do
+        totalCells = totalCells + (item.w or 1) * (item.h or 1)
+    end
+    local avg = math.floor(totalCells / #items + 0.5)
+    local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
+
+    data.usedQualities[qualityId] = true
+    return {
+        type              = "quality_total_cells",
+        text              = colorName .. "品质总占用的格子数量为" .. totalCells .. "格",
+        reveals           = {},
+        -- 机器可读字段
+        rarityId          = qualityId,
+        rarityCount       = #items,
+        rarityTotalCells  = totalCells,
+        rarityAvgCells    = avg,
+    }
+end
+
+-- ----- 11. 随机 N 件藏品的平均价值（纯文字，不揭示） -----
+function generators.random_avg_value(n)
+    if not n then
+        n = (math.random(2) == 1) and 4 or 6
+    end
+    if #data.items == 0 then return nil end
+    local selected = pickRandom(data.items, n)
+
+    local totalVal = 0
+    for _, item in ipairs(selected) do
+        totalVal = totalVal + (item.realValue or Config.GetItemRealValue(item))
+    end
+    local avg = totalVal / #selected
+    return {
+        type            = "random_avg_value",
+        text            = "随机选择的" .. #selected .. "件藏品的平均价值约为" .. string.format("%.1f", avg),
+        reveals         = {},
+        -- 机器可读字段
+        sampleCount     = #selected,
+        sampleAvgValue  = avg,
+        totalCount      = stats.totalCount,
+    }
+end
+
+-- ----- 12. 本场拍卖共有 X 品质藏品 N 件（纯文字，不揭示） -----
+function generators.quality_count(qualityId)
+    qualityId = qualityId or pickUnusedQuality(false)
+    if not qualityId then return nil end
+    local items = stats.qualityItems[qualityId]
+    if not items or #items == 0 then return nil end
+
+    local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
+    data.usedQualities[qualityId] = true
+    return {
+        type        = "quality_count",
+        text        = "本场拍卖共有" .. colorName .. "品质藏品 " .. #items .. " 件",
+        reveals     = {},
+        -- 机器可读字段
+        rarityId    = qualityId,
+        rarityCount = #items,
     }
 end
 
 -- ============================================================================
--- 每轮 5 个备选方案（随机抽取 1 个）
+-- 每轮候选池配置
+-- 每轮从候选池中随机抽取 1 个，尝试生成直到成功
 -- ============================================================================
 
+--[[
+  揭示节奏：奇数轮（1 3 5）显示揭示信息，偶数轮（2 4）不揭示（让玩家专注竞拍）
+
+  - R1: 整体概况（总格子数、大量品质鉴别、轮廓）
+  - R2: 不揭示
+  - R3: 发现重要藏品（随机完整、最高价值、占格最多）
+  - R4: 不揭示
+  - R5: 品质分析（平均价值、平均格子、轮廓）
+]]
 local ROUND_CONFIG = {
-    -- R1 (T=1.0): 大信息量回合
+    -- R1: 整体概况
     [1] = {
-        -- A: L2 × 1品类全部品质 ≈ 226
-        { gen = "category_quality" },
-        -- B: L1 × 2品类全部轮廓 ≈ 226
-        { gen = "dual_category_outline" },
-        -- C: L3 × 2件随机完整 ≈ 88
-        { gen = "random_items_full", args = { n = 2 } },
-        -- D: L2 × 4件随机品质 ≈ 106
-        { gen = "random_items_quality", args = { n = 4 } },
-        -- E: L2 × 某品质全部 ≈ 180(绿) / 120(蓝)
-        { gen = "quality_group_quality" },
+        { gen = "total_cells" },
+        { gen = "avg_cells_per_item" },
+        { gen = "quality_count" },
+        { gen = "quality_total_cells" },
+        { gen = "random_items_quality" },
+        { gen = "random_avg_value" },
+        { gen = "random_items_full" },
     },
 
-    -- R2 (T=0.8): 中等信息量
+    -- R2: 非1万场时使用
     [2] = {
-        -- A: L1 × 金色物品尺寸 ≈ 96
-        { gen = "rarity_size_hint", args = { qualityId = "gold" } },
-        -- B: L2 × 3件随机品质 ≈ 63
-        { gen = "random_items_quality", args = { n = 3 } },
-        -- C: L1 × 1品类全部轮廓 ≈ 90
-        { gen = "category_outline" },
-        -- D: L3 × 1件随机完整 ≈ 35
-        { gen = "random_items_full", args = { n = 1 } },
-        -- E: L0 × 某高品质件数 ≈ 32(purple)
-        { gen = "rarity_count", args = { qualityId = "purple" } },
+        { gen = "quality_outline" },
+        { gen = "quality_count" },
+        { gen = "quality_total_cells" },
+        { gen = "random_items_quality" },
+        { gen = "avg_cells_per_item" },
     },
 
-    -- R3 (T=0.6): 中等偏低
+    -- R3: 发现重要藏品
     [3] = {
-        -- A: L3 × 3件随机完整 ≈ 79
-        { gen = "random_items_full", args = { n = 3 } },
-        -- B: L2 × 1品类全部品质 ≈ 136(首次) / 更低(已有揭示)
-        { gen = "category_quality" },
-        -- C: L2 × 5件随机品质 ≈ 79
-        { gen = "random_items_quality", args = { n = 5 } },
-        -- D: L3 × 1件偏高品质 ≈ 120(gold)
-        { gen = "random_highest_full", args = { n = 1 } },
-        -- E: L1 × 1品类全部轮廓 ≈ 68
-        { gen = "category_outline" },
+        { gen = "random_items_full" },
+        { gen = "top_value_item" },
+        { gen = "top_cells_item" },
+        { gen = "highest_quality_item" },
+        { gen = "random_avg_value" },
+        { gen = "quality_count" },
     },
 
-    -- R4 (T=0.4): 小信息量
+    -- R4: 非1万场时使用
     [4] = {
-        -- A: L2 × 2件随机品质 ≈ 21
-        { gen = "random_items_quality", args = { n = 2 } },
-        -- B: L3 × 1件随机完整 ≈ 18
-        { gen = "random_items_full", args = { n = 1 } },
-        -- C: L1 × 3件随机轮廓 ≈ 16
-        { gen = "random_items_outline", args = { n = 3 } },
-        -- D: L0 × 某品质件数 ≈ 16
-        { gen = "rarity_count" },
-        -- E: L0 × 1品类件数 ≈ 15
-        { gen = "category_count" },
+        { gen = "random_avg_value" },
+        { gen = "quality_avg_value" },
+        { gen = "quality_avg_cells" },
+        { gen = "random_items_full" },
+        { gen = "highest_quality_item" },
     },
 
-    -- R5 (T=0.2): 微信息量
+    -- R5: 品质深度分析
     [5] = {
-        -- A: L0 × 金色件数 ≈ 8
-        { gen = "rarity_count", args = { qualityId = "gold" } },
-        -- B: L0 × 某品质件数 ≈ varies
-        { gen = "rarity_count" },
-        -- C: L0 × 1品类件数 ≈ 8
-        { gen = "category_count" },
-        -- D: L2 × 1件随机品质 ≈ 5
-        { gen = "random_items_quality", args = { n = 1 } },
-        -- E: L1 × 1件随机轮廓 ≈ 3
-        { gen = "random_items_outline", args = { n = 1 } },
+        { gen = "quality_avg_value" },
+        { gen = "quality_avg_cells" },
+        { gen = "quality_total_cells" },
+        { gen = "quality_count" },
+        { gen = "random_avg_value" },
+        { gen = "highest_quality_item" },
     },
 }
 
 -- ============================================================================
--- 为某一轮生成信息（从 5 个备选中随机选 1 个）
+-- 为某一轮生成信息（从候选池中随机抽 1 个）
 -- ============================================================================
 
 local function tryGenerate(entry)
     local genFn = generators[entry.gen]
     if not genFn then return nil end
-
     if entry.args then
         if entry.args.qualityId then
             return genFn(entry.args.qualityId)
         elseif entry.args.n then
             return genFn(entry.args.n)
-        elseif entry.args.catId then
-            return genFn(entry.args.catId)
         end
     end
     return genFn()
 end
 
 local function generateRound(round)
+    -- 50万场（commercial）只在奇数轮揭示，偶数轮跳过
+    if data.regionId == "commercial" and (round == 2 or round == 4) then
+        return {}
+    end
+
     local config = ROUND_CONFIG[round]
     if not config then return {} end
 
-    -- 打乱顺序，依次尝试直到成功
     local shuffled = shuffle(config)
     for _, entry in ipairs(shuffled) do
         local info = tryGenerate(entry)
@@ -603,12 +582,13 @@ end
 
 --- 初始化：分析仓库物品，预生成所有轮次的揭示计划
 ---@param items table 仓库物品列表
-function RevealPlanner.Init(items)
+---@param regionId string|nil 仓库所属区域ID（"suburb"=1万场，只在奇数轮揭示）
+function RevealPlanner.Init(items, regionId)
     data.items = items
     data.itemRevealLevels = {}
     data.roundPlans = {}
-    data.usedCategories = {}
     data.usedQualities = {}
+    data.regionId = regionId
 
     for _, item in ipairs(items) do
         if item.idx then

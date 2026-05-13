@@ -303,8 +303,9 @@ local function ClaimMilestone(msIndex)
     if ms.bonusPoints then
         cardPoints = cardPoints + ms.bonusPoints
     end
+    local ticketCount = ms.ticketCount or 1
     if ms.ticket then
-        SaveSystem.AddTickets(ms.ticket, 1, true)  -- true = skipSave，不独立发起保存
+        SaveSystem.AddTickets(ms.ticket, ticketCount, true)  -- true = skipSave，不独立发起保存
     end
 
     MoneyManager.AddMoneyFromMenu(ms.coins, "里程碑" .. ms.adsRequired, {
@@ -313,8 +314,10 @@ local function ClaimMilestone(msIndex)
             batch:SetInt(KEY_DAILY_COUNT, dailyCount)
             batch:Set(KEY_DAILY_DATE, dailyDate)
             batch:SetInt(KEY_MILESTONE_BITS, milestoneBits)
-            -- 门票数据也由 SaveSystem 的脏标记一并写入
-            SaveSystem.MarkDirty()
+            -- 门票数据合并写入同一次 batch
+            if ms.ticket then
+                SaveSystem.WriteToBatch(batch)
+            end
         end,
         ok = function()
             -- pcall 保护：异步回调触发时 UI 可能已被 SetRoot 销毁
@@ -324,7 +327,9 @@ local function ClaimMilestone(msIndex)
             -- 里程碑奖励 Toast
             local rewardMsg = ms.label .. ": +" .. Utils.FormatMoney(ms.coins) .. " 金币"
             if ms.ticket then
-                rewardMsg = rewardMsg .. " +门票"
+                local tc = Config.TICKETS[ms.ticket]
+                local tname = (tc and tc.name) or "指定券"
+                rewardMsg = rewardMsg .. " +" .. tname .. "×" .. ticketCount
             end
             if ms.bonusPoints then
                 rewardMsg = rewardMsg .. " +" .. ms.bonusPoints .. " 卡点"
@@ -340,7 +345,7 @@ local function ClaimMilestone(msIndex)
                 cardPoints = cardPoints - ms.bonusPoints
             end
             if ms.ticket then
-                SaveSystem.AddTickets(ms.ticket, -1, true)
+                SaveSystem.AddTickets(ms.ticket, -ticketCount, true)
             end
             pcall(AdCardPanel.RefreshAll)
             pcall(FloatingMessage.Show, "领取失败，请重试")
@@ -666,6 +671,7 @@ function AdCardPanel.CreatePopup()
         }
         if ms.ticket then
             local tConf = Config.TICKETS[ms.ticket]
+            local tCount = ms.ticketCount or 1
             if tConf and tConf.icon then
                 rewardRowChildren[#rewardRowChildren + 1] = UI.Panel {
                     width = sz(18), height = sz(11),
@@ -674,7 +680,7 @@ function AdCardPanel.CreatePopup()
                     marginLeft = sz(4),
                 }
                 rewardRowChildren[#rewardRowChildren + 1] = UI.Label {
-                    text = "×1",
+                    text = "×" .. tCount,
                     fontSize = sz(9), fontColor = { 200, 210, 230, 200 },
                 }
             end

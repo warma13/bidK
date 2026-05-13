@@ -585,7 +585,7 @@ function LootPanel.Update()
                 skillInfos = UIState.revealedSkillInfos,
                 itemRevealLevels = UIState.itemRevealLevels,
             }, GS.GetWarehouseTypeId())
-            if estMin > 0 and knownCount > 0 then
+            if estMin > 0 then
                 refs.estimateMinLabel:SetText(
                     "预估最低价: " .. Utils.FormatMoney(estMin)
                 )

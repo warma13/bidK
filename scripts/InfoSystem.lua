@@ -34,8 +34,20 @@ function InfoSystem.Init(warehouseItems, players, warehouseTypeId)
     -- 初始化专精匹配（兼容旧数据）
     InfoSystem.InitSpecialty(players)
 
+    -- 查找仓库所属区域
+    local regionId = nil
+    for _, region in ipairs(Config.REGIONS) do
+        for _, typeId in ipairs(region.warehouseTypes or {}) do
+            if typeId == warehouseTypeId then
+                regionId = region.id
+                break
+            end
+        end
+        if regionId then break end
+    end
+
     -- RevealPlanner 负责公开信息生成
-    RevealPlanner.Init(warehouseItems)
+    RevealPlanner.Init(warehouseItems, regionId)
 
     print("[InfoSystem] Initialized with " .. #warehouseItems .. " items (lazy generation)")
     print("[InfoSystem] Total value: " .. data.warehouseStats.totalValue)
@@ -297,10 +309,11 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
     end
 
     if level == "L0V" then
-        -- 已过滤物品的总价值（纯文本，不揭示）
+        -- 已过滤物品的总价值（含价值下界，供 AI 估值利用）
         local totalVal = 0
         local rarSet = {}
         local rarNames = {}
+        local itemIdxList = {}
         for _, item in ipairs(candidates) do
             totalVal = totalVal + (item.realValue or Config.GetItemRealValue(item))
             if not rarSet[item.rarity] then
@@ -308,10 +321,14 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
                 local rar = Config.GetRarity(item.rarity)
                 rarNames[#rarNames + 1] = rar.name
             end
+            if item.idx then
+                itemIdxList[#itemIdxList + 1] = item.idx
+            end
         end
         local qualityStr = table.concat(rarNames, "、")
         local text = qualityStr .. "品质藏品共" .. #candidates .. "件，总价值 " .. FormatValue(totalVal)
-        return { text = text, icon = "" }
+        -- knownTotalValue 和 coveredItemIdxs 供 AI 估值模块使用
+        return { text = text, icon = "", knownTotalValue = totalVal, coveredItemIdxs = itemIdxList }
     end
 
     -- L1/L2/L3: 选择具体物品

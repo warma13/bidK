@@ -1,0 +1,162 @@
+{
+  "startTime": "2026-03-27T06:53:09.698Z",
+  "endTime": "2026-03-27T06:54:13.056Z",
+  "duration": "63358ms",
+  "result": {
+    "success": true
+  },
+  "steps": [
+    {
+      "time": "2026-03-27T06:53:09.703Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "start"
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:07.735Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "done"
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:07.735Z",
+      "stage": "network_config",
+      "data": {
+        "env": "production"
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:07.742Z",
+      "stage": "load_config",
+      "data": {
+        "projectId": "p_70vd",
+        "configPath": "/userspaces/5057cf76-6400-4bbd-8a58-73367e08a18c/workspace/.project/project.json",
+        "taptap_publish": {
+          "title": "拍卖之王",
+          "description": "在神秘仓库拍卖中斗智斗勇！4位竞拍者争夺未知宝藏，通过5轮暗标竞价决出胜负。运用角色技能、掌握出价策略，成为终极拍卖之王！",
+          "category": "strategy",
+          "screen_orientation": "landscape",
+          "collection_type": "sce",
+          "trial_note": "仓库拍卖策略游戏，支持角色技能和实时竞拍",
+          "app_platforms": "1,2",
+          "developer_id": 245098,
+          "app_id": 831325,
+          "miniapp_id": "tapmcughfgwmteozhh",
+          "gameplay_demo_video_source": ""
+        },
+        "assets": {
+          "icon": "./game_material/ICON_2026-03-22T05-14-47_01.png",
+          "screenshots": [
+            "./game_material/screenshot_1.png",
+            "./game_material/SCREENSHOT_2026-03-22T05-14-47_02.png",
+            "./game_material/SCREENSHOT_2026-03-22T05-14-47_03.png"
+          ],
+          "promotional_image": "./game_material/PROMO_2026-03-22T05-14-47_01.jpg",
+          "icon_url": "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/ICON_2026-03-22T05-14-47_01.png",
+          "screenshot_urls": [
+            "https://tapcode-sce.spark.xd.com/assets/game_material/p_70vd/screenshot_1.png",
+            "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/SCREENSHOT_2026-03-22T05-14-47_02.png",
+            "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/SCREENSHOT_2026-03-22T05-14-47_03.png"
+          ],
+          "promotional_image_url": "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/PROMO_2026-03-22T05-14-47_01.jpg"
+        }
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:08.192Z",
+      "stage": "update_game",
+      "data": {
+        "app_id": 831325,
+        "developer_id": 245098
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:08.192Z",
+      "stage": "upload_assets",
+      "data": {
+        "status": "start",
+        "assets": {
+          "icon": "./game_material/ICON_2026-03-22T05-14-47_01.png",
+          "screenshots": [
+            "./game_material/screenshot_1.png",
+            "./game_material/SCREENSHOT_2026-03-22T05-14-47_02.png",
+            "./game_material/SCREENSHOT_2026-03-22T05-14-47_03.png"
+          ],
+          "promotional_image": "./game_material/PROMO_2026-03-22T05-14-47_01.jpg",
+          "icon_url": "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/ICON_2026-03-22T05-14-47_01.png",
+          "screenshot_urls": [
+            "https://tapcode-sce.spark.xd.com/assets/game_material/p_70vd/screenshot_1.png",
+            "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/SCREENSHOT_2026-03-22T05-14-47_02.png",
+            "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/SCREENSHOT_2026-03-22T05-14-47_03.png"
+          ],
+          "promotional_image_url": "https://tapcode-sce.spark.xd.com/assets/game_material/拍卖之王/PROMO_2026-03-22T05-14-47_01.jpg"
+        }
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:12.342Z",
+      "stage": "upload_assets",
+      "data": {
+        "status": "done",
+        "uploadedAssets": {
+          "iconUrl": "https://img-tc.tapimg.com/market/images/FuvS6W5P2jLu-6fbpLBCU9h04gCZ.png",
+          "screenshotUrls": [
+            "https://img-tc.tapimg.com/market/images/Fgn8u7tYPQ0wMfla1fo0IPK2xFTg.png",
+            "https://img-tc.tapimg.com/market/images/FsgCsUKydVcF0wLcveEa2vwMZhtS.png",
+            "https://img-tc.tapimg.com/market/images/FoUBB0QBRSl1-z8YDW6MURHsAUY2.png"
+          ],
+          "bannerUrl": "https://img-tc.tapimg.com/market/images/FgcAuDxi5vHcJpsdaYByeM6lmdAq.jpg"
+        }
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:12.342Z",
+      "stage": "submit_spark_request",
+      "data": {
+        "app_id": 831325,
+        "developer_id": 245098,
+        "map_version": "29",
+        "sce_project_id": "p_70vd",
+        "category": "strategy",
+        "collection_type": "strategy",
+        "description": "在神秘仓库拍卖中斗智斗勇！4位竞拍者争夺未知宝藏，通过5轮暗标竞价决出胜负。运用角色技能、掌握出价策略，成为终极拍卖之王！",
+        "screen_orientation": 2,
+        "title": "拍卖之王",
+        "icon": "https://img-tc.tapimg.com/market/images/FuvS6W5P2jLu-6fbpLBCU9h04gCZ.png",
+        "screenshots": [
+          "https://img-tc.tapimg.com/market/images/Fgn8u7tYPQ0wMfla1fo0IPK2xFTg.png",
+          "https://img-tc.tapimg.com/market/images/FsgCsUKydVcF0wLcveEa2vwMZhtS.png",
+          "https://img-tc.tapimg.com/market/images/FoUBB0QBRSl1-z8YDW6MURHsAUY2.png"
+        ],
+        "banner": "https://img-tc.tapimg.com/market/images/FgcAuDxi5vHcJpsdaYByeM6lmdAq.jpg",
+        "trial_note": "仓库拍卖策略游戏，支持角色技能和实时竞拍",
+        "app_platforms": "1,2"
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:13.056Z",
+      "stage": "submit_spark_response",
+      "data": {
+        "app_id": 831325,
+        "app_title": "拍卖之王",
+        "category": "strategy",
+        "category_label": "策略",
+        "display_app_title": "策略游戏精选"
+      }
+    },
+    {
+      "time": "2026-03-27T06:54:13.056Z",
+      "stage": "publish_result",
+      "data": {
+        "action": "updated",
+        "status": "pending_review",
+        "game_id": 831325,
+        "message": "成功更新游戏 \"拍卖之王\"",
+        "developer_id": 245098,
+        "config_file_path": "/userspaces/5057cf76-6400-4bbd-8a58-73367e08a18c/workspace/.project/project.json"
+      }
+    }
+  ]
+}

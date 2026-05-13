@@ -6,6 +6,7 @@ local M = {}
 
 -- 藏品类别
 M.CATEGORIES = {
+    -- 统一池品类（旧城杂货铺/科技园/港口/量子实验室）
     { id = "energy",     name = "能源", icon = "" },
     { id = "transport",  name = "交通", icon = "" },
     { id = "art",        name = "艺术", icon = "" },
@@ -13,7 +14,9 @@ M.CATEGORIES = {
     { id = "antique",    name = "古董", icon = "" },
     { id = "jewel",      name = "珠宝", icon = "" },
     { id = "mechanical", name = "机械", icon = "" },
-    { id = "liquor",     name = "日用", icon = "" },
+    { id = "daily",      name = "日用", icon = "" },
+    { id = "fashion",    name = "服饰", icon = "" },
+    { id = "biotech",    name = "医疗", icon = "" },
 }
 
 

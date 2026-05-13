@@ -17,6 +17,8 @@
 --   用已知物品的 "实际值/估计值" 比率修正未知物品的估值
 -- ============================================================================
 
+local Config = require("Config")
+
 local EstimateValue = {}
 
 -- ============================================================================
@@ -70,6 +72,10 @@ local TIER_PRIOR_MULT = computeTierPriorMult()
 -- 表示该稀有度物品相对于池平均的价值倍率
 local rarityRelative = {}
 
+-- 稀有度绝对均价: rarityAvgValue[rarity] = avg(该稀有度物品的实际价值)
+-- L2 估值直接使用此值，与 baseline 无关，避免低估
+local rarityAvgValue = {}
+
 -- 类别相对比例: categoryRelative[category] = avg(该类别物品) / poolAvg
 local categoryRelative = {}
 
@@ -84,44 +90,35 @@ local initialized = false
 -- ============================================================================
 
 --- 获取指定仓库类型的合并物品池
+--- 直接从 Config.WAREHOUSE_TYPES 读取 categoryWeights/allowedCategories，物品来自 ItemPool
 ---@param warehouseTypeId string|nil
----@return table[] 物品列表 { rarity, category, valueMin, valueMax, ... }
+---@return table[] 物品列表 { rarity, category, value }
 local function loadPool(warehouseTypeId)
-    -- 仓库类型 → 模块映射（与 WarehouseGenerator 保持一致）
-    local warehouseModules = {
-        grocery    = { "Config.Warehouses.ItemPool" },
-        techpark   = { "Config.Warehouses.TechPark" },
-        datacenter = { "Config.Warehouses.DataCenter", "Config.Warehouses.ItemPool" },
-        quantumlab = { "Config.Warehouses.QuantumLab", "Config.Warehouses.ItemPool" },
-        bondedport = { "Config.Warehouses.BondedPort", "Config.Warehouses.ItemPool" },
-        shipwreck  = { "Config.Warehouses.Shipwreck", "Config.Warehouses.BondedPort", "Config.Warehouses.ItemPool" },
-    }
-
-    local modules = warehouseModules[warehouseTypeId]
-    if not modules then
-        modules = { "Config.Warehouses.ItemPool" }
+    local whCfg = Config.WAREHOUSE_TYPES[warehouseTypeId or ""]
+    -- fallback 到 suburb_basement（无 allowedCategories = 全品类）
+    if not whCfg then
+        whCfg = Config.WAREHOUSE_TYPES["suburb_basement"] or {}
     end
 
-    -- 合并所有模块的物品
+    local allowed = nil
+    if whCfg.allowedCategories then
+        allowed = {}
+        for _, catId in ipairs(whCfg.allowedCategories) do
+            allowed[catId] = true
+        end
+    end
+
+    local itemPoolMod = require("Config.Warehouses.ItemPool")
     local allItems = {}
-    local seenCatIds = {}
-    for _, modPath in ipairs(modules) do
-        local ok, mod = pcall(require, modPath)
-        if ok and mod then
-            -- 通过 mod.categories 遍历（与 WarehouseGenerator/EstimateValue 一致）
-            if mod.categories then
-                for _, cat in ipairs(mod.categories) do
-                    if not seenCatIds[cat.id] then
-                        seenCatIds[cat.id] = true
-                        for _, item in ipairs(cat.items) do
-                            allItems[#allItems + 1] = {
-                                rarity   = item.quality or "white",
-                                category = cat.id,
-                                value    = item.value or 0,
-                            }
-                        end
-                    end
-                end
+
+    for _, cat in ipairs(itemPoolMod.categories) do
+        if not allowed or allowed[cat.id] then
+            for _, item in ipairs(cat.items) do
+                allItems[#allItems + 1] = {
+                    rarity   = item.quality or "white",
+                    category = cat.id,
+                    value    = item.value or 0,
+                }
             end
         end
     end
@@ -155,9 +152,11 @@ function EstimateValue.Init(warehouseTypeId)
     end
 
     rarityRelative = {}
+    rarityAvgValue = {}
     for r, sum in pairs(raritySum) do
         local avg = sum / rarityCount[r]
         rarityRelative[r] = avg / poolAvg
+        rarityAvgValue[r] = avg  -- 该稀有度物品在本仓库池中的真实均价
     end
 
     -- 按类别分组求平均
@@ -183,7 +182,8 @@ function EstimateValue.Init(warehouseTypeId)
         .. " poolAvg=" .. string.format("%.1f", poolAvg)
         .. " tierPriorMult=" .. string.format("%.3f", TIER_PRIOR_MULT))
     for r, rel in pairs(rarityRelative) do
-        print("[EstimateValue]   rarity " .. r .. " relative=" .. string.format("%.3f", rel))
+        print("[EstimateValue]   rarity " .. r .. " relative=" .. string.format("%.3f", rel)
+            .. " avgValue=" .. string.format("%.0f", rarityAvgValue[r] or 0))
     end
 end
 
@@ -232,9 +232,12 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
             est = item.realValue or item.value or baseline
             l3Count = l3Count + 1
         elseif level >= 2 then
-            -- L2: 知品质 → baseline × rarityRelative
+            -- L2: 知品质 → 直接用池内该稀有度的真实均价（与 baseline 无关）
+            -- 避免 baseline 过低导致 AI 低估已知稀有度物品
+            -- 取 rarityAvgValue 和 baseline×rarityRelative 的较大值，确保先验不低于池均
             local rr = rarityRelative[item.rarity] or 1.0
-            est = baseline * rr
+            local poolRarityAvg = rarityAvgValue[item.rarity] or (poolAvg * rr)
+            est = math.max(baseline * rr, poolRarityAvg)
         elseif level >= 1 then
             -- L1: 知轮廓/类别 → baseline × categoryRelative
             local cr = categoryRelative[item.category] or 1.0
@@ -273,6 +276,25 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
         end
     end
 
+    -- 仓库质量信号：用 random_avg_value 样品均价 vs 池均价判断好仓/坏仓
+    -- 对 L0/L1 未知物品双向调整（阻尼平方根），L2/L3 已有具体信息不受影响
+    local sampleDampedMult = 1.0
+    local publicInfos = infoState.publicInfos or {}
+    local skillInfos  = infoState.skillInfos  or {}
+    for _, infos in ipairs({ publicInfos, skillInfos }) do
+        for _, info in ipairs(infos) do
+            if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 and poolAvg > 0 then
+                local ratio = info.sampleAvgValue / poolAvg
+                local dm = math.sqrt(ratio)
+                dm = math.max(0.5, math.min(2.0, dm))
+                -- 取影响最大的一条（离 1.0 最远）
+                if math.abs(dm - 1.0) > math.abs(sampleDampedMult - 1.0) then
+                    sampleDampedMult = dm
+                end
+            end
+        end
+    end
+
     -- 第二遍：应用质量修正，累加总估值
     local totalEstimate = 0
     for _, item in ipairs(items) do
@@ -281,12 +303,55 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
         local est = perItemEstimate[idx] or baseline
 
         -- L3 物品不需要修正（已是精确值）
-        -- 非 L3 物品按质量比率修正
-        if level < 3 and l3Count >= 3 then
-            est = est * qualityRatio
+        -- 非 L3 物品：先应用 L3 质量推断修正，再应用样品均价信号
+        if level < 3 then
+            if l3Count >= 3 then
+                est = est * qualityRatio
+            end
+            -- L0/L1：进一步应用仓库质量信号（L2 已有稀有度信息，不再调整）
+            if level < 2 then
+                est = est * sampleDampedMult
+            end
         end
 
         totalEstimate = totalEstimate + est
+    end
+
+    -- L0V 约束：将已知批次总价值作为下界
+    -- 若某角色技能揭示了"白绿蓝共X件总价Y"，则那些物品的估值之和至少要达到 Y
+    -- 差额按比例分摊到被覆盖的物品上
+    local knownLotValues = infoState.knownLotValues or {}
+    if #knownLotValues > 0 then
+        -- 构建 idx→当前估值 的快速查找表
+        local idxToEst = {}
+        for _, item in ipairs(items) do
+            idxToEst[item.idx] = perItemEstimate[item.idx] or baseline
+        end
+
+        for _, lot in ipairs(knownLotValues) do
+            -- 计算本批次物品当前的估值之和
+            local currentLotSum = 0
+            for _, idx in ipairs(lot.itemIdxs) do
+                currentLotSum = currentLotSum + (idxToEst[idx] or 0)
+            end
+
+            -- 若当前估值低于已知总价，按比例提升各物品估值，并补偿 totalEstimate
+            if currentLotSum < lot.totalValue and currentLotSum > 0 then
+                local scale = lot.totalValue / currentLotSum
+                local delta = 0
+                for _, idx in ipairs(lot.itemIdxs) do
+                    local oldEst = idxToEst[idx] or 0
+                    local newEst = oldEst * scale
+                    delta = delta + (newEst - oldEst)
+                    idxToEst[idx] = newEst
+                end
+                totalEstimate = totalEstimate + delta
+                print("[EstimateValue] L0V 约束: 批次" .. #lot.itemIdxs .. "件"
+                    .. " 原估" .. string.format("%.0f", currentLotSum)
+                    .. " 已知总价" .. string.format("%.0f", lot.totalValue)
+                    .. " 提升 totalEstimate+" .. string.format("%.0f", delta))
+            end
+        end
     end
 
     return totalEstimate, l3Count, itemCount

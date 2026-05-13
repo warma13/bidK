@@ -724,7 +724,8 @@ function Panel.Show(onBack)
                 if na ~= nb then return na < nb end
                 return (a.wonAt or 0) > (b.wonAt or 0)
             end)
-            refreshCards()
+            -- 整理时对全量物品重新布局，绕过品类筛选器避免误判空间不足
+            GridSystem.BuildGrid(ctx, ctx.allItems)
             local allPlaced = true
             for _, item in ipairs(ctx.allItems) do
                 if not item.gridX or not item.gridY then
@@ -734,6 +735,8 @@ function Panel.Show(onBack)
             end
             if allPlaced then
                 SaveSystem.MarkDirty()
+                -- 重建成功后按当前筛选刷新显示
+                refreshCards()
             else
                 for _, item in ipairs(ctx.allItems) do
                     local b = backup[item]
