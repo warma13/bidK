@@ -1,2 +1,9 @@
-.build/
-dist/
+# 忽略所有
+/*
+
+# 只追踪以下目录
+!/scripts/
+!/assets/
+
+# 忽略无需追踪的文件类型
+assets/**/*.meta
