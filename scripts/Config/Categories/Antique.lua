@@ -75,6 +75,31 @@ Antique.items = {
     { name = "老墨锭",       rows = 1, cols = 1, quality = "gold",   value = 20178,    weight = 8,    desc = "刻有老字号堂名的古墨，金色描边",       image = IMG .. "古董/老墨锭.png" },
     { name = "唐代铜镜",     rows = 1, cols = 1, quality = "red",    value = 104218,   weight = 232,  desc = "背面海兽葡萄纹的唐代铜镜，铸工精良",   image = IMG .. "古董/唐代铜镜.png" },
     { name = "汉代漆盒",     rows = 2, cols = 2, quality = "red",    value = 335560,   weight = 68,   desc = "红黑漆面的汉代木胎漆器小盒",           image = IMG .. "古董/汉代漆盒.png" },
+
+    -- ===== 航海文物系列（maritime 标签） =====
+    -- 白
+    { name = "锈蚀船钉",       rows = 1, cols = 1, quality = "white",  value = 189,   weight = 3,  desc = "从沉船木料上取下的锻铁方头钉",                   image = IMG .. "古董/锈蚀船钉.png",     tags = {"maritime"} },
+    { name = "沉船木板碎件",   rows = 1, cols = 2, quality = "white",  value = 452,   weight = 2,  desc = "打捞上岸的旧船肋骨木料，已石化",                 image = IMG .. "古董/沉船木板碎件.png", tags = {"maritime"} },
+    -- 绿
+    { name = "水手铜望远镜",   rows = 1, cols = 3, quality = "green",  value = 1711,  weight = 2,  desc = "黄铜单筒望远镜，镜片发雾但镜身完整",             image = IMG .. "古董/水手铜望远镜.png", tags = {"maritime"} },
+    { name = "沉船陶罐",       rows = 2, cols = 1, quality = "green",  value = 2347,  weight = 2,  desc = "打捞自沉船货舱的宋代陶罐，外壁附着贝壳",         image = IMG .. "古董/沉船陶罐.png",     tags = {"maritime"} },
+    -- 蓝
+    { name = "黄铜六分仪",     rows = 1, cols = 1, quality = "blue",   value = 5413,  weight = 1,  desc = "清末航海用铜制六分仪，附原装皮盒，刻度清晰",     image = IMG .. "古董/黄铜六分仪.png",   tags = {"maritime"} },
+    -- 紫
+    { name = "清代海关铜印",   rows = 1, cols = 1, quality = "purple", value = 12889, weight = 2,  desc = "清代粤海关铜质关防印，背面刻官署名与年份",       image = IMG .. "古董/清代海关铜印.png", tags = {"maritime"} },
+    { name = "老水手罗盘",     rows = 1, cols = 1, quality = "purple", value = 18450, weight = 1,  desc = "欧式黄铜干罗盘，玫瑰盘图案完好，压仓盒包原装",   image = IMG .. "古董/老水手罗盘.png",   tags = {"maritime"} },
+    -- 金
+    { name = "沉船铜炮",       rows = 2, cols = 4, quality = "gold",   value = 68240, weight = 2,  desc = "明代福船遗存的青铜炮，炮口海兽纹，铭文可辨",     image = IMG .. "古董/沉船铜炮.png",     tags = {"maritime"} },
+    -- 红
+    { name = "郑和宝船出水铜牌", rows = 1, cols = 2, quality = "red", value = 4870000, weight = 2, desc = "疑为永乐年宝船随行物件的铜质铭牌，附出水记录档", image = IMG .. "古董/郑和宝船出水铜牌.png", tags = {"maritime"} },
+
+    -- ===== 书画善本系列（manuscript 标签） =====
+    -- 金
+    { name = "明代名家信札",     rows = 1, cols = 2, quality = "gold", value = 95000,    weight = 2, tags = {"manuscript"}, desc = "一批明代文人往来信件，含名臣手书数通，笔迹清晰",       image = IMG .. "古董/明代名家信札.png" },
+    { name = "宋版刻本",         rows = 2, cols = 2, quality = "gold", value = 320000,   weight = 1, tags = {"manuscript"}, desc = "南宋淳熙年刻印经部典籍，存世仅数十册，品相尚好",       image = IMG .. "古董/宋版刻本.png" },
+    -- 红
+    { name = "唐人写经卷",       rows = 1, cols = 3, quality = "red",  value = 2400000,  weight = 2, tags = {"manuscript"}, desc = "唐代敦煌写经残卷，有题记纪年，出土有据，装裱未开",     image = IMG .. "古董/唐人写经卷.png" },
+    { name = "宋徽宗瘦金体手卷", rows = 1, cols = 4, quality = "red",  value = 12000000, weight = 1, tags = {"manuscript"}, desc = "据传宋徽宗亲笔瘦金体题跋残卷，附民国鉴定录及旧藏印",   image = IMG .. "古董/宋徽宗瘦金体手卷.png" },
 }
 
 return Antique

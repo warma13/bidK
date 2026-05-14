@@ -26,8 +26,8 @@ Transport.items = {
     { name = "碳纤维车架",   rows = 3, cols = 2, quality = "green",  value = 2604, weight = 1,  desc = "有暗裂的碳纤维自行车架",               image = IMG .. "交通/碳纤维车架.png" },
     { name = "旧行车电脑",   rows = 1, cols = 1, quality = "green",  value = 560,  weight = 2,  desc = "码表功能正常的骑行电脑",               image = IMG .. "交通/旧行车电脑.png" },
     { name = "电动车控制器", rows = 1, cols = 2, quality = "green",  value = 1324, weight = 1,  desc = "电动两轮车的主控制器",                 image = IMG .. "交通/电动车控制器.png" },
-    { name = "旧赛车座椅",   rows = 2, cols = 3, quality = "green",  value = 1994, weight = 1,  desc = "布面磨损的运动桶椅",                   image = IMG .. "交通/旧赛车座椅.png" },
-    { name = "排气管总成",   rows = 3, cols = 1, quality = "green",  value = 793,  weight = 2,  desc = "改装摩托车的钛合金排气管",             image = IMG .. "交通/排气管总成.png" },
+    { name = "旧赛车座椅",   rows = 2, cols = 3, quality = "green",  value = 1994, weight = 1,  desc = "布面磨损的运动桶椅",                   image = IMG .. "交通/旧赛车座椅.png",  tags = {"automotive"} },
+    { name = "排气管总成",   rows = 3, cols = 1, quality = "green",  value = 793,  weight = 2,  desc = "改装摩托车的钛合金排气管",             image = IMG .. "交通/排气管总成.png",  tags = {"automotive"} },
     { name = "旧车载音响",   rows = 2, cols = 2, quality = "green",  value = 1178, weight = 1,  desc = "拆车件的品牌功放和喇叭",               image = IMG .. "交通/旧车载音响.png" },
     -- 蓝 ×5
     { name = "电动汽车电池模组",   rows = 2, cols = 3, quality = "blue",   value = 3428, weight = 1,  desc = "拆解的三元锂电池模组",                 image = IMG .. "交通/电动汽车电池模组.png",       tags = {"automotive"} },
@@ -47,14 +47,14 @@ Transport.items = {
     { name = "老式船钟",         rows = 1, cols = 1, quality = "gold", value = 29686,  weight = 6,  desc = "黄铜航海船钟，八日走时机芯",           image = IMG .. "交通/老式船钟.png",               tags = {"maritime", "horology"} },
     { name = "蒸汽机车铭牌",     rows = 2, cols = 1, quality = "gold", value = 35450,  weight = 5,  desc = "'前进'型蒸汽机车的原装铸铁铭牌",     image = IMG .. "交通/蒸汽机车铭牌.png" },
     { name = "劳斯莱斯飞翼天使", rows = 1, cols = 1, quality = "gold", value = 151412, weight = 1,  desc = "银魅车型原装的纯银立标'欢庆女神'",   image = IMG .. "交通/劳斯莱斯飞翼天使.png",       tags = {"automotive"} },
-    { name = "老式摩托油箱",     rows = 2, cols = 1, quality = "gold", value = 14769,  weight = 11, desc = "幸福牌摩托车原装油箱，漆面斑驳",       image = IMG .. "交通/老式摩托油箱.png" },
+    { name = "老式摩托油箱",     rows = 2, cols = 1, quality = "gold", value = 14769,  weight = 11, desc = "幸福牌摩托车原装油箱，漆面斑驳",       image = IMG .. "交通/老式摩托油箱.png",           tags = {"automotive"} },
     { name = "黄铜船锚模型",     rows = 1, cols = 1, quality = "gold", value = 22328,  weight = 8,  desc = "实心黄铜打造的等比船锚模型",           image = IMG .. "交通/黄铜船锚模型.png",           tags = {"maritime"} },
     { name = "蒸汽火车汽笛",     rows = 1, cols = 2, quality = "gold", value = 15235,  weight = 11, desc = "铜质三管蒸汽火车汽笛，可吹响",         image = IMG .. "交通/蒸汽火车汽笛.png" },
     -- 红 ×9
     { name = "飞行汽车原型引擎",   rows = 4, cols = 3, quality = "red", value = 6061058,  weight = 3,   desc = "eVTOL飞行汽车的电驱动力总成，仅存三台的工程样机", image = IMG .. "交通/飞行汽车原型引擎.png",  tags = {"automotive", "aerospace"} },
     { name = "协和号驾驶舱仪表盘", rows = 3, cols = 3, quality = "red", value = 1956811,  weight = 11,  desc = "协和号超音速客机退役拆解的完整驾驶仪表盘", image = IMG .. "交通/协和号驾驶舱仪表盘.png", tags = {"aerospace"} },
     { name = "一级方程式赛车引擎", rows = 4, cols = 3, quality = "red", value = 8762931,  weight = 2,   desc = "法拉利F1赛车的V10引擎总成，可运转",   image = IMG .. "交通/一级方程式赛车引擎.png",     tags = {"automotive"} },
-    { name = "古董摩托车",         rows = 3, cols = 2, quality = "red", value = 122793,   weight = 195, desc = "长江750边三轮摩托，可修复运转",         image = IMG .. "交通/古董摩托车.png" },
+    { name = "古董摩托车",         rows = 3, cols = 2, quality = "red", value = 122793,   weight = 195, desc = "长江750边三轮摩托，可修复运转",         image = IMG .. "交通/古董摩托车.png",             tags = {"automotive"} },
     { name = "老式火车模型",       rows = 2, cols = 3, quality = "red", value = 957587,   weight = 23,  desc = "蒸汽火车1:10铜制精密模型，可喷蒸汽",   image = IMG .. "交通/老式火车模型.png" },
     { name = "老式马车车轮",       rows = 2, cols = 2, quality = "red", value = 122793,   weight = 195, desc = "欧式四轮马车的铁箍木轮，雕花轮毂",     image = IMG .. "交通/老式马车车轮.png" },
     { name = "帆船铜舵轮",         rows = 2, cols = 2, quality = "red", value = 390682,   weight = 58,  desc = "大型帆船的黄铜包木舵轮，八辐设计",     image = IMG .. "交通/帆船铜舵轮.png",             tags = {"maritime"} },
@@ -65,8 +65,8 @@ Transport.items = {
     { name = "航海羊皮地图",       rows = 1, cols = 2, quality = "gold",   value = 24842, weight = 7,   desc = "手绘的旧航海图，标注了老航线",         image = IMG .. "交通/航海羊皮地图.png",           tags = {"maritime"} },
 
     -- ===== DataCenter 赛博交通物品 =====
-    { name = "飞行摩托引擎",     rows = 2, cols = 2, quality = "purple", value = 42000,  desc = "电动垂直起降摩托的矢量推力引擎",         image = IMG .. "交通/飞行摩托涡扇引擎.png" },
-    { name = "追光者引擎原型",     rows = 3, cols = 3, quality = "red",    value = 28000000, desc = "实验性空间弯曲推进系统，功率不足",      image = IMG .. "交通/追光者引擎原型.png" },
+    { name = "飞行摩托引擎",     rows = 2, cols = 2, quality = "purple", value = 42000,  desc = "电动垂直起降摩托的矢量推力引擎",         image = IMG .. "交通/飞行摩托涡扇引擎.png",  tags = {"aerospace"} },
+    { name = "追光者引擎原型",     rows = 3, cols = 3, quality = "red",    value = 28000000, desc = "实验性空间弯曲推进系统，功率不足",      image = IMG .. "交通/追光者引擎原型.png",    tags = {"aerospace"} },
     -- ===== 新增数据中心物品 =====
     { name = "深渊之眼监控核心", rows = 2, cols = 2, quality = "purple", value = 75000, desc = "深海无人探测器的核心监控模块", image = IMG .. "交通/深渊之眼监控核心.png",         tags = {"maritime"} },
 

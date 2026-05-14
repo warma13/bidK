@@ -73,36 +73,39 @@ local function InitEngine()
     end
 
     -- ====================================================================
-    -- 移动端点击事件双触发修复（SDL Touch → 模拟 Mouse 防抖）
+    -- 移动端点击事件双触发修复
+    -- 原理：SDL 在每次 Touch 事件后会模拟一次 Mouse 事件，导致按钮 onClick 触发两次
+    --       （弹窗开了又关，表现为"点击被吞"）。
+    --       iOS Safari 等浏览器的模拟 Mouse 事件可能延迟 300ms 以上，
+    --       基于时间戳的防抖窗口无法可靠覆盖。
+    -- 修复：一旦收到任何 Touch 事件，永久标记为触摸设备，屏蔽所有 SDL 模拟 Mouse 事件。
+    --       触摸设备上 Mouse 事件全部是模拟的，屏蔽不影响真实操作。
     -- ====================================================================
     local platform = GetPlatform()
     if platform == "Android" or platform == "iOS" or platform == "Web" then
-        local DEBOUNCE = 0.100  -- 100ms 窗口期（SDL 模拟 Mouse 通常在同帧/下帧到达，远 < 16ms）
-        local lastTouchTime = -1  -- 初始为 -1，避免启动头 100ms 内误拦截鼠标事件
+        local isTouchDevice = false
 
-        -- Touch 开始时记录时间戳（TouchBegin，而非 TouchEnd）
         local origHandleTouchBegin = UI.HandleTouchBegin
         UI.HandleTouchBegin = function(touchId, x, y, pressure)
-            lastTouchTime = time.elapsedTime
+            isTouchDevice = true
             origHandleTouchBegin(touchId, x, y, pressure)
         end
 
-        -- Mouse 事件：距上次 Touch < 100ms 则视为 SDL 模拟事件，直接丢弃
         local origHandleMouseDown = UI.HandleMouseDown
         UI.HandleMouseDown = function(x, y, button)
-            if time.elapsedTime - lastTouchTime < DEBOUNCE then return end
+            if isTouchDevice then return end
             origHandleMouseDown(x, y, button)
         end
 
         local origHandleMouseUp = UI.HandleMouseUp
         UI.HandleMouseUp = function(x, y, button)
-            if time.elapsedTime - lastTouchTime < DEBOUNCE then return end
+            if isTouchDevice then return end
             origHandleMouseUp(x, y, button)
         end
 
         local origHandleMouseMove = UI.HandleMouseMove
         UI.HandleMouseMove = function(x, y)
-            if time.elapsedTime - lastTouchTime < DEBOUNCE then return end
+            if isTouchDevice then return end
             origHandleMouseMove(x, y)
         end
     end

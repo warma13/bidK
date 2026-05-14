@@ -301,13 +301,14 @@ M.CHARACTERS = {
         avatar = "Textures/characters/lu_jian.png",
         portrait = "Textures/characters/portraits/portrait_lu_jian.png",
         ability = "形迹可循",
-        desc = "第1轮：看到随机5件物品的轮廓\n第5轮：全场轮廓全开",
+        desc = "第1轮：看到随机5件物品的轮廓\n第2轮起每轮：额外看到随机2件物品的轮廓\n第5轮：全场轮廓全开",
         specialty = nil,
         locked = true,
         unlockCost = 20,
         revealEvents = {
-            { trigger = "round_1", target = "random_5", category = nil, level = "L1" },
-            { trigger = "round_5", target = "all",      category = nil, level = "L1" },
+            { trigger = "round_1",      target = "random_5", category = nil, level = "L1" },
+            { trigger = "from_round_2", target = "random_2", category = nil, level = "L1" },
+            { trigger = "round_5",      target = "all",      category = nil, level = "L1" },
         },
         personality = {
             style = "info_driven",

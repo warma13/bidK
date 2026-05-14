@@ -12,6 +12,7 @@ local MoneyManager = require("MoneyManager")
 local Utils = require("UI.Utils")
 local FloatingMessage = require("UI.FloatingMessage")
 local SaveFramework = require("SaveFramework")
+local TicketTooltip = require("UI.TicketTooltip")
 
 local OnlineRewardPanel = {}
 
@@ -455,39 +456,43 @@ function OnlineRewardPanel.CreatePopup()
         if ms.ticket then
             local tConf = Config.TICKETS[ms.ticket]
             local tCount = ms.ticketCount or 1
+            local ticketId = ms.ticket
+            local ticketRow
             if tConf and tConf.icon then
-                cardChildren[#cardChildren + 1] = UI.Panel {
+                ticketRow = UI.Panel {
                     flexDirection = "row", alignItems = "center",
                     justifyContent = "center", gap = sz(2),
+                    cursor = "pointer",
+                    onClick = function() Utils.PlayClick(); TicketTooltip.Show(ticketId) end,
                     children = {
                         UI.Panel {
-                            width = sz(20), height = sz(12),
+                            width = sz(24), height = sz(24), flexShrink = 0,
                             backgroundImage = tConf.icon,
-                            backgroundFit = "contain", flexShrink = 0,
+                            backgroundFit = "contain",
+                            imageTint = { 255, 255, 255, 255 },
                         },
                         UI.Label {
                             text = "×" .. tCount,
-                            fontSize = sz(7), fontColor = { 180, 230, 255, 255 },
+                            fontSize = sz(8), fontColor = { 180, 230, 255, 255 },
                         },
                     },
                 }
             else
-                cardChildren[#cardChildren + 1] = UI.Panel {
+                ticketRow = UI.Panel {
                     flexDirection = "row", alignItems = "center",
                     justifyContent = "center", gap = sz(2),
+                    cursor = "pointer",
+                    onClick = function() Utils.PlayClick(); TicketTooltip.Show(ticketId) end,
                     children = {
-                        UI.Label {
-                            text = "🎫",
-                            fontSize = sz(8),
-                            pointerEvents = "none",
-                        },
+                        UI.Label { text = "🎫", fontSize = sz(12) },
                         UI.Label {
                             text = "×" .. tCount,
-                            fontSize = sz(7), fontColor = { 180, 230, 255, 255 },
+                            fontSize = sz(8), fontColor = { 180, 230, 255, 255 },
                         },
                     },
                 }
             end
+            cardChildren[#cardChildren + 1] = ticketRow
         end
         cardChildren[#cardChildren + 1] = UI.Panel {
             width = "100%", height = sz(3),

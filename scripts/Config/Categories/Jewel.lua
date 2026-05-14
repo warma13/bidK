@@ -53,7 +53,7 @@ Jewel.items = {
     { name = "粉钻原石",               rows = 1, cols = 1, quality = "red",  value = 18896291, weight = 1, desc = "阿盖尔矿区的稀有粉钻原石，重达12克拉", image = IMG .. "珠宝/粉钻原石.png" },
     -- 新增：白
     { name = "旧珠花",     rows = 1, cols = 1, quality = "white",    value = 105, weight = 2,      desc = "掉了几颗珠子的头饰珠花",             image = IMG .. "珠宝/旧珠花.png" },
-    { name = "旧表带",     rows = 3, cols = 1, quality = "white",    value = 105, weight = 2,      desc = "皮面开裂的旧表带",                   image = IMG .. "珠宝/旧表带.png" },
+    { name = "旧表带",     rows = 3, cols = 1, quality = "white",    value = 105, weight = 2,      desc = "皮面开裂的旧表带",                   image = IMG .. "珠宝/旧表带.png",      tags = {"horology"} },
     { name = "铜纽扣盒",   rows = 1, cols = 2, quality = "white",    value = 189, weight = 2,      desc = "装满各色旧铜纽扣的铁盒",             image = IMG .. "珠宝/铜纽扣盒.png" },
     -- 新增：绿
     { name = "老银烟杆",   rows = 4, cols = 1, quality = "green",  value = 1711, weight = 1,     desc = "包浆厚重的银质旱烟杆",               image = IMG .. "珠宝/老银烟杆.png" },
@@ -72,7 +72,7 @@ Jewel.items = {
     { name = "坏智能手环",     rows = 1, cols = 1, quality = "white",  value = 335, weight = 1,      desc = "屏幕不亮的运动手环",                 image = IMG .. "珠宝/坏智能手环.png" },
     { name = "旧蓝牙戒指",     rows = 1, cols = 1, quality = "white",  value = 529, weight = 1,      desc = "充不进电的智能戒指",                 image = IMG .. "珠宝/旧蓝牙戒指.png" },
     -- 科技相关：绿
-    { name = "钛合金表壳",     rows = 1, cols = 1, quality = "green",  value = 2347, weight = 1,     desc = "没有机芯的钛合金手表壳",             image = IMG .. "珠宝/钛合金表壳.png" },
+    { name = "钛合金表壳",     rows = 1, cols = 1, quality = "green",  value = 2347, weight = 1,     desc = "没有机芯的钛合金手表壳",             image = IMG .. "珠宝/钛合金表壳.png",  tags = {"horology"} },
     -- 科技相关：蓝
     { name = "铂金催化剂样品", rows = 1, cols = 1, quality = "blue",   value = 7411, weight = 1,     desc = "实验室遗留的铂金催化剂小瓶",         image = IMG .. "珠宝/铂金催化剂样品.png" },
     -- 科技相关：紫
@@ -117,6 +117,13 @@ Jewel.items = {
     { name = "钛合金义眼", rows = 1, cols = 1, quality = "purple", value = 38000, desc = "钛合金外壳义眼，内置光学传感器", image = IMG .. "珠宝/钛合金义眼.png" },
     { name = "银翼钛金胸甲", rows = 2, cols = 2, quality = "gold", value = 220000, desc = "钛合金内芯镀银外甲，赛博武士风格", image = IMG .. "珠宝/银翼钛金胸甲.png" },
     { name = "静电护腕", rows = 1, cols = 1, quality = "green", value = 2800, desc = "防静电导电护腕，精密操作必备", image = IMG .. "珠宝/静电护腕.png" },
+
+    -- ===== 高级腕表系列（horology 标签） =====
+    { name = "瑞士机芯怀表",     rows = 1, cols = 1, quality = "blue",   value = 18000,   tags = {"horology"}, desc = "19世纪瑞士金壳怀表，机芯仍走时准确，附原配表链",       image = IMG .. "珠宝/瑞士机芯怀表.png" },
+    { name = "劳力士水鬼",       rows = 1, cols = 1, quality = "purple", value = 85000,   tags = {"horology"}, desc = "1960年代劳力士Submariner，原版蚊香盘，附鉴定书",         image = IMG .. "珠宝/劳力士水鬼.png" },
+    { name = "百达翡丽年历表",   rows = 1, cols = 1, quality = "gold",   value = 460000,  tags = {"horology"}, desc = "百达翡丽5396G年历腕表，18K白金，附原装表盒和证书",       image = IMG .. "珠宝/百达翡丽年历表.png" },
+    { name = "百年灵限量飞行表", rows = 1, cols = 1, quality = "red",    value = 1800000, tags = {"horology"}, desc = "百年灵为某航空公司定制的限量款，编号001/001，附出厂档案", image = IMG .. "珠宝/百年灵限量飞行表.png" },
+    { name = "百达翡丽孤品三问", rows = 1, cols = 1, quality = "red",    value = 8500000, tags = {"horology"}, desc = "百达翡丽特别定制款三问报时表，全球孤品，附拍卖记录",     image = IMG .. "珠宝/百达翡丽孤品三问.png" },
 
 }
 

@@ -15,6 +15,7 @@ local MapSelectionScreen = require("UI.MapSelectionScreen")
 local MyWarehousePanel = require("UI.MyWarehousePanel")
 local AppPhase = require("AppPhase")
 local GameSession = require("GameSession")
+local GameOverDialog = require("UI.GameOverDialog")
 
 local GameController = {}
 
@@ -95,6 +96,37 @@ end
 
 function GameController.HandleUpdate(dt)
     GameSession.HandleUpdate(dt)
+
+    -- ESC 快捷键：各屏幕返回
+    if input:GetKeyPress(KEY_ESCAPE) then
+        -- 优先关闭已打开的确认弹窗
+        if GameSession.HasConfirmModal() then
+            GameSession.DismissConfirm()
+            return
+        end
+        if GameOverDialog.HasConfirmModal() then
+            GameOverDialog.DismissConfirm()
+            return
+        end
+
+        local screen = UIState.currentScreen
+        if GameOverDialog.IsVisible() then
+            -- 竞拍结算：确认返回
+            GameOverDialog.ConfirmGoHome()
+        elseif screen == "game" then
+            -- 对局中：确认退出
+            GameSession.ConfirmExit()
+        elseif screen == "lobby" then
+            -- 竞拍大厅 → 竞拍区域
+            GameController.ShowMap()
+        elseif screen == "map" then
+            -- 竞拍区域 → 主菜单
+            GameController.ShowMenu()
+        elseif screen == "warehouse" then
+            -- 仓库 → 主菜单
+            GameController.ShowMenu()
+        end
+    end
 end
 
 -- 暴露当前状态模块给其他 UI 模块（兼容旧调用）

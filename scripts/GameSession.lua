@@ -166,7 +166,7 @@ local function CreateGameUI()
 
     -- 根据仓库类型选择背景图
     local whType = Config.WAREHOUSE_TYPES[GS.GetWarehouseTypeId()]
-    local bgImage = whType and whType.bg or "image/bg_warehouse_grocery_20260322132513.png"
+    local bgImage = whType and whType.bg or "image/bg_warehouse_grocery_20260322132513.jpg"
 
     -- 顶部仓库信息栏
     local whName = whType and whType.name or "未知仓库"
@@ -666,6 +666,23 @@ end
 -- 暴露当前状态模块给其他 UI 模块
 function GameSession.GetGS()
     return GS
+end
+
+-- 暴露确认退出弹窗（供 ESC 快捷键调用）
+function GameSession.ConfirmExit()
+    ConfirmExit()
+end
+
+-- 关闭确认退出弹窗（ESC 二次按下时取消）
+function GameSession.DismissConfirm()
+    if confirmBackModal_ then
+        confirmBackModal_:Close()
+        confirmBackModal_ = nil
+    end
+end
+
+function GameSession.HasConfirmModal()
+    return confirmBackModal_ ~= nil
 end
 
 return GameSession

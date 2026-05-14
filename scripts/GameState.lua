@@ -200,8 +200,20 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
             namePool[i], namePool[j] = namePool[j], namePool[i]
         end
         local aiNames = { namePool[1], namePool[2], namePool[3] }
-        -- AI 资金 = 仓库期望值 × 2（随仓库价值动态调整）
-        local aiBaseMoney = state.expectedValue * 2
+        -- AI 资金按仓库 tier 动态调整：tier 越高，AI 资金倍率越大，保证高价值仓库有足够竞争力
+        local AI_TIER_MULTIPLIERS = {
+            trash    = 2.0,
+            junk     = 2.0,
+            poor     = 2.0,
+            normal   = 2.0,
+            good     = 3.0,
+            treasure = 5.0,
+            jackpot  = 8.0,
+        }
+        local whTier = state.warehouseData and state.warehouseData.tier or "normal"
+        local tierMult = AI_TIER_MULTIPLIERS[whTier] or 2.0
+        local aiBaseMoney = state.expectedValue * tierMult
+        print("[GameState] AI money: tier=" .. whTier .. " mult=x" .. tierMult .. " base=" .. aiBaseMoney)
         for i = 1, 3 do
             local aiChar = availChars[i]
             local aiMoney = aiBaseMoney

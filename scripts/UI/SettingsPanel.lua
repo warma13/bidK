@@ -24,6 +24,7 @@ local popupVisible = false
 local popupOverlay = nil
 local bgmSlider = nil
 local sfxSlider = nil
+local glowToggle = nil
 
 -- 手动保存冷却
 local manualSaveCD = nil
@@ -72,11 +73,18 @@ end
 -- 设置持久化（通过 SaveSystem 云存储）
 -- ============================================================================
 
+local function GetGlowEffect()
+    if not SaveSystem.IsReady() then return true end
+    local s = SaveSystem.GetSettings()
+    return s and s.glowEffect ~= false
+end
+
 --- 保存当前设置到 SaveSystem
 local function SaveSettings()
     SaveSystem.UpdateSettings({
         bgmVolume = GetBgmVolume(),
         sfxVolume = GetSfxVolume(),
+        glowEffect = glowToggle and glowToggle:GetValue() or GetGlowEffect(),
     })
 end
 
@@ -408,6 +416,7 @@ function SettingsPanel.CreatePopup()
     local saved = SaveSystem.IsReady() and SaveSystem.GetSettings() or nil
     local bgmVol = (saved and saved.bgmVolume) or GetBgmVolume()
     local sfxVol = (saved and saved.sfxVolume) or GetSfxVolume()
+    local glowOn = (saved ~= nil) and (saved.glowEffect ~= false) or GetGlowEffect()
 
     -- 同步音量到引擎
     SetBgmVolume(bgmVol)
@@ -529,6 +538,20 @@ function SettingsPanel.CreatePopup()
                     sfxSlider,
                 },
             },
+            -- 流光特效开关
+            (function()
+                glowToggle = UI.Toggle {
+                    value = glowOn,
+                    label = "流光特效",
+                    fontSize = sz(13),
+                    width = "100%",
+                    flexShrink = 0,
+                    onChange = function(self, v)
+                        SaveSettings()
+                    end,
+                }
+                return glowToggle
+            end)(),
             -- 手动保存
             UI.Button {
                 text = "手动保存", width = "100%", flex = 1, flexShrink = 1,

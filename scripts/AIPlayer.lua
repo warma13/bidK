@@ -52,9 +52,6 @@ local ai = {
     -- 实时竞拍计时器
     tiebreakTimers = {},
 
-    -- 常量
-    THINK_MIN = 5.0,
-    THINK_MAX = 40.0,
 }
 
 -- ============================================================================
@@ -89,10 +86,24 @@ function AIPlayer.StartSealedBidThinking(gameState, infoSystem)
 
     ai.pendingCount = 0  -- 重置待决策计数
 
+    -- 按轮次计算 AI 思考时间范围（思考时间 = 开局后经过多少秒触发出价）
+    -- 第1轮(60s)：在倒计时50~20秒时出价 → 经过 10~40 秒
+    -- 后续轮(30s)：在倒计时20~5秒时出价  → 经过 10~25 秒
+    local thinkMin, thinkMax
+    if round == 1 then
+        local total = Config.GAME.FirstRoundSeconds
+        thinkMin = total - 50   -- 10
+        thinkMax = total - 20   -- 40
+    else
+        local total = Config.GAME.SealedBidSeconds
+        thinkMin = total - 20   -- 10
+        thinkMax = total - 5    -- 25
+    end
+
     for idx, player in ipairs(players) do
         if not player.isHuman then
-            -- 随机思考时间
-            ai.thinkTimers[idx] = ai.THINK_MIN + math.random() * (ai.THINK_MAX - ai.THINK_MIN)
+            -- 随机思考时间（在区间内均匀分布）
+            ai.thinkTimers[idx] = thinkMin + math.random() * (thinkMax - thinkMin)
             ai.thinkDecided[idx] = false
             ai.pendingCount = ai.pendingCount + 1
 

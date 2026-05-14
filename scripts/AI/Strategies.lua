@@ -581,7 +581,18 @@ local function baseCompeteBid(estimate, player, round, expectedValue, playerIdx,
     local roundMultiplier = Config.GAME.Multipliers[round] or 1.0
     if round >= Config.GAME.MaxRounds then roundMultiplier = 1.01 end
     local bidScale = 1.0 / (1.0 + (roundMultiplier - 1.0) * 2.0)
-    local effectiveEstimate = estimate * bidScale
+
+    -- ========== 信息置信度缩放 ==========
+    -- infoWeight ∈ [0, 1]（来自 InfoEstimation，L3=1.0, L2=0.7, L1=0.3, L0=0）
+    -- confidenceFactor 将出价意愿限制在"已知信息比例"内：
+    --   无信息（infoWeight=0）→ confidenceFactor=0.40（仅按先验的40%出价）
+    --   25% 覆盖         → confidenceFactor=0.55
+    --   50% 覆盖         → confidenceFactor=0.70
+    --   100% 覆盖        → confidenceFactor=1.00
+    -- 公式：0.40 + infoWeight × 0.60，线性插值
+    local infoWeight = (analysis and analysis.infoWeight) or 0
+    local confidenceFactor = 0.40 + infoWeight * 0.60
+    local effectiveEstimate = estimate * bidScale * confidenceFactor
 
     -- ========== 第一阶段：底价 ==========
     -- 底价基于原始 estimate，按倍率动态调整底价比例：
@@ -633,6 +644,8 @@ local function baseCompeteBid(estimate, player, round, expectedValue, playerIdx,
             local margin = 1.02 + math.random() * 0.06
             local allInBid = minWinBid * margin
             allInBid = math.min(allInBid, estimate)
+            -- 梭哈出价不超过持有资金（shouldAllIn 只检查 minWinBid，margin 会导致超出）
+            allInBid = math.min(allInBid, player.money)
             return math.max(allInBid, compositePrice)
         end
     end
@@ -934,14 +947,16 @@ function Strategies.CalculateBid(intent, playerIdx, player, round, estimate, aiI
     end
 
     if intent == INTENT.DESPERATION then
-        -- 孤注一掷 + 倍率感知
+        -- 孤注一掷 + 倍率感知（上限为持有资金，避免被截断后多 AI 出价相同）
+        local money = player.money or 0
         if expectedValue and expectedValue > 0 then
             local minWinBid = calcMinWinBid(round, playerIdx, expectedValue, estimate, opponentInfo)
             local desperationBid = estimate * (0.90 + math.random() * 0.30)
-            return math.max(desperationBid, minWinBid * 1.05)
+            desperationBid = math.min(math.max(desperationBid, minWinBid * 1.05), money)
+            return desperationBid
         end
         local desperationRatio = 0.90 + math.random() * 0.30
-        return estimate * desperationRatio
+        return math.min(estimate * desperationRatio, money)
     end
 
     -- 正常竞争：策略计算（将 analysis 和 opponentInfo 通过 opts 传递给 baseCompeteBid）

@@ -17,6 +17,16 @@ local BID_ANIM_DURATION = 0.35  -- 单个金额展开动画时长
 local BID_REVEAL_GAP = 0.3      -- 两个玩家之间的间隔
 local BID_REVEAL_END_WAIT = 1.0 -- 最后一个揭示完后等待时长
 
+-- ============================================================================
+-- dirty flag 缓存（减少无变化帧的 SetText/SetStyle 调用）
+-- ============================================================================
+local lastMoney = nil          -- 上次显示的金额
+local lastPhase = nil          -- 上次的游戏阶段
+local lastRoundBidsSnapshot = {}  -- 上次各玩家各轮出价快照 [idx][r] = amount
+local lastBidVisible = {}      -- 上次出价区域可见状态 [idx] = bool
+local lastBidText = {}         -- 上次出价文本 [idx] = string
+local lastBidWidth = {}        -- 上次出价宽度 [idx] = number
+
 -- 出价揭示动画状态（UI 驱动）
 local revealAnim = {
     active = false,        -- 是否正在揭示动画中
@@ -265,37 +275,62 @@ function PlayerListPanel.Update()
     local bidLocked = GS.GetBidLocked()
     local roundBids = GS.GetRoundBids()
     local maxRounds = Config.GAME.MaxRounds
+    local currentRound = GS.GetCurrentRound()
 
-    -- 刷新金币余额
+    -- 刷新金币余额（dirty 检测）
     local mySlot = 1
     if players[mySlot] and refs.playerMoneyLabel then
-        refs.playerMoneyLabel:SetText(Utils.FormatMoney(players[mySlot].money))
+        local moneyText = Utils.FormatMoney(players[mySlot].money)
+        if moneyText ~= lastMoney then
+            lastMoney = moneyText
+            refs.playerMoneyLabel:SetText(moneyText)
+        end
+    end
+
+    -- 阶段变化时强制重绘所有内容（清空缓存）
+    local phaseChanged = (phase ~= lastPhase)
+    if phaseChanged then
+        lastPhase = phase
+        lastRoundBidsSnapshot = {}
+        lastBidVisible = {}
+        lastBidText = {}
+        lastBidWidth = {}
     end
 
     for idx = 1, 4 do
         local player = players[idx]
         if player then
-            refs.playerNameLabels[idx]:SetText(player.name)
-            if refs.playerAvatarIcons[idx] then
-                refs.playerAvatarIcons[idx]:SetStyle({ backgroundImage = player.character.avatar })
+            -- 玩家名/头像/角色名只在阶段变化时更新（这些数据在对局中不变）
+            if phaseChanged then
+                refs.playerNameLabels[idx]:SetText(player.name)
+                if refs.playerAvatarIcons[idx] then
+                    refs.playerAvatarIcons[idx]:SetStyle({ backgroundImage = player.character.avatar })
+                end
+                refs.playerCharLabels[idx]:SetText(player.character.name)
             end
-            refs.playerCharLabels[idx]:SetText(player.character.name)
 
-            -- 轮次出价历史
-            local currentRound = GS.GetCurrentRound()
+            -- 轮次出价历史（仅出价数据变化时更新）
+            if not lastRoundBidsSnapshot[idx] then
+                lastRoundBidsSnapshot[idx] = {}
+            end
             for r = 1, maxRounds do
                 -- BID_REVEAL 阶段：当前轮次的出价仅在该玩家揭示动画开始后才显示
                 local hide = (phase == GS.PHASE.BID_REVEAL and r == currentRound
                     and not (revealAnim.active and revealAnim.playerStartTimes[idx]))
+                local newText
                 if not hide and roundBids[r] and roundBids[r][idx] then
                     local amount = roundBids[r][idx]
                     if amount > 0 then
-                        refs.playerRoundBids[idx][r]:SetText(Utils.FormatMoney(amount))
+                        newText = Utils.FormatMoney(amount)
                     else
-                        refs.playerRoundBids[idx][r]:SetText("弃")
+                        newText = "弃"
                     end
                 else
-                    refs.playerRoundBids[idx][r]:SetText("")
+                    newText = ""
+                end
+                if newText ~= lastRoundBidsSnapshot[idx][r] then
+                    lastRoundBidsSnapshot[idx][r] = newText
+                    refs.playerRoundBids[idx][r]:SetText(newText)
                 end
             end
 
@@ -367,16 +402,29 @@ function PlayerListPanel.Update()
                 end
             end
 
-            container:SetVisible(visible)
-            amountLabel:SetText(text)
-            amountPanel:SetStyle({ width = width })
+            -- dirty 检测：仅变化时才调用 SetVisible/SetText/SetStyle
+            if visible ~= lastBidVisible[idx] then
+                lastBidVisible[idx] = visible
+                container:SetVisible(visible)
+            end
+            if text ~= lastBidText[idx] then
+                lastBidText[idx] = text
+                amountLabel:SetText(text)
+            end
+            -- BID_REVEAL 阶段宽度是动画插值，每帧都可能变化，跳过 dirty 检测
+            if phase == GS.PHASE.BID_REVEAL or width ~= lastBidWidth[idx] then
+                lastBidWidth[idx] = width
+                amountPanel:SetStyle({ width = width })
+            end
 
-            -- 高亮逻辑：自己的玩家（徽章色）
-            if idx == mySlot then
-                refs.playerHighlights[idx]:SetVisible(true)
-                refs.playerHighlights[idx]:SetStyle({ backgroundColor = C.playerBadge[idx] or C.playerHighlight })
-            else
-                refs.playerHighlights[idx]:SetVisible(false)
+            -- 高亮逻辑：自己的玩家固定高亮，仅在阶段变化时更新
+            if phaseChanged then
+                if idx == mySlot then
+                    refs.playerHighlights[idx]:SetVisible(true)
+                    refs.playerHighlights[idx]:SetStyle({ backgroundColor = C.playerBadge[idx] or C.playerHighlight })
+                else
+                    refs.playerHighlights[idx]:SetVisible(false)
+                end
             end
         end
     end

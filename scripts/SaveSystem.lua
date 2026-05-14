@@ -294,6 +294,11 @@ local function loadLocal()
     saveData.settings = saveData.settings or {}
     saveData.settings.bgmVolume = saveData.settings.bgmVolume or 100
     saveData.settings.sfxVolume = saveData.settings.sfxVolume or 100
+    if saveData.settings.glowEffect == nil then
+        local platform = GetPlatform and GetPlatform() or ""
+        local isMobile = (platform == "Android" or platform == "iOS" or platform == "Web")
+        saveData.settings.glowEffect = not isMobile
+    end
     saveData.tickets = saveData.tickets or {}
     saveData.characterCoins = saveData.characterCoins or 0
     saveData.unlockedCharacters = saveData.unlockedCharacters or {}

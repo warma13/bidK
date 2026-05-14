@@ -51,6 +51,66 @@ Daily.items = {
     { name = "百年陈酿白兰地", rows = 1, cols = 1, quality = "red",   value = 150000, desc = "1900年代法国白兰地，蜡封瓶口完好",            image = IMG .. "日用/百年陈酿白兰地.png" },
     { name = "整箱年份茅台",   rows = 3, cols = 3, quality = "red",   value = 350000, desc = "1970年代出口茅台原箱12瓶，海关扣押未拆封",    image = IMG .. "日用/整箱年份茅台.png" },
     { name = "沉船打捞香槟",   rows = 2, cols = 2, quality = "red",   value = 800000, desc = "波罗的海沉船打捞的19世纪凯歌香槟，海水浸泡后风味独特", image = IMG .. "日用/沉船打捞香槟.png" },
+
+    -- ===== 食品杂货系列 =====
+    -- 白 ×5
+    { name = "过期罐头",           rows = 1, cols = 1, quality = "white",  value = 84,     desc = "生锈变鼓的进口番茄罐头",                               image = IMG .. "日用/过期罐头.png" },
+    { name = "散装方便面",         rows = 1, cols = 2, quality = "white",  value = 105,    desc = "没有料包的散装方便面一把",                             image = IMG .. "日用/散装方便面.png" },
+    { name = "发霉茶砖",           rows = 1, cols = 2, quality = "white",  value = 147,    desc = "受潮长白毛的老式压制砖茶",                             image = IMG .. "日用/发霉茶砖.png" },
+    { name = "腐坏香辛料",         rows = 1, cols = 1, quality = "white",  value = 98,     desc = "结块发潮的进口胡椒粉铁罐",                             image = IMG .. "日用/腐坏香辛料.png" },
+    { name = "碎饼干袋",           rows = 1, cols = 2, quality = "white",  value = 77,     desc = "压碎了的进口黄油饼干一袋",                             image = IMG .. "日用/碎饼干袋.png" },
+    -- 绿 ×5
+    { name = "特级初榨橄榄油",     rows = 1, cols = 1, quality = "green",  value = 680,    desc = "西班牙产特级初榨橄榄油，500ml暗色玻璃瓶",             image = IMG .. "日用/特级初榨橄榄油.png" },
+    { name = "麦卢卡蜂蜜礼盒",     rows = 1, cols = 2, quality = "green",  value = 920,    desc = "新西兰麦卢卡蜂蜜礼盒，附天然蜂巢一块",               image = IMG .. "日用/麦卢卡蜂蜜礼盒.png" },
+    { name = "古树普洱散茶",       rows = 1, cols = 1, quality = "green",  value = 760,    desc = "百年古树春茶散料，密封铁罐装，附产地证",               image = IMG .. "日用/古树普洱散茶.png" },
+    { name = "宇治抹茶礼盒",       rows = 1, cols = 2, quality = "green",  value = 840,    desc = "日本宇治仪式级抹茶粉，60g铁罐礼盒装",                 image = IMG .. "日用/宇治抹茶礼盒.png" },
+    { name = "喜马拉雅粉盐块",     rows = 1, cols = 1, quality = "green",  value = 580,    desc = "整块喜马拉雅玫瑰岩盐，附木盒和研磨器",               image = IMG .. "日用/喜马拉雅粉盐块.png" },
+    -- 蓝 ×4
+    { name = "法国黑松露罐头",     rows = 1, cols = 1, quality = "blue",   value = 3200,   desc = "产自佩里戈尔的整颗黑松露罐头，夏季采摘",               image = IMG .. "日用/法国黑松露罐头.png" },
+    { name = "伊比利亚火腿",       rows = 2, cols = 3, quality = "blue",   value = 5800,   desc = "48个月陈化的伊比利亚橡果喂养前腿火腿",                 image = IMG .. "日用/伊比利亚火腿.png" },
+    { name = "帕玛森干酪整块",     rows = 1, cols = 2, quality = "blue",   value = 2400,   desc = "36个月陈化帕玛森干酪原块，约1.5kg",                   image = IMG .. "日用/帕玛森干酪整块.png" },
+    { name = "皇家鱼子酱小罐",     rows = 1, cols = 1, quality = "blue",   value = 4600,   desc = "俄罗斯星鲟鱼子酱，30g原装锡罐密封",                   image = IMG .. "日用/皇家鱼子酱小罐.png" },
+    -- 紫 ×3
+    { name = "正宗白松露",         rows = 1, cols = 1, quality = "purple", value = 18000,  desc = "意大利阿尔巴产白松露，真空密封，附产地认证证书",       image = IMG .. "日用/正宗白松露.png" },
+    { name = "顶级藏红花礼盒",     rows = 1, cols = 1, quality = "purple", value = 12500,  desc = "伊朗科尔霍拉桑顶级藏红花，5g黄金礼盒装",               image = IMG .. "日用/顶级藏红花礼盒.png" },
+    { name = "极品大闸蟹礼盒",     rows = 2, cols = 2, quality = "purple", value = 15800,  desc = "阳澄湖极品大闸蟹干腌礼盒，附防伪溯源码证书",           image = IMG .. "日用/极品大闸蟹礼盒.png" },
+    -- 金 ×3
+    { name = "野生冬虫夏草",       rows = 1, cols = 1, quality = "gold",   value = 68000,  desc = "西藏那曲野生冬虫夏草，30条正品礼盒，附检测报告",       image = IMG .. "日用/野生冬虫夏草.png" },
+    { name = "老班章普洱生饼",     rows = 1, cols = 2, quality = "gold",   value = 45000,  desc = "2003年老班章单株古树春茶生饼，附多枚藏家钤印证书",     image = IMG .. "日用/老班章普洱生饼.png" },
+    { name = "顶级和牛干货礼盒",   rows = 2, cols = 2, quality = "gold",   value = 38000,  desc = "A5级神户和牛风干牛肉礼盒，限量木箱装，附认证书",       image = IMG .. "日用/顶级和牛干货礼盒.png" },
+    -- 红 ×2
+    { name = "宫廷贡茶孤本",       rows = 1, cols = 2, quality = "red",    value = 380000, desc = "疑似清宫档案记载的皇室贡茶残饼，附多份考证资料",       image = IMG .. "日用/宫廷贡茶孤本.png" },
+    { name = "传世古树普洱生茶",   rows = 2, cols = 2, quality = "red",    value = 650000, desc = "清末百年古树头春正山手工制饼，附多位资深藏家证书",     image = IMG .. "日用/传世古树普洱生茶.png" },
+
+    -- ===== 家居快消系列 =====
+    -- 白 ×5
+    { name = "碎陶瓷杯",           rows = 1, cols = 1, quality = "white",  value = 70,     desc = "磕了缺口的白瓷马克杯",                                 image = IMG .. "日用/碎陶瓷杯.png" },
+    { name = "旧香皂盒",           rows = 1, cols = 1, quality = "white",  value = 84,     desc = "发霉的塑料肥皂盒，里面还有半块旧皂",                   image = IMG .. "日用/旧香皂盒.png" },
+    { name = "破损台历",           rows = 1, cols = 2, quality = "white",  value = 105,    desc = "纸面破损的老式木座台历，日期停在过去",                 image = IMG .. "日用/破损台历.png" },
+    { name = "磨损浴室拖鞋",       rows = 1, cols = 2, quality = "white",  value = 98,     desc = "鞋底快磨平的廉价浴室拖鞋一双",                         image = IMG .. "日用/磨损浴室拖鞋.png" },
+    { name = "废弃橡皮手套",       rows = 1, cols = 1, quality = "white",  value = 63,     desc = "老化开裂的橡胶洗碗手套一副",                           image = IMG .. "日用/废弃橡皮手套.png" },
+    -- 绿 ×5
+    { name = "复古发条闹钟",       rows = 1, cols = 1, quality = "green",  value = 780,    desc = "双铃圆顶机械发条闹钟，还能准时响",                     image = IMG .. "日用/复古发条闹钟.png" },
+    { name = "铜制烟灰缸",         rows = 1, cols = 1, quality = "green",  value = 640,    desc = "厚实黄铜烟灰缸，底部刻有几何纹饰",                     image = IMG .. "日用/铜制烟灰缸.png" },
+    { name = "老式旅行熨斗",       rows = 1, cols = 1, quality = "green",  value = 720,    desc = "折叠式小型旅行熨斗，蒸汽功能仍完好",                   image = IMG .. "日用/老式旅行熨斗.png" },
+    { name = "玻璃香皂碟套装",     rows = 1, cols = 2, quality = "green",  value = 540,    desc = "手工吹制磨砂玻璃皂托，三件套原装礼盒",                 image = IMG .. "日用/玻璃香皂碟套装.png" },
+    { name = "竹制餐具礼盒",       rows = 1, cols = 2, quality = "green",  value = 860,    desc = "手工竹制筷子+勺+叉三件套，原装礼盒",                   image = IMG .. "日用/竹制餐具礼盒.png" },
+    -- 蓝 ×4
+    { name = "进口香氛蜡烛礼盒",   rows = 2, cols = 2, quality = "blue",   value = 2800,   desc = "法国圣日耳曼香氛蜡烛礼盒，三种香调",                   image = IMG .. "日用/进口香氛蜡烛礼盒.png" },
+    { name = "黄铜剃须套装",       rows = 1, cols = 2, quality = "blue",   value = 3600,   desc = "银尖獾毛剃须刷配黄铜剃须碗，英国手工制",               image = IMG .. "日用/黄铜剃须套装.png" },
+    { name = "手工植物香皂礼盒",   rows = 2, cols = 2, quality = "blue",   value = 2200,   desc = "比利时天然植物精油香皂十二宫礼盒",                     image = IMG .. "日用/手工植物香皂礼盒.png" },
+    { name = "水晶烟灰缸",         rows = 1, cols = 1, quality = "blue",   value = 4100,   desc = "手工切割波西米亚水晶烟灰缸，重约1.2kg",               image = IMG .. "日用/水晶烟灰缸.png" },
+    -- 紫 ×3
+    { name = "银制餐具六件套",     rows = 2, cols = 2, quality = "purple", value = 14800,  desc = "英国925纯银餐叉+餐刀+汤匙各一对，皮革收纳盒装",       image = IMG .. "日用/银制餐具六件套.png" },
+    { name = "法国珐琅瓷咖啡具",   rows = 2, cols = 2, quality = "purple", value = 11200,  desc = "法国利摩日珐琅瓷咖啡壶附四套杯碟，原装礼盒",           image = IMG .. "日用/法国珐琅瓷咖啡具.png" },
+    { name = "大师调香香氛礼盒",   rows = 2, cols = 2, quality = "purple", value = 9600,   desc = "顶级调香师手工制作香氛全系列礼盒，限量50套",           image = IMG .. "日用/大师调香香氛礼盒.png" },
+    -- 金 ×3
+    { name = "百年雕花海泡石烟斗", rows = 1, cols = 1, quality = "gold",   value = 38000,  desc = "英国邓希尔百年老店雕花海泡石烟斗，附原装皮套",         image = IMG .. "日用/百年雕花海泡石烟斗.png" },
+    { name = "皇室骨瓷茶具套装",   rows = 2, cols = 2, quality = "gold",   value = 55000,  desc = "英国皇家御用骨瓷茶具一套，壶杯碟具齐全，附王室徽记证书", image = IMG .. "日用/皇室骨瓷茶具套装.png" },
+    { name = "维多利亚纯银咖啡具", rows = 2, cols = 2, quality = "gold",   value = 72000,  desc = "维多利亚时代英国纯银咖啡壶+糖缸+奶壶套装，附鉴定证书", image = IMG .. "日用/维多利亚纯银咖啡具.png" },
+    -- 红 ×2
+    { name = "御用银丝梳妆套盒",   rows = 2, cols = 2, quality = "red",    value = 180000, desc = "欧洲皇室御用纯银梳妆套盒，镶嵌宝石，附皇室档案证书",   image = IMG .. "日用/御用银丝梳妆套盒.png" },
+    { name = "清宫纯银火锅",       rows = 3, cols = 3, quality = "red",    value = 420000, desc = "清朝宫廷御用纯银丝工火锅，八仙过海纹饰，附宫廷档案",   image = IMG .. "日用/清宫纯银火锅.png" },
 }
 
 return Daily

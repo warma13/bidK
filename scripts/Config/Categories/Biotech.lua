@@ -56,6 +56,23 @@ Biotech.items = {
     { name = "ECMO",           rows = 2, cols = 3, quality = "red",    value = 120000, desc = "体外膜肺氧合设备，含离心泵、膜肺和循环管路",     image = IMG .. "ECMO.png" },
     { name = "复苏呼吸机",     rows = 2, cols = 2, quality = "red",    value = 85000,  desc = "顶级ICU呼吸机，全模式覆盖，内置氧气浓度仪",     image = IMG .. "复苏呼吸机.png" },
     { name = "基因测序系统",   rows = 2, cols = 3, quality = "red",    value = 200000, desc = "桌面型第三代纳米孔测序仪，实时输出，附分析软件", image = IMG .. "基因测序系统.png" },
+    -- 高端科研仪器 白 ×3
+    { name = "PCR试剂盒",      rows = 1, cols = 2, quality = "white",  value = 168,   desc = "实时荧光定量PCR试剂盒，50反应份，含阳性对照",   image = IMG .. "PCR试剂盒.png",               tags = {"research_instrument"} },
+    { name = "基因芯片",       rows = 1, cols = 1, quality = "white",  value = 210,   desc = "单通道基因表达谱芯片，可检测25000个探针位点",   image = IMG .. "基因芯片.png",                 tags = {"research_instrument"} },
+    { name = "单克隆抗体试剂", rows = 1, cols = 1, quality = "white",  value = 280,   desc = "小鼠来源单克隆抗体，100μg冻干粉，抗体效价高",   image = IMG .. "单克隆抗体试剂.png",           tags = {"research_instrument"} },
+    -- 高端科研仪器 绿 ×4
+    { name = "荧光显微镜镜头", rows = 1, cols = 1, quality = "green",  value = 1200,  desc = "60倍油浸荧光物镜，NA1.4，多色荧光兼容",         image = IMG .. "荧光显微镜镜头.png",           tags = {"research_instrument"} },
+    { name = "冷冻切片机刀片", rows = 1, cols = 2, quality = "green",  value = 680,   desc = "冷冻切片机专用高碳钢刀片，一盒50片，未开封",     image = IMG .. "冷冻切片机刀片.png",           tags = {"research_instrument"} },
+    { name = "流式细胞仪耗材包", rows = 1, cols = 2, quality = "green", value = 980,  desc = "流式专用样品管、鞘液和校准微球套装",             image = IMG .. "流式细胞仪耗材包.png",         tags = {"research_instrument"} },
+    { name = "蛋白质电泳系统", rows = 2, cols = 2, quality = "green",  value = 1450,  desc = "迷你凝胶电泳槽套装，含电源模块和转膜夹具",       image = IMG .. "蛋白质电泳系统.png",           tags = {"research_instrument"} },
+    -- 高端科研仪器 蓝 ×3
+    { name = "原子力显微镜探针", rows = 1, cols = 1, quality = "blue", value = 3200,  desc = "硅基悬臂AFM探针，针尖曲率半径<5nm，10根装",     image = IMG .. "原子力显微镜探针.png",         tags = {"research_instrument"} },
+    { name = "质谱仪离子源模块", rows = 1, cols = 2, quality = "blue", value = 5800,  desc = "ESI电喷雾离子源模块，兼容多品牌质谱仪接口",       image = IMG .. "质谱仪离子源模块.png",         tags = {"research_instrument"} },
+    { name = "超分辨率成像探针", rows = 1, cols = 1, quality = "blue", value = 4400,  desc = "STED超分辨荧光探针，光稳定性极高，分辨率<50nm",  image = IMG .. "超分辨率成像探针.png",         tags = {"research_instrument"} },
+    -- 金 ×3
+    { name = "冷冻电镜样品台",   rows = 2, cols = 2, quality = "gold",  value = 58000,  desc = "cryo-EM自动样品台，液氮冷却，附振动隔离底座",   image = IMG .. "冷冻电镜样品台.png",           tags = {"research_instrument"} },
+    { name = "微型介入导管机器人", rows = 2, cols = 2, quality = "gold", value = 75000, desc = "血管介入微型机器人，0.5mm导管径，磁场导航",       image = IMG .. "微型介入导管机器人.png",       tags = {"research_instrument"} },
+    { name = "质子治疗准直器",   rows = 2, cols = 2, quality = "gold",  value = 95000,  desc = "多叶准直器模块，用于质子束精准形塑，医院级别",   image = IMG .. "质子治疗准直器.png",           tags = {"research_instrument"} },
 }
 
 return Biotech

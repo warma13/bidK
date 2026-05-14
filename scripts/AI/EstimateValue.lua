@@ -279,6 +279,10 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
     end
 
     -- 质量推断：当 ≥3 件 L3 已知时，计算质量比率
+    -- 关键：用样本比例 damping，避免少数高价样本驱动全仓估值大幅跳变
+    -- sampleWeight = l3Count / itemCount（如3/20=0.15，damping 效果强；20/20=1.0，完全应用）
+    -- appliedRatio = 1 + (rawRatio - 1) × sampleWeight × 2
+    -- 这样4件样本最多贡献 (rawRatio-1)×40% 的修正，而非直接 ×rawRatio
     local qualityRatio = 1.0
     if l3Count >= 3 then
         local sumHypo = 0
@@ -288,9 +292,15 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
             sumReal = sumReal + v.real
         end
         if sumHypo > 0 then
-            qualityRatio = sumReal / sumHypo
-            -- 限制修正范围 [0.3, 3.0]，避免极端偏差
-            qualityRatio = math.max(0.3, math.min(3.0, qualityRatio))
+            local rawRatio = sumReal / sumHypo
+            rawRatio = math.max(0.3, math.min(3.0, rawRatio))
+            -- 按样本覆盖率 damping：样本越少，修正越保守
+            local sampleWeight = math.min(1.0, l3Count / math.max(itemCount, 1))
+            -- ×2 使得 50% 样本时可以达到约 100% 修正（sampleWeight=0.5 → 完全应用）
+            local dampFactor = math.min(1.0, sampleWeight * 2)
+            qualityRatio = 1.0 + (rawRatio - 1.0) * dampFactor
+            -- 收窄后的安全范围 [0.5, 2.0]（原来是 [0.3, 3.0]，过于激进）
+            qualityRatio = math.max(0.5, math.min(2.0, qualityRatio))
         end
     end
 

@@ -746,4 +746,21 @@ function GameOverDialog.IsVisible()
     return settlementPanel ~= nil
 end
 
+-- 暴露确认返回弹窗（供 ESC 快捷键调用）
+function GameOverDialog.ConfirmGoHome()
+    ConfirmGoHome()
+end
+
+-- 关闭确认返回弹窗（ESC 二次按下时取消）
+function GameOverDialog.DismissConfirm()
+    if confirmModal_ then
+        confirmModal_:Close()
+        confirmModal_ = nil
+    end
+end
+
+function GameOverDialog.HasConfirmModal()
+    return confirmModal_ ~= nil
+end
+
 return GameOverDialog

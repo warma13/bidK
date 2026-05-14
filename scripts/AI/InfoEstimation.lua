@@ -210,6 +210,8 @@ function InfoEstimation.ComputeEstimate(playerIdx, round, infoSystem, infoStates
     -- 4. 质量分析（供策略模块使用）
     local analysis = analyzeRevealed(state)
     state.analysis = analysis
+    -- infoWeight 在步骤 6 计算后会补充到 analysis，此处先占位
+    analysis.infoWeight = 0
 
     -- 5. 质量信号微调：好仓库适度上浮，差仓库适度下压
     local estimate = totalEstimate
@@ -218,7 +220,8 @@ function InfoEstimation.ComputeEstimate(playerIdx, round, infoSystem, infoStates
         estimate = estimate * qAdj
     end
 
-    -- 6. 信息置信度（用于不确定性缩放）
+    -- 6. 信息置信度（用于不确定性缩放，同时缓存到 state 供出价模块使用）
+    -- infoWeight ∈ [0, 1]：0 = 纯先验无信息，1 = 所有物品均已精确揭示
     local revealLevels = state.itemRevealLevels or {}
     local infoWeight = 0
     if itemCount > 0 then
@@ -234,6 +237,9 @@ function InfoEstimation.ComputeEstimate(playerIdx, round, infoSystem, infoStates
         end
         infoWeight = infoWeight / itemCount
     end
+    -- 缓存到 state 和 analysis，供 Strategies.baseCompeteBid 通过 opts.analysis.infoWeight 读取
+    state.infoWeight = infoWeight
+    analysis.infoWeight = infoWeight
 
     -- 7. 估价波动：±不确定性（信息越多越确定，轮次越多越确定）
     local uncertainty = 0.15 - (round - 1) * 0.02 - infoWeight * 0.08

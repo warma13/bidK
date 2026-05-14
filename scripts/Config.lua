@@ -16,7 +16,7 @@ local Config = {}
 
 Config.GAME = {
     Title = "拍卖之王",
-    Version = "1.1.14",
+    Version = "1.1.18",
     MaxPlayers = 4,
     WarehouseColumns = 30,      -- 玩家仓库格子列数
     WarehouseMaxRows = 21,      -- 玩家仓库格子最大行数（满级 5+4*4=21）
@@ -67,31 +67,35 @@ Config.TICKETS = {
     -- 七大区域仓库指定门票
     ticket_suburb = {
         name = "城郊仓库指定券",
-        icon = "image/icon_suburb_supermarket.png",
+        icon = "Textures/tickets/ticket_suburb.png",
     },
     ticket_industrial = {
         name = "工业仓库指定券",
-        icon = "image/icon_ind_machinery.png",
+        icon = "Textures/tickets/ticket_industrial.png",
     },
     ticket_commercial = {
         name = "商业仓库指定券",
-        icon = "image/icon_com_department.png",
+        icon = "Textures/tickets/ticket_commercial.png",
     },
     ticket_port = {
         name = "港口仓库指定券",
-        icon = "image/icon_port_bonded.png",
+        icon = "Textures/tickets/ticket_port.png",
     },
     ticket_techpark = {
         name = "科技仓库指定券",
-        icon = "image/icon_cult_auction.png",
+        icon = "Textures/tickets/ticket_techpark.png",
     },
     ticket_culture = {
         name = "文化仓库指定券",
-        icon = "image/icon_cult_museum.png",
+        icon = "Textures/tickets/ticket_culture.png",
     },
     ticket_deepsea = {
         name = "深海仓库指定券",
-        icon = "image/icon_sea_wreck.png",
+        icon = "Textures/tickets/ticket_deepsea.png",
+    },
+    ticket_private = {
+        name = "顶级私产指定券",
+        icon = "Textures/tickets/ticket_private.png",
     },
 }
 

@@ -20,6 +20,7 @@ local ImageCache = require("urhox-libs/UI/Core/ImageCache")
 local LootPanel = {}
 
 local GS = GameState
+local SaveSystem = require("SaveSystem")
 
 -- 图片面板索引 → 物品引用的映射（每帧 Update 时刷新）
 local imageToItem = {}
@@ -31,6 +32,11 @@ local lastActiveImageCount = 0  -- 上一帧活跃的图片面板数
 local hitAreasDirty = true      -- 图片点击区域是否需要刷新
 local level1Items = {}          -- 预计算的 level-1 物品列表（供 Render 使用）
 local lastSlotLevels = {}       -- 增量更新：上次每个格子的揭示等级缓存
+
+-- 图片位置布局缓存：物品 idx → {x, y, w, h}（仅在布局变化时更新）
+local imgLayoutCache = {}
+-- 上次 gridContainer 布局快照，用于检测 resize
+local lastGridLayout = nil
 
 local refs = UIState.refs
 local C = Config.COLORS
@@ -275,6 +281,10 @@ function LootPanel.Create()
         -- ====== 流光动画绘制（竞拍阶段，level >= 1 的物品边框流光） ======
         if isOpen then return end  -- 开箱/结算阶段不画流光
 
+        -- 流光开关检测
+        local settings = SaveSystem.IsReady() and SaveSystem.GetSettings() or nil
+        if settings and settings.glowEffect == false then return end
+
         local hasGlowItems = false
         for _, lv in pairs(UIState.itemRevealLevels) do
             if lv >= 1 then hasGlowItems = true; break end
@@ -435,8 +445,26 @@ function LootPanel.Update()
     -- 清空 level-1 物品列表，本次扫描重新收集
     level1Items = {}
 
+    -- 如果仓库数据变了（新对局），清空布局缓存
+    if not warehouseData then
+        imgLayoutCache = {}
+        lastGridLayout = nil
+    end
+
     local imgIdx = 0  -- 图片面板分配计数器
     local gridLayout = refs.gridContainer and refs.gridContainer:GetAbsoluteLayout() or nil
+
+    -- 检测 grid 布局是否发生变化（resize 或首次加载），若变化则清空缓存
+    local gridLayoutChanged = false
+    if gridLayout then
+        if not lastGridLayout
+            or lastGridLayout.x ~= gridLayout.x or lastGridLayout.y ~= gridLayout.y
+            or lastGridLayout.w ~= gridLayout.w or lastGridLayout.h ~= gridLayout.h then
+            lastGridLayout = { x = gridLayout.x, y = gridLayout.y, w = gridLayout.w, h = gridLayout.h }
+            imgLayoutCache = {}
+            gridLayoutChanged = true
+        end
+    end
 
     for r = 1, maxRows do
         for c = 1, cols do
@@ -501,18 +529,25 @@ function LootPanel.Update()
                             refs.itemImages[imgIdx]._imagePath = item.image
                             refs.itemImages[imgIdx]._originSlot = originSlot
                             refs.itemImages[imgIdx]._endSlot = endSlot
-                            local oLayout = originSlot:GetAbsoluteLayout()
-                            local eLayout = endSlot:GetAbsoluteLayout()
-                            local imgX = oLayout.x - gridLayout.x
-                            local imgY = oLayout.y - gridLayout.y
-                            local imgW = eLayout.x + eLayout.w - oLayout.x
-                            local imgH = eLayout.y + eLayout.h - oLayout.y
+                            -- 使用布局缓存，仅在 levelChanged 或 gridLayoutChanged 时重算
+                            local cached = imgLayoutCache[item.idx]
+                            if not cached or levelChanged or gridLayoutChanged then
+                                local oLayout = originSlot:GetAbsoluteLayout()
+                                local eLayout = endSlot:GetAbsoluteLayout()
+                                cached = {
+                                    x = oLayout.x - gridLayout.x,
+                                    y = oLayout.y - gridLayout.y,
+                                    w = eLayout.x + eLayout.w - oLayout.x,
+                                    h = eLayout.y + eLayout.h - oLayout.y,
+                                }
+                                imgLayoutCache[item.idx] = cached
+                            end
                             local pad = 2
                             refs.itemImages[imgIdx]:SetStyle({
-                                left = imgX + pad,
-                                top = imgY + pad,
-                                width = imgW - pad * 2,
-                                height = imgH - pad * 2,
+                                left = cached.x + pad,
+                                top = cached.y + pad,
+                                width = cached.w - pad * 2,
+                                height = cached.h - pad * 2,
                             })
                             refs.itemImages[imgIdx]:SetVisible(true)
                         end
@@ -614,25 +649,45 @@ function LootPanel.UpdateImageHitAreas()
     local gridLayout = refs.gridContainer and refs.gridContainer:GetAbsoluteLayout() or nil
     if not gridLayout then return end
 
-    for i = 1, MAX_ITEM_IMAGES do
+    -- 检测 grid 是否 resize（与 Update 中逻辑一致）
+    local gridChanged = false
+    if not lastGridLayout
+        or lastGridLayout.x ~= gridLayout.x or lastGridLayout.y ~= gridLayout.y
+        or lastGridLayout.w ~= gridLayout.w or lastGridLayout.h ~= gridLayout.h then
+        lastGridLayout = { x = gridLayout.x, y = gridLayout.y, w = gridLayout.w, h = gridLayout.h }
+        imgLayoutCache = {}
+        gridChanged = true
+    end
+
+    for i = 1, lastActiveImageCount do
         local img = refs.itemImages[i]
         if not img or not img:IsVisible() then goto nextImg end
-        local oSlot = img._originSlot
-        local eSlot = img._endSlot
-        if not oSlot or not eSlot then goto nextImg end
 
-        local oLayout = oSlot:GetAbsoluteLayout()
-        local eLayout = eSlot:GetAbsoluteLayout()
-        local imgX = oLayout.x - gridLayout.x
-        local imgY = oLayout.y - gridLayout.y
-        local imgW = eLayout.x + eLayout.w - oLayout.x
-        local imgH = eLayout.y + eLayout.h - oLayout.y
+        local item = imageToItem[i]
+        local cached = item and imgLayoutCache[item.idx] or nil
+
+        -- 仅在缓存缺失或 grid resize 时重算
+        if not cached or gridChanged then
+            local oSlot = img._originSlot
+            local eSlot = img._endSlot
+            if not oSlot or not eSlot then goto nextImg end
+            local oLayout = oSlot:GetAbsoluteLayout()
+            local eLayout = eSlot:GetAbsoluteLayout()
+            cached = {
+                x = oLayout.x - gridLayout.x,
+                y = oLayout.y - gridLayout.y,
+                w = eLayout.x + eLayout.w - oLayout.x,
+                h = eLayout.y + eLayout.h - oLayout.y,
+            }
+            if item then imgLayoutCache[item.idx] = cached end
+        end
+
         local pad = 2
         img:SetStyle({
-            left = imgX + pad,
-            top = imgY + pad,
-            width = imgW - pad * 2,
-            height = imgH - pad * 2,
+            left = cached.x + pad,
+            top = cached.y + pad,
+            width = cached.w - pad * 2,
+            height = cached.h - pad * 2,
         })
 
         ::nextImg::

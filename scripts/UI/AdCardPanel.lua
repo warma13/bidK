@@ -13,6 +13,9 @@ local SaveSystem = require("SaveSystem")
 local SaveFramework = require("SaveFramework")
 local Utils = require("UI.Utils")
 local FloatingMessage = require("UI.FloatingMessage")
+local TicketTooltip = require("UI.TicketTooltip")
+local AdHelper = require("AdHelper")
+local AdTracker = require("AdTracker")
 
 local AdCardPanel = {}
 
@@ -37,7 +40,10 @@ local cardPoints = 0       -- 累计卡点
 local dailyCount = 0       -- 今日已看广告次数
 local dailyDate = ""       -- 今日日期标记
 local milestoneBits = 0    -- 已领取的里程碑位掩码
-local watching = false     -- 正在播放广告
+local watching = false          -- 正在播放广告
+local watchTimeoutTimer = nil   -- 超时保护：SDK 不回调时兜底解锁（秒）
+local watchCooldown = 0.0       -- SDK debounce 冷却倒计时（秒）
+local WATCH_COOLDOWN_SECS = 3.5 -- SDK 要求 3.0s 间隔，留 0.5s 余量
 
 local popupVisible = false
 
@@ -186,6 +192,27 @@ function AdCardPanel.Update(dt)
             AdCardPanel.RefreshAll()
         end
     end
+
+    -- 超时保护：SDK 不回调时（debounce 静默丢弃等情况）兜底解锁
+    if watchTimeoutTimer then
+        watchTimeoutTimer = watchTimeoutTimer - dt
+        if watchTimeoutTimer <= 0 then
+            watchTimeoutTimer = nil
+            watching = false
+            watchCooldown = WATCH_COOLDOWN_SECS  -- 超时后也进入冷却，防止立即再触发
+            print("[AdCard] Watch timeout, entering cooldown")
+        end
+    end
+
+    -- SDK debounce 冷却倒计时：冷却结束后刷新按钮状态
+    if watchCooldown > 0 then
+        watchCooldown = watchCooldown - dt
+        if watchCooldown <= 0 then
+            watchCooldown = 0
+            pcall(AdCardPanel.RefreshAll)  -- 冷却结束，重新评估并解锁按钮
+            print("[AdCard] Cooldown ended, button unlocked")
+        end
+    end
 end
 
 -- ============================================================================
@@ -200,88 +227,103 @@ local function WatchAd()
     end
     if not CanWatchAd() then return end
 
+    -- SDK debounce 冷却中：给提示但不置灰按钮
+    if watchCooldown > 0 then
+        local secs = math.ceil(watchCooldown)
+        pcall(FloatingMessage.Show, "请稍候 " .. secs .. " 秒后再试")
+        return
+    end
+
     watching = true
+    watchTimeoutTimer = 5.0  -- 5 秒内 SDK 未回调则兜底解锁（SDK debounce 是 3s）
     if watchBtn then watchBtn:SetDisabled(true) end
 
-    local function onAdDone(success)
-        watching = false
-        if not success then
-            pcall(function() if watchBtn then watchBtn:SetDisabled(false) end end)
-            pcall(FloatingMessage.Show, "需完整观看广告才能获得奖励")
-            print("[AdCard] Ad failed or cancelled")
-            return
+    AdHelper.WatchRewardAd(
+        -- ── onSuccess ────────────────────────────────────────────────────
+        function()
+            watchTimeoutTimer = nil
+            watching = false
+
+            -- 增加今日次数
+            dailyCount = dailyCount + 1
+
+            -- 每次看广告获得 1 角色币
+            SaveSystem.AddCharacterCoins(1)
+
+            -- 看满每日上限时获得 1 卡点
+            local earnedPoint = false
+            if dailyCount == AC.MAX_DAILY_ADS then
+                cardPoints = cardPoints + 1
+                earnedPoint = true
+            end
+
+            -- 通知 AdTracker（触发 LaunchGift / DailyTask 等 hook，按需注册）
+            AdTracker.Record()
+
+            -- 获取当前卡等级的金币奖励
+            local tier = GetCurrentTier()
+            local coins = tier.coinsPerAd
+
+            -- 通过 MoneyManager 加金币 + 云端持久化
+            MoneyManager.AddMoneyFromMenu(coins, "广告奖励", {
+                batchSetup = function(batch)
+                    batch:SetInt(KEY_CARD_POINTS, cardPoints)
+                    batch:SetInt(KEY_DAILY_COUNT, dailyCount)
+                    batch:Set(KEY_DAILY_DATE, dailyDate)
+                    batch:SetInt(KEY_MILESTONE_BITS, milestoneBits)
+                end,
+                ok = function()
+                    pcall(AdCardPanel.RefreshAll)
+                    local rewardMsg = "+" .. Utils.FormatMoney(coins) .. " 金币"
+                    if earnedPoint then
+                        rewardMsg = rewardMsg .. "  +1 卡点!"
+                    end
+                    pcall(FloatingMessage.Show, rewardMsg)
+                    if dailyCount < AC.MAX_DAILY_ADS then
+                        pcall(FloatingMessage.Show, "今日进度 " .. dailyCount .. "/" .. AC.MAX_DAILY_ADS)
+                    else
+                        pcall(FloatingMessage.Show, "今日广告已看完，获得 1 卡点!")
+                    end
+                    print("[AdCard] Ad reward: +" .. coins .. " coins, daily=" .. dailyCount)
+                end,
+                error = function()
+                    -- 回滚
+                    dailyCount = dailyCount - 1
+                    SaveSystem.AddCharacterCoins(-1)
+                    if earnedPoint then cardPoints = cardPoints - 1 end
+                    pcall(AdCardPanel.RefreshAll)
+                    pcall(FloatingMessage.Show, "奖励发放失败，请重试")
+                end,
+                silent = true,
+            })
+        end,
+
+        -- ── onFail ───────────────────────────────────────────────────────
+        function(reason)
+            watchTimeoutTimer = nil
+            watching = false
+            -- 进入 SDK debounce 冷却，3.5s 后按钮才允许再次点击
+            -- 这样下次点击时 SDK debounce 窗口已过，不会静默丢弃回调
+            watchCooldown = WATCH_COOLDOWN_SECS
+            print("[AdCard] Ad failed, cooldown started " .. WATCH_COOLDOWN_SECS .. "s")
+            -- watching 已重置，立即刷新按钮状态（解除置灰）
+            if watchBtn then
+                pcall(function() watchBtn:SetDisabled(false) end)
+            end
+            pcall(AdCardPanel.RefreshAll)
+
+            local msg = "广告播放失败，请稍后重试"
+            if reason == AdHelper.REASON_USER_CANCEL then
+                msg = "需完整观看广告才能获得奖励"
+            elseif reason == AdHelper.REASON_UNSUPPORTED then
+                msg = "当前平台暂不支持广告"
+            elseif reason == AdHelper.REASON_NO_SDK then
+                msg = "广告不可用"
+            end
+            pcall(FloatingMessage.Show, msg)
+            print("[AdCard] Ad failed, reason=" .. tostring(reason))
         end
-
-        -- 成功：增加今日次数
-        dailyCount = dailyCount + 1
-
-        -- 每次看广告获得 1 角色币
-        SaveSystem.AddCharacterCoins(1)
-
-        -- 看满每日上限时获得 1 卡点
-        local earnedPoint = false
-        if dailyCount == AC.MAX_DAILY_ADS then
-            cardPoints = cardPoints + 1
-            earnedPoint = true
-        end
-
-        -- 获取当前卡等级的金币奖励
-        local tier = GetCurrentTier()
-        local coins = tier.coinsPerAd
-
-        -- 通过 MoneyManager 加金币 + 云端持久化
-        MoneyManager.AddMoneyFromMenu(coins, "广告奖励", {
-            batchSetup = function(batch)
-                batch:SetInt(KEY_CARD_POINTS, cardPoints)
-                batch:SetInt(KEY_DAILY_COUNT, dailyCount)
-                batch:Set(KEY_DAILY_DATE, dailyDate)
-                batch:SetInt(KEY_MILESTONE_BITS, milestoneBits)
-            end,
-            ok = function()
-                -- pcall 保护：异步回调触发时 UI 可能已被 SetRoot 销毁
-                pcall(AdCardPanel.RefreshAll)
-                -- 成功 Toast：金币 + 角色币 + 进度
-                local rewardMsg = "+" .. Utils.FormatMoney(coins) .. " 金币"
-                if earnedPoint then
-                    rewardMsg = rewardMsg .. "  +1 卡点!"
-                end
-                pcall(FloatingMessage.Show, rewardMsg)
-
-                -- 进度提示
-                if dailyCount < AC.MAX_DAILY_ADS then
-                    pcall(FloatingMessage.Show, "今日进度 " .. dailyCount .. "/" .. AC.MAX_DAILY_ADS)
-                else
-                    pcall(FloatingMessage.Show, "今日广告已看完，获得 1 卡点!")
-                end
-
-                print("[AdCard] Ad reward: +" .. coins .. " coins, daily=" .. dailyCount)
-            end,
-            error = function()
-                -- 回滚
-                dailyCount = dailyCount - 1
-                SaveSystem.AddCharacterCoins(-1)
-                if earnedPoint then
-                    cardPoints = cardPoints - 1
-                end
-                pcall(AdCardPanel.RefreshAll)
-                pcall(FloatingMessage.Show, "奖励发放失败，请重试")
-            end,
-            silent = true,  -- 不让 MoneyManager 内部再弹 "已保存" Toast
-        })
-    end
-
-    -- 调用广告 SDK
-    if sdk then
-        pcall(FloatingMessage.Show, "广告加载中...")
-        sdk:ShowRewardVideoAd(function(result)
-            onAdDone(result.success)
-        end)
-    else
-        -- 无 SDK 时模拟（开发调试）
-        pcall(FloatingMessage.Show, "广告不可用（调试模式）")
-        print("[AdCard] No sdk, simulating ad success")
-        onAdDone(true)
-    end
+    )
 end
 
 -- ============================================================================
@@ -672,18 +714,35 @@ function AdCardPanel.CreatePopup()
         if ms.ticket then
             local tConf = Config.TICKETS[ms.ticket]
             local tCount = ms.ticketCount or 1
+            local ticketId = ms.ticket
+            local ticketIconChildren = {}
             if tConf and tConf.icon then
-                rewardRowChildren[#rewardRowChildren + 1] = UI.Panel {
+                ticketIconChildren[#ticketIconChildren + 1] = UI.Panel {
                     width = sz(18), height = sz(11),
                     backgroundImage = tConf.icon,
                     backgroundFit = "contain", flexShrink = 0,
-                    marginLeft = sz(4),
+                    pointerEvents = "none",
                 }
-                rewardRowChildren[#rewardRowChildren + 1] = UI.Label {
-                    text = "×" .. tCount,
-                    fontSize = sz(9), fontColor = { 200, 210, 230, 200 },
+            else
+                ticketIconChildren[#ticketIconChildren + 1] = UI.Label {
+                    text = "🎫", fontSize = sz(9), pointerEvents = "none",
                 }
             end
+            ticketIconChildren[#ticketIconChildren + 1] = UI.Label {
+                text = "×" .. tCount,
+                fontSize = sz(9), fontColor = { 200, 210, 230, 200 },
+                pointerEvents = "none",
+            }
+            rewardRowChildren[#rewardRowChildren + 1] = UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = sz(2),
+                marginLeft = sz(4),
+                cursor = "pointer",
+                onClick = function()
+                    Utils.PlayClick()
+                    TicketTooltip.Show(ticketId)
+                end,
+                children = ticketIconChildren,
+            }
         end
         if ms.bonusPoints then
             rewardRowChildren[#rewardRowChildren + 1] = UI.Label {

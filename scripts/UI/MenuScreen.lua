@@ -14,6 +14,7 @@ local AdCardPanel = require("UI.AdCardPanel")
 local OnlineRewardPanel = require("UI.OnlineRewardPanel")
 local StatsPanel = require("UI.StatsPanel")
 local VersionRewardPanel = require("UI.VersionRewardPanel")
+local TicketTooltip = require("UI.TicketTooltip")
 
 local MenuScreen = {}
 
@@ -219,33 +220,51 @@ end
 function MenuScreen.Show(onStartCallback, onWarehouseCallback)
     UIState.currentScreen = "menu"
     local C = Config.COLORS
+    local sz = Utils.sz
 
     local announcementPopup = CreateAnnouncementPopup()
     local announcementBtn   = CreateAnnouncementButton(announcementPopup)
 
+    -- 左下角仓库入口
+    local navBar = UI.Panel {
+        position = "absolute", left = sz(8), bottom = sz(8),
+        height = sz(38),
+        flexDirection = "column",
+        alignItems = "center", justifyContent = "center",
+        gap = sz(2),
+        paddingHorizontal = sz(18),
+        cursor = "pointer",
+        backgroundColor = { 18, 12, 6, 215 },
+        borderWidth = 1,
+        borderColor = { 110, 88, 45, 110 },
+        borderRadius = sz(4),
+        onClick = function()
+            Utils.PlayClick()
+            if onWarehouseCallback then onWarehouseCallback() end
+        end,
+        children = {
+            UI.Label {
+                text = "仓库",
+                fontSize = sz(10), fontWeight = "bold",
+                fontColor = { 235, 210, 135, 255 },
+                letterSpacing = 1,
+            },
+            UI.Label {
+                text = "STORAGE",
+                fontSize = sz(5),
+                fontColor = { 195, 162, 72, 200 },
+                letterSpacing = sz(1.5),
+            },
+        },
+    }
+
     local menuRoot = UI.Panel {
         width = "100%", height = "100%",
         backgroundColor = { 18, 18, 22, 255 },
-        backgroundImage = "main_hall_bg_20260319134729.png",
+        backgroundImage = "main_hall_bg_20260319134729.jpg",
         backgroundFit = "cover",
         children = {
-            -- 左下角：仓库按钮
-            UI.Button {
-                position = "absolute",
-                left = "2%", bottom = "8%",
-                text = "仓库",
-                width = Utils.sz(100), height = Utils.sz(50),
-                fontSize = Utils.sz(16),
-                backgroundColor = { 20, 22, 30, 200 },
-                fontColor = { 190, 195, 210, 255 },
-                borderWidth = 1,
-                borderColor = { 80, 85, 100, 160 },
-                borderRadius = 0,
-                onClick = function()
-                    Utils.PlayClick()
-                    if onWarehouseCallback then onWarehouseCallback() end
-                end,
-            },
+            navBar,
             -- 右下角：富豪榜 + 竞拍按钮组
             UI.Panel {
                 position = "absolute",
@@ -308,6 +327,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback)
             OnlineRewardPanel.CreatePopup(),
             announcementPopup,
             VersionRewardPanel.CreatePopup(),
+            TicketTooltip.CreateOverlay(),
         }
     }
     UI.SetRoot(UI.SafeAreaView {

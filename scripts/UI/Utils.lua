@@ -34,18 +34,43 @@ function Utils.LoadSounds()
     currentBgmId = nil
 
     scene_ = Scene()
-    local sfxNames = { "bid_place", "bid_success", "bid_fail", "round_start", "timer_tick", "game_over", "ui_click" }
-    for _, name in ipairs(sfxNames) do
-        local sound = cache:GetResource("Sound", "audio/sfx/" .. name .. ".ogg")
+    -- 显式静态路径，确保构建扫描器能识别并打包这些资源
+    local sfxPaths = {
+        { name = "bid_place",   path = "audio/sfx/bid_place.ogg"   },
+        { name = "bid_success", path = "audio/sfx/bid_success.ogg" },
+        { name = "bid_fail",    path = "audio/sfx/bid_fail.ogg"    },
+        { name = "round_start", path = "audio/sfx/round_start.ogg" },
+        { name = "timer_tick",  path = "audio/sfx/timer_tick.ogg"  },
+        { name = "game_over",   path = "audio/sfx/game_over.ogg"   },
+        { name = "ui_click",    path = "audio/sfx/ui_click.ogg"    },
+    }
+    for _, sfx in ipairs(sfxPaths) do
+        local sound = cache:GetResource("Sound", sfx.path)
         if sound then
-            sounds[name] = sound
+            sounds[sfx.name] = sound
         end
     end
-    -- 默认播放通用 BGM（大厅）
+    -- 默认播放通用 BGM（大厅），异步加载避免阻塞首屏
     Utils.PlayBgm(nil)
 end
 
---- 根据区域ID切换 BGM
+--- 内部：实际播放已就绪的 Sound 对象
+---@param bgmPath string
+---@param bgmSound userdata
+local function DoPlayBgm(bgmPath, bgmSound)
+    -- 如果在等待回调期间又切换了区域，则放弃
+    if currentBgmId ~= bgmPath then return end
+    if not bgmSound or not scene_ then return end
+
+    bgmSound.looped = true
+    bgmNode = scene_:CreateChild("BGM")
+    local source = bgmNode:CreateComponent("SoundSource")
+    source.soundType = SOUND_MUSIC
+    source:SetGain(0.3)
+    source:Play(bgmSound)
+end
+
+--- 根据区域ID切换 BGM（DWP 异步加载，不阻塞游戏）
 ---@param regionId string|nil nil=默认BGM
 function Utils.PlayBgm(regionId)
     local bgmPath = (regionId and regionBgmMap[regionId]) or defaultBgm
@@ -60,15 +85,10 @@ function Utils.PlayBgm(regionId)
         bgmNode = nil
     end
 
-    local bgmSound = cache:GetResource("Sound", bgmPath)
-    if bgmSound and scene_ then
-        bgmSound.looped = true
-        bgmNode = scene_:CreateChild("BGM")
-        local source = bgmNode:CreateComponent("SoundSource")
-        source.soundType = SOUND_MUSIC
-        source:SetGain(0.3)
-        source:Play(bgmSound)
-    end
+    -- 异步加载：Sound 属于 DWP 媒体资源，下载完成后回调播放
+    cache:GetResourceAsync("Sound", bgmPath, function(bgmSound)
+        DoPlayBgm(bgmPath, bgmSound)
+    end)
 end
 
 function Utils.PlaySfx(name)

@@ -16,7 +16,7 @@ function StartScreen.Show(onStartCallback)
     local root = UI.Panel {
         width = "100%", height = "100%",
         backgroundColor = { 18, 18, 22, 255 },
-        backgroundImage = "main_hall_bg_20260319134729.png",
+        backgroundImage = "main_hall_bg_20260319134729.jpg",
         backgroundFit = "cover",
         justifyContent = "center",
         alignItems = "center",

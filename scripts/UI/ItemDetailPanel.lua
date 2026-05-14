@@ -78,6 +78,7 @@ function ItemDetailPanel.New(opts)
         backgroundImage = Utils.GetIcon("coin"),
         backgroundFit = "contain",
     }
+    self._coinIcon = coinIcon
 
     self._valueLabel = UI.Label {
         text = "", fontSize = 12,
@@ -227,9 +228,16 @@ function ItemDetailPanel:Show(item)
     self._titleDiamond:SetStyle({ fontColor = rar.color })
     self._titleLabel:SetText(item.name)
 
-    local val = item.realValue or 0
-    self._valueLabel:SetText(Utils.FormatMoney(val))
-    self._categoryLabel:SetText("| " .. (cat and cat.name or ""))
+    if item.subtitle then
+        self._coinIcon:SetVisible(false)
+        self._valueLabel:SetText(item.subtitle)
+        self._categoryLabel:SetText("")
+    else
+        self._coinIcon:SetVisible(true)
+        local val = item.realValue or 0
+        self._valueLabel:SetText(Utils.FormatMoney(val))
+        self._categoryLabel:SetText("| " .. (cat and cat.name or ""))
+    end
 
     self._imageContainer._imagePath = item.image or nil
     self._descLabel:SetText(item.desc or "")

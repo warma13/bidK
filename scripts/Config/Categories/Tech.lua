@@ -114,6 +114,42 @@ Tech.items = {
     { name = "绝版操作系统软盘", rows = 1, cols = 1, quality = "purple", value = 58000, desc = "Apple Lisa原版系统启动软盘，可运行", image = IMG .. "科技/绝版操作系统软盘.png" },
     { name = "脑电波耳机原型", rows = 1, cols = 2, quality = "purple", value = 95000, desc = "非侵入式脑机接口原型，32通道EEG", image = IMG .. "科技/脑电波耳机原型.png",  tags = {"semiconductor"} },
 
+    -- ===== QuantumLab 量子实验室物品 =====
+    -- 白
+    { name = "漏气制冷阀v2",       rows = 1, cols = 1, quality = "white",  value = 280,    weight = 4, desc = "低温管道截止阀，密封圈老化漏气",             image = IMG .. "科技/漏气制冷阀v2.png" },
+    { name = "实验日志碎片",       rows = 1, cols = 1, quality = "white",  value = 150,    weight = 5, desc = "量子实验室的手写记录残页，字迹模糊",         image = IMG .. "科技/实验日志碎片.png" },
+    { name = "烧毁的量子比特芯片", rows = 1, cols = 1, quality = "white",  value = 420,    weight = 3, desc = "过压损毁的超导量子比特晶圆，不可修复",       image = IMG .. "科技/烧毁的量子比特芯片.png",   tags = {"semiconductor"} },
+    { name = "废弃示波器",         rows = 2, cols = 2, quality = "white",  value = 680,    weight = 2, desc = "屏幕破碎的旧型实验室示波器",                 image = IMG .. "科技/废弃示波器.png" },
+    { name = "废旧冷却管路",       rows = 1, cols = 3, quality = "white",  value = 320,    weight = 3, desc = "低温实验用铜镍合金管路，多处腐蚀",           image = IMG .. "科技/废旧冷却管路.png" },
+    -- 绿
+    { name = "标定用光纤",         rows = 1, cols = 3, quality = "green",  value = 1200,   weight = 3, desc = "单模光纤跳线，用于量子纠缠光路标定",         image = IMG .. "科技/标定用光纤.png" },
+    { name = "实验室电源模块",     rows = 2, cols = 1, quality = "green",  value = 1800,   weight = 2, desc = "低噪声线性稳压电源，量子实验室专用",         image = IMG .. "科技/实验室电源模块.png" },
+    { name = "低温恒温器",         rows = 2, cols = 2, quality = "green",  value = 2400,   weight = 2, desc = "液氦恒温浴槽，温度控制精度±0.01K",           image = IMG .. "科技/低温恒温器.png" },
+    { name = "高纯氦-3气瓶",       rows = 2, cols = 1, quality = "green",  value = 3600,   weight = 2, desc = "99.99%纯度氦-3同位素气瓶，量子制冷用",       image = IMG .. "科技/高纯氦-3气瓶.png" },
+    -- 蓝
+    { name = "量子随机数发生器",   rows = 1, cols = 1, quality = "blue",   value = 6800,   weight = 3, desc = "基于量子噪声的真随机数发生器，USB接口",       image = IMG .. "科技/量子随机数发生器.png",     tags = {"semiconductor"} },
+    { name = "光子探测模块",       rows = 1, cols = 2, quality = "blue",   value = 9200,   weight = 2, desc = "单光子雪崩二极管探测器，暗计数极低",         image = IMG .. "科技/光子探测模块.png",         tags = {"precision_optics"} },
+    { name = "纠缠光源组件",       rows = 1, cols = 2, quality = "blue",   value = 11000,  weight = 2, desc = "自发参量下转换量子纠缠光子对光源",           image = IMG .. "科技/纠缠光源组件.png",         tags = {"precision_optics"} },
+    { name = "脉冲管制冷机头",     rows = 2, cols = 3, quality = "blue",   value = 18000,  weight = 1, desc = "4K级脉冲管低温制冷机头，无液氦消耗",         image = IMG .. "科技/脉冲管制冷机头.png" },
+    { name = "氦-3回收系统",       rows = 2, cols = 2, quality = "blue",   value = 14000,  weight = 1, desc = "闭路循环氦-3气体回收纯化装置",               image = IMG .. "科技/氦-3回收系统.png" },
+    { name = "绝对零度逼近器",     rows = 2, cols = 2, quality = "blue",   value = 22000,  weight = 1, desc = "绝热去磁制冷模块，可达1mK级超低温",         image = IMG .. "科技/绝对零度逼近器.png" },
+    -- 紫
+    { name = "拓扑量子比特原型",   rows = 1, cols = 1, quality = "purple", value = 38000,  weight = 3, desc = "基于马约拉纳费米子的拓扑量子比特原型器件",   image = IMG .. "科技/拓扑量子比特原型.png",     tags = {"semiconductor"} },
+    { name = "量子纠错编码板",     rows = 1, cols = 2, quality = "purple", value = 45000,  weight = 2, desc = "表面码量子纠错逻辑比特控制板，17量子比特",   image = IMG .. "科技/量子纠错编码板.png",       tags = {"semiconductor"} },
+    { name = "量子霸权验证板",     rows = 2, cols = 2, quality = "purple", value = 62000,  weight = 1, desc = "53比特随机线路采样验证实验用电路板",         image = IMG .. "科技/量子霸权验证板.png",       tags = {"semiconductor"} },
+    { name = "超导磁体线圈",       rows = 2, cols = 3, quality = "purple", value = 78000,  weight = 1, desc = "铌钛合金超导磁体线圈，最高磁场15T",         image = IMG .. "科技/超导磁体线圈.png" },
+    { name = "稀释制冷机混合室",   rows = 3, cols = 3, quality = "purple", value = 95000,  weight = 1, desc = "He3/He4稀释制冷机混合室，工作温度<10mK",    image = IMG .. "科技/稀释制冷机混合室.png" },
+    { name = "量子密钥卫星终端",   rows = 2, cols = 2, quality = "purple", value = 88000,  weight = 1, desc = "星地一体化量子密钥分发地面终端，天地对接",   image = IMG .. "科技/量子密钥卫星终端.png",     tags = {"semiconductor"} },
+    { name = "无液氦低温平台",     rows = 2, cols = 3, quality = "purple", value = 120000, weight = 1, desc = "脉冲管制冷无液氦低温量子实验平台，4K级",     image = IMG .. "科技/无液氦低温平台.png" },
+    -- 金
+    { name = "超导量子处理单元",   rows = 1, cols = 1, quality = "gold",   value = 180000, weight = 3, desc = "封装在金属屏蔽罐内的超导量子芯片模组",       image = IMG .. "科技/超导量子处理单元.png",     tags = {"semiconductor"} },
+    { name = "旧型量子退火器",     rows = 2, cols = 2, quality = "gold",   value = 240000, weight = 1, desc = "D-Wave第一代量子退火处理器模块，可运行",     image = IMG .. "科技/旧型量子退火器.png",       tags = {"semiconductor"} },
+    { name = "百比特量子芯片",     rows = 1, cols = 1, quality = "gold",   value = 320000, weight = 2, desc = "127量子比特Eagle处理器芯片，封装完好",       image = IMG .. "科技/百比特量子芯片.png",       tags = {"semiconductor"} },
+    { name = "毫开制冷机组",       rows = 3, cols = 4, quality = "gold",   value = 480000, weight = 1, desc = "完整的稀释制冷机组，基座底温<5mK",           image = IMG .. "科技/毫开制冷机组.png" },
+    -- 红
+    { name = "千比特量子处理器",   rows = 1, cols = 1, quality = "red",    value = 2800000, weight = 1, desc = "1000量子比特Condor处理器，量子体积突破万",  image = IMG .. "科技/千比特量子处理器.png",     tags = {"semiconductor"} },
+    { name = "通用量子计算核心",   rows = 2, cols = 2, quality = "red",    value = 6500000, weight = 1, desc = "容错通用量子计算原型核心，逻辑错误率<0.1%", image = IMG .. "科技/通用量子计算核心.png",     tags = {"semiconductor"} },
+
 }
 
 return Tech
