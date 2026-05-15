@@ -381,23 +381,7 @@ function PlayerListPanel.Update()
                 local bidAmt, bText, bTargetW = GetBidDisplay(idx)
                 if bTargetW > 0 then
                     visible = true
-                    -- 显示等效出价（all_in / bid_boost）
-                    local activated = GS.GetActiveSkillActivated()
-                    local ch = players[idx] and players[idx].character
-                    if activated[idx] and ch and ch.activeSkill and ch.activeSkill.effect == "all_in" and bidAmt and bidAmt > 0 then
-                        local effBid = math.floor(bidAmt * 1.5)
-                        text = Utils.FormatMoney(effBid)
-                        bTargetW = 75
-                    else
-                        local boostMult = GS.GetBidBoostMultiplier(idx)
-                        if boostMult > 1.0 and bidAmt and bidAmt > 0 then
-                            local effBid = math.floor(bidAmt * boostMult)
-                            text = Utils.FormatMoney(effBid) .. "↑"
-                            bTargetW = 65
-                        else
-                            text = bText
-                        end
-                    end
+                    text = bText
                     width = bTargetW
                 end
             end

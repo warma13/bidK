@@ -18,6 +18,7 @@ local state = {
     elapsed = 0,
     scrollOffset = 0,
     selectedTypeId = nil,
+    lastTickCard = -1,   -- 上一帧经过的卡片索引，用于触发 slot_tick
     warehouseTypes = {},    -- { {id, name, icon}, ... }
     cards = {},             -- 展开后卡片列表（重复多轮）
     onSelected = nil,
@@ -144,9 +145,10 @@ function MapSelectionScreen.Show(regionId, warehouseTypes, onSelected)
     state.phase = "spinning"
     state.resultTimer = 0
     state.targetCardIdx = targetCardIdx
+    state.lastTickCard = -1
 
     print("[MapSelection] Show: " .. #types .. " types, selected=" .. selectedType.name)
-    Utils.PlayClick()
+    Utils.PlaySfx("slot_spin")
 end
 
 -- ---------------------------------------------------------------------------
@@ -177,11 +179,17 @@ function MapSelectionScreen:Update(dt)
             state.scrollOffset = targetOffset
             state.phase = "result"
             state.resultTimer = 0
-            Utils.PlayClick()
+            Utils.PlaySfx("slot_result")
             print("[MapSelection] Landed on: " .. state.selectedTypeId)
         else
             local t = state.elapsed / SPIN_DURATION
             state.scrollOffset = easeOutCubic(t) * targetOffset
+            -- 每滑过一张卡播放一次 tick
+            local cardIdx = math.floor(state.scrollOffset / CARD_STEP)
+            if cardIdx ~= state.lastTickCard then
+                state.lastTickCard = cardIdx
+                Utils.PlaySfx("slot_tick")
+            end
         end
 
     elseif state.phase == "result" then

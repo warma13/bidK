@@ -697,51 +697,6 @@ strategyMap["info_driven"] = function(estimate, player, round, playerIdx, aiInfo
         end
     end
 
-    -- 主动技能：全仓透视 reveal_top3
-    local ch = player.character
-    if ch.activeSkill and ch.activeSkill.effect == "reveal_top3" then
-        local skillUses = _GameState.GetActiveSkillUses()[playerIdx] or 0
-        if skillUses > 0 and round >= 2 then
-            _GameState.UseActiveSkill(playerIdx)
-            print("[AIPlayer] " .. player.name .. " uses reveal_top3!")
-
-            -- 获取价值第2~4高的物品信息（跳过最高价值）
-            local topItems = _InfoSystem.RevealTopItems(3, 1)
-
-            -- 将揭示信息注入 AI 的信息状态（level 3 = 完全揭示）
-            if aiInfoState and topItems then
-                for _, info in ipairs(topItems) do
-                    if info.revealedItem and info.revealedItem.idx then
-                        aiInfoState.itemRevealLevels[info.revealedItem.idx] = 3
-                    end
-                end
-
-                -- 基于新信息重算估值，以新估值调整出价
-                local newEstMin = _EstimateValue.Calculate(aiInfoState, _GameState.GetWarehouseTypeId())
-                local evForCalc = expectedValue or _GameState.GetExpectedValue()
-                local items = _GameState.GetWarehouseItems()
-                local totalCount = items and #items or 1
-                local newKnown = 0
-                for _ in pairs(aiInfoState.itemRevealLevels) do newKnown = newKnown + 1 end
-
-                local confidence = newKnown / totalCount
-                local projected = newEstMin / math.max(confidence, 0.01)
-                local blend = math.sqrt(confidence)
-                local newEstimate = evForCalc * (1 - blend) + projected * blend
-
-                print("[AIPlayer] " .. player.name .. " reveal_top3 → newEstimate="
-                    .. math.floor(newEstimate) .. " (was " .. math.floor(estimate) .. ")")
-
-                -- 用新估值重新计算出价
-                bid = baseCompeteBid(newEstimate, player, round, expectedValue, playerIdx, { analysis = analysis, opponentInfo = opponentInfo })
-                -- 信息充分 → 可以更激进
-                if confidence > 0.3 then
-                    bid = bid * (1 + (confidence - 0.3) * 0.5)
-                end
-            end
-        end
-    end
-
     return bid
 end
 
@@ -764,29 +719,12 @@ strategyMap["gambler"] = function(estimate, player, round, playerIdx, aiInfoStat
         end
     end
 
-    local ch = player.character
-    if ch.activeSkill and ch.activeSkill.effect == "all_in" then
-        local skillUses = _GameState.GetActiveSkillUses()[playerIdx] or 0
-        if skillUses > 0 and round >= 3 and estimate > 0 then
-            if bid / estimate > 0.4 or round >= Config.GAME.MaxRounds then
-                _GameState.UseActiveSkill(playerIdx)
-                print("[AIPlayer] " .. player.name .. " uses all_in!")
-            end
-        end
-    end
-
     return bid
 end
 
 -- 苏巧巧（套利型）
 strategyMap["arbitrage"] = function(estimate, player, round, playerIdx, aiInfoState, expectedValue, analysis, opponentInfo)
     local bid = baseCompeteBid(estimate, player, round, expectedValue, playerIdx, { analysis = analysis, opponentInfo = opponentInfo })
-
-    local pe = player.character.passiveEffect
-    if pe and pe.type == "discount" then
-        bid = bid * (1 + pe.discountRate)
-    end
-
     return bid
 end
 
@@ -848,56 +786,25 @@ strategyMap["grower"] = function(estimate, player, round, playerIdx, aiInfoState
 end
 
 -- 陈老根（累积压力型）
--- 累积型特色：stacks 给予微小折扣（经验老道，知道"差不多就行"），但有下限保护
 strategyMap["veteran"] = function(estimate, player, round, playerIdx, aiInfoState, expectedValue, analysis, opponentInfo)
     local bid = baseCompeteBid(estimate, player, round, expectedValue, playerIdx, { analysis = analysis, opponentInfo = opponentInfo })
-
-    local stacks = _GameState.GetBidBoostStacks()[playerIdx] or 0
-    if stacks > 0 then
-        -- 每层 stacks 减 2%，最多减 10%（5 层封顶）
-        local discount = math.min(stacks * 0.02, 0.10)
-        bid = bid * (1 - discount)
-    end
-
     return bid
 end
 
 -- 沈玉珂/吴鉴之（精准狙击型）
 strategyMap["sniper"] = function(estimate, player, round, playerIdx, aiInfoState, expectedValue, analysis, opponentInfo)
     local bid = baseCompeteBid(estimate, player, round, expectedValue, playerIdx, { analysis = analysis, opponentInfo = opponentInfo })
-
-    local bonus = _GameState.GetValueBonus(playerIdx)
-    if bonus > 0 then
-        bid = bid * (1 + bonus * 0.5)
-    end
-
     return bid
 end
 
 -- 赵铁柱（专精赌博型）
--- 专精型特色：有专精加成时激进，没有时略保守但不会大幅砍价
 strategyMap["specialist"] = function(estimate, player, round, playerIdx, aiInfoState, expectedValue, analysis, opponentInfo)
-    local bid
-    local bonus = _GameState.GetValueBonus(playerIdx)
-    if bonus > 0 then
-        -- 有专精加成：底价标准，但出价更激进
-        bid = baseCompeteBid(estimate, player, round, expectedValue, playerIdx, {
-            floorRatio = 0.55,
-            allInStyle = "specialist",
-            analysis = analysis,
-            opponentInfo = opponentInfo,
-        })
-        bid = bid * 1.20
-    else
-        -- 无专精加成：底价略低于标准，保守但不会砍半
-        bid = baseCompeteBid(estimate, player, round, expectedValue, playerIdx, {
-            floorRatio = 0.42,
-            allInStyle = "specialist",
-            analysis = analysis,
-            opponentInfo = opponentInfo,
-        })
-    end
-
+    local bid = baseCompeteBid(estimate, player, round, expectedValue, playerIdx, {
+        floorRatio = 0.42,
+        allInStyle = "specialist",
+        analysis = analysis,
+        opponentInfo = opponentInfo,
+    })
     return bid
 end
 

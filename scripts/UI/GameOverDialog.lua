@@ -321,31 +321,12 @@ function GameOverDialog.Show()
         recycleState.lootItems = GS.GetWarehouseItems and GS.GetWarehouseItems() or {}
     end
 
-    -- 计算被动效果加成
-    local discountRate = GS.GetDiscountRate(winner)
-    local valueBonus = GS.GetValueBonus(winner)
-    local discountSaved = 0
-    if discountRate > 0 then
-        local originalPay = math.floor(winnerPaid / (1 - discountRate))
-        discountSaved = originalPay - winnerPaid
-    end
-
-    -- 构建被动效果说明文本
-    local bonusTexts = {}
-    if discountRate > 0 then
-        bonusTexts[#bonusTexts + 1] = "折扣节省: " .. Utils.FormatMoney(discountSaved) .. " (" .. string.format("%.0f%%", discountRate * 100) .. ")"
-    end
-    if valueBonus > 0 then
-        bonusTexts[#bonusTexts + 1] = "价值加成: +" .. string.format("%.0f%%", valueBonus * 100)
-    end
-
     -- 初始化动画状态
     anim.winnerPaid = winnerPaid
     anim.lootTarget = 0
     anim.lootDisplay = 0
     anim.profitTarget = -winnerPaid
     anim.profitDisplay = -winnerPaid
-    anim.valueBonus = valueBonus
 
     anim.lootLabel = UI.Label {
         text = Utils.FormatMoney(0),
@@ -362,10 +343,10 @@ function GameOverDialog.Show()
     }
 
     anim.bonusInfoLabel = UI.Label {
-        text = #bonusTexts > 0 and table.concat(bonusTexts, "  |  ") or "",
+        text = "",
         fontSize = 11,
         fontColor = { 255, 220, 100, 200 },
-        visible = #bonusTexts > 0,
+        visible = false,
     }
 
     -- ====== 左侧浮动信息面板（无背景） ======
@@ -626,9 +607,7 @@ end
 function GameOverDialog.OnItemRevealed(item)
     if not settlementPanel then return end
     local val = item.realValue or Config.GetItemRealValue(item)
-    local bonus = anim.valueBonus or 0
-    local bonusVal = math.floor(val * (1 + bonus))
-    anim.lootTarget = anim.lootTarget + bonusVal
+    anim.lootTarget = anim.lootTarget + val
     anim.profitTarget = anim.lootTarget - anim.winnerPaid
 end
 
@@ -637,12 +616,10 @@ function GameOverDialog.OnGameOver()
     if not settlementPanel then return end
     local C = Config.COLORS
 
-    -- 确保最终值正确（含价值加成）
+    -- 确保最终值正确
     local totalValue = GS.GetWarehouseTotalValue()
-    local bonus = anim.valueBonus or 0
-    local boostedTotal = math.floor(totalValue * (1 + bonus))
-    anim.lootTarget = boostedTotal
-    anim.profitTarget = boostedTotal - anim.winnerPaid
+    anim.lootTarget = totalValue
+    anim.profitTarget = totalValue - anim.winnerPaid
 
     -- 隐藏跳过按钮
     if anim.skipBtn then
@@ -726,7 +703,6 @@ function GameOverDialog.Hide()
     anim.lootLabel = nil
     anim.profitLabel = nil
     anim.bonusInfoLabel = nil
-    anim.valueBonus = 0
     anim.skipBtn = nil
     anim.returnBtn = nil
     anim.recyclePanel = nil

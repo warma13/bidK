@@ -71,13 +71,6 @@ local state = {
     winner = 0,
     winnerPaid = 0,
 
-    -- 主动技能状态
-    activeSkillUses = {},      -- { [playerIdx] = remainingUses }
-    activeSkillActivated = {}, -- { [playerIdx] = true } 本轮已激活
-
-    -- 被动效果：老陈累积加成
-    bidBoostStacks = {},       -- { [playerIdx] = stackCount }
-
     -- UI回调
     onStateChange = nil,
 }
@@ -122,9 +115,6 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
 
     -- 创建玩家
     state.players = {}
-    state.activeSkillUses = {}
-    state.activeSkillActivated = {}
-    state.bidBoostStacks = {}
     state.roundBids = {}
 
     if playersConfig then
@@ -228,18 +218,6 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
                 personality = aiChar.personality,
             }
         end
-    end
-
-    -- 初始化主动技能使用次数和被动效果状态
-    for idx, player in ipairs(state.players) do
-        local ch = player.character
-        if ch.activeSkill then
-            state.activeSkillUses[idx] = ch.activeSkill.maxUses or 1
-        else
-            state.activeSkillUses[idx] = 0
-        end
-        state.activeSkillActivated[idx] = false
-        state.bidBoostStacks[idx] = 0
     end
 
     -- 为所有玩家创建资金保护
@@ -367,28 +345,11 @@ function GameState.PerformJudgment()
         GameState.ValidateMoney(idx)
     end
 
-    -- 收集出价，应用被动加成
+    -- 收集出价
     local bids = {}
     for idx = 1, #state.players do
         local rawBid = state.sealedBids[idx] or 0
-        local effectiveBid = rawBid
-
-        -- 老陈 bid_boost：等效出价提升（不实际扣更多钱）
-        local boostMult = GameState.GetBidBoostMultiplier(idx)
-        if boostMult > 1.0 then
-            effectiveBid = math.floor(rawBid * boostMult)
-        end
-
-        -- 伊莲娜 all_in：激活时出价×1.5
-        if state.activeSkillActivated[idx] then
-            local ch = state.players[idx].character
-            if ch.activeSkill and ch.activeSkill.effect == "all_in" then
-                effectiveBid = math.floor(rawBid * 1.5)
-                print("[GameState] " .. state.players[idx].name .. " all_in! " .. rawBid .. " -> " .. effectiveBid)
-            end
-        end
-
-        bids[#bids + 1] = { playerIdx = idx, amount = effectiveBid, rawAmount = rawBid }
+        bids[#bids + 1] = { playerIdx = idx, amount = rawBid, rawAmount = rawBid }
     end
     table.sort(bids, function(a, b) return a.amount > b.amount end)
 
@@ -409,20 +370,7 @@ function GameState.PerformJudgment()
     local passed = false
     local isTie = false
 
-    -- 伊莲娜 all_in 无视倍率门槛
-    local allInActive = false
-    if state.activeSkillActivated[highBidder] then
-        local ch = state.players[highBidder].character
-        if ch.activeSkill and ch.activeSkill.effect == "all_in" then
-            allInActive = true
-        end
-    end
-
-    if allInActive and highBid > 0 and highBid > secondBid then
-        -- all_in 激活且最高出价：直接胜出，无视倍率
-        passed = true
-        print("[GameState] all_in bypasses multiplier requirement!")
-    elseif state.currentRound < 5 then
+    if state.currentRound < 5 then
         -- 第1-4轮：最高价 >= 第二名 × 倍率
         passed = (highBid > 0) and (ratio >= required)
     else
@@ -454,15 +402,7 @@ function GameState.PerformJudgment()
 
     if passed then
         state.winner = highBidder
-        -- 实际支付原始出价（不含等效加成），但应用艾莎折扣
         local actualPay = highRawBid
-        local discount = GameState.GetDiscountRate(highBidder)
-        if discount > 0 then
-            local discountAmount = math.floor(actualPay * discount)
-            actualPay = actualPay - discountAmount
-            print("[GameState] " .. state.players[highBidder].name .. " discount: -" .. discountAmount
-                .. " (" .. string.format("%.0f%%", discount * 100) .. " off)")
-        end
         state.winnerPaid = actualPay
         GameState.SecureAddMoney(highBidder, -actualPay, "round_winner_pay", "R" .. state.currentRound)
         print("[GameState] Round " .. state.currentRound .. " WINNER: " .. state.players[highBidder].name
@@ -581,14 +521,12 @@ function GameState.SettleWarehouseValue()
     local winner = state.winner
     if winner <= 0 then return end
 
-    -- 计算仓库物品总价值（含价值加成），仅用于利润计算和输家福利
+    -- 计算仓库物品总价值，仅用于利润计算和输家福利
     -- 赢家获得的是实物（由 GameOverDialog 的回收/入库流程处理变现），不在此处加钱
     local totalValue = GameState.GetWarehouseTotalValue()
-    local valueBonus = GameState.GetValueBonus(winner)
-    local boostedValue = math.floor(totalValue * (1 + valueBonus))
+    local boostedValue = totalValue
     print("[GameState] Settlement: " .. state.players[winner].name
-        .. " warehouse value " .. boostedValue
-        .. (valueBonus > 0 and (" (bonus +" .. string.format("%.0f%%", valueBonus * 100) .. ")") or ""))
+        .. " warehouse value " .. boostedValue)
 
     -- 输家福利：如果赢家亏损（付的比物品价值多），每个输家获得亏损额的 1/10
     local profit = boostedValue - (state.winnerPaid or 0)
@@ -714,9 +652,6 @@ function GameState.GetRoundBids()      return state.roundBids end
 function GameState.GetRevealedItemIndex() return state.revealedItemIndex end
 function GameState.GetWinner()         return state.winner end
 function GameState.GetWinnerPaid()     return state.winnerPaid end
-function GameState.GetActiveSkillUses()    return state.activeSkillUses end
-function GameState.GetActiveSkillActivated() return state.activeSkillActivated end
-function GameState.GetBidBoostStacks()     return state.bidBoostStacks end
 function GameState.GetMyUserId()           return state.myUserId or 0 end
 function GameState.GetWarehouseTypeId()    return state.warehouseTypeId or "grocery" end
 function GameState.GetEntryFee()           return state.entryFee or 0 end
@@ -741,31 +676,6 @@ GameState.LoadCloudMoney = function(callback) MoneyManager.LoadCloudMoney(callba
 
 --- 保存人类玩家资金到云端
 GameState.SaveCloudMoney = function() MoneyManager.SaveCloudMoney() end
-
--- ============================================================================
--- 主动技能
--- ============================================================================
-
---- 使用主动技能（返回 true/false）
-GameState.UseActiveSkill = function(playerIdx) return SkillSystem.UseActiveSkill(playerIdx) end
-
---- 重置本轮主动技能激活状态（每轮开始时调用）
-GameState.ResetRoundSkills = function() SkillSystem.ResetRoundSkills() end
-
---- 获取玩家主动技能信息
-GameState.GetActiveSkillInfo = function(playerIdx) return SkillSystem.GetActiveSkillInfo(playerIdx) end
-
---- 每轮未成交时应用被动效果（利息、累积加成）
-GameState.ApplyRoundPassives = function() SkillSystem.ApplyRoundPassives() end
-
---- 获取玩家出价加成倍率（老陈的 bid_boost）
-GameState.GetBidBoostMultiplier = function(playerIdx) return SkillSystem.GetBidBoostMultiplier(playerIdx) end
-
---- 获取成交折扣率（艾莎的 discount）
-GameState.GetDiscountRate = function(playerIdx) return SkillSystem.GetDiscountRate(playerIdx) end
-
---- 获取结算价值加成率（加布里埃拉/铁柱）
-GameState.GetValueBonus = function(playerIdx) return SkillSystem.GetValueBonus(playerIdx) end
 
 -- Debug helpers（反作弊保护：生产环境下为空操作）
 function GameState.SetTimer(val)

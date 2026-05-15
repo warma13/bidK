@@ -11,6 +11,7 @@ local Utils = {}
 -- ============================================================================
 
 local sounds = {}
+local soundsLoading = {}   -- name -> true，表示正在异步加载
 local bgmNode = nil
 local currentBgmId = nil
 
@@ -21,6 +22,20 @@ local regionBgmMap = {
     bondedport = "audio/bgm_bondedport.ogg",
 }
 local defaultBgm = "audio/bgm_grocery.ogg"
+
+-- 显式静态路径，确保构建扫描器能识别并打包这些资源
+local sfxPathMap = {
+    bid_place   = "audio/sfx/bid_place.ogg",
+    bid_success = "audio/sfx/bid_success.ogg",
+    bid_fail    = "audio/sfx/bid_fail.ogg",
+    round_start = "audio/sfx/round_start.ogg",
+    timer_tick  = "audio/sfx/timer_tick.ogg",
+    game_over   = "audio/sfx/game_over.ogg",
+    ui_click    = "audio/sfx/ui_click.ogg",
+    slot_spin   = "audio/sfx/slot_spin.ogg",
+    slot_tick   = "audio/sfx/slot_tick.ogg",
+    slot_result = "audio/sfx/slot_result.ogg",
+}
 
 ---@type Scene
 local scene_ = nil
@@ -34,20 +49,13 @@ function Utils.LoadSounds()
     currentBgmId = nil
 
     scene_ = Scene()
-    -- 显式静态路径，确保构建扫描器能识别并打包这些资源
-    local sfxPaths = {
-        { name = "bid_place",   path = "audio/sfx/bid_place.ogg"   },
-        { name = "bid_success", path = "audio/sfx/bid_success.ogg" },
-        { name = "bid_fail",    path = "audio/sfx/bid_fail.ogg"    },
-        { name = "round_start", path = "audio/sfx/round_start.ogg" },
-        { name = "timer_tick",  path = "audio/sfx/timer_tick.ogg"  },
-        { name = "game_over",   path = "audio/sfx/game_over.ogg"   },
-        { name = "ui_click",    path = "audio/sfx/ui_click.ogg"    },
-    }
-    for _, sfx in ipairs(sfxPaths) do
-        local sound = cache:GetResource("Sound", sfx.path)
-        if sound then
-            sounds[sfx.name] = sound
+    for name, path in pairs(sfxPathMap) do
+        local s = cache:GetResource("Sound", path)
+        if s then
+            sounds[name] = s
+            print("[Utils] SFX loaded: " .. name)
+        else
+            print("[Utils] SFX FAILED: " .. name .. " path=" .. path)
         end
     end
     -- 默认播放通用 BGM（大厅），异步加载避免阻塞首屏
@@ -91,15 +99,24 @@ function Utils.PlayBgm(regionId)
     end)
 end
 
-function Utils.PlaySfx(name)
-    local sound = sounds[name]
-    if not sound or not scene_ then return end
+local function DoPlaySfx(sound)
+    if not scene_ then print("[Utils] DoPlaySfx: scene_ is nil"); return end
+    print("[Utils] DoPlaySfx: playing sound")
     local node = scene_:CreateChild("SFX")
     local source = node:CreateComponent("SoundSource")
     source.soundType = SOUND_EFFECT
-    source:SetGain(0.6)
+    source:SetGain(0.8)
     source.autoRemoveMode = REMOVE_NODE
     source:Play(sound)
+end
+
+function Utils.PlaySfx(name)
+    local sound = sounds[name]
+    if sound then
+        DoPlaySfx(sound)
+    else
+        print("[Utils] PlaySfx: sound not found: " .. tostring(name))
+    end
 end
 
 function Utils.GetScene()

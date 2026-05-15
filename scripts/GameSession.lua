@@ -479,32 +479,6 @@ local function OnGameOver()
     GameOverDialog.OnGameOver()
 end
 
-local function OnActiveSkillUsed(playerIdx, skillInfo, resultData)
-    if skillInfo.effect == "reveal_top3" and resultData then
-        for _, itemInfo in ipairs(resultData) do
-            if itemInfo.revealedItem and itemInfo.revealedItem.idx then
-                local cur = UIState.itemRevealLevels[itemInfo.revealedItem.idx] or 0
-                if 3 > cur then
-                    UIState.itemRevealLevels[itemInfo.revealedItem.idx] = 3
-                end
-            end
-            itemInfo.scope = "skill"
-            itemInfo.targetPlayer = playerIdx
-            InfoFeed.Enqueue(itemInfo, true)
-        end
-        LootPanel.Update()
-    elseif skillInfo.effect == "all_in" then
-        local allInInfo = {
-            text = "全押已激活! 出价×1.5，无视倍率门槛",
-            icon = "",
-            scope = "skill",
-            targetPlayer = playerIdx,
-            round = GS.GetCurrentRound(),
-        }
-        InfoFeed.Enqueue(allInInfo, true)
-    end
-    CenterPanel.Update()
-end
 
 -- ============================================================================
 -- 开始对局
@@ -573,8 +547,6 @@ function GameSession.Start(regionId, charIdx, diffIdx, warehouseTypeId)
     AuctionEngine.SetOnWarehouseOpen(guard(OnWarehouseOpen))
     AuctionEngine.SetOnBidPlaced(guard(OnTiebreakBidPlaced))
     AuctionEngine.SetOnGameOver(guard(OnGameOver))
-    AuctionEngine.SetOnActiveSkillUsed(guard(OnActiveSkillUsed))
-
     UIState.ResetGameState()
     LootPanel.ResetCache()
     CenterPanel.ResetAnimation()

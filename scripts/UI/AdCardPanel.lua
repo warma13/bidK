@@ -7,11 +7,11 @@
 
 local UI = require("urhox-libs/UI")
 local Config = require("Config")
+local Utils = require("UI.Utils")
 local MoneyHUD = require("UI.MoneyHUD")
 local MoneyManager = require("MoneyManager")
 local SaveSystem = require("SaveSystem")
 local SaveFramework = require("SaveFramework")
-local Utils = require("UI.Utils")
 local FloatingMessage = require("UI.FloatingMessage")
 local TicketTooltip = require("UI.TicketTooltip")
 local AdHelper = require("AdHelper")
@@ -661,6 +661,7 @@ function AdCardPanel.CreatePopup()
         variant = "primary",
         disabled = true,
         onClick = function()
+            Utils.PlayClick()
             WatchAd()
         end,
         children = {
@@ -687,6 +688,7 @@ function AdCardPanel.CreatePopup()
             variant = "primary",
             disabled = true,
             onClick = function()
+                Utils.PlayClick()
                 ClaimMilestone(i)
             end,
         }

@@ -13,6 +13,7 @@ local MapScreen = require("UI.MapScreen")
 local LobbyScreen = require("UI.LobbyScreen")
 local MapSelectionScreen = require("UI.MapSelectionScreen")
 local MyWarehousePanel = require("UI.MyWarehousePanel")
+local CharacterScreen = require("UI.CharacterScreen")
 local AppPhase = require("AppPhase")
 local GameSession = require("GameSession")
 local GameOverDialog = require("UI.GameOverDialog")
@@ -37,12 +38,20 @@ function GameController.ShowMenu()
     Utils.PlayBgm(nil)
     MenuScreen.Show(
         function() GameController.ShowMap() end,
-        function() GameController.ShowWarehouse() end
+        function() GameController.ShowWarehouse() end,
+        function() GameController.ShowCharacter() end
     )
 end
 
 function GameController.ShowWarehouse()
     MyWarehousePanel.Show(function()
+        GameController.ShowMenu()
+    end)
+end
+
+function GameController.ShowCharacter()
+    AppPhase.Set(AppPhase.MENUS)
+    CharacterScreen.Show(function()
         GameController.ShowMenu()
     end)
 end
@@ -124,6 +133,9 @@ function GameController.HandleUpdate(dt)
             GameController.ShowMenu()
         elseif screen == "warehouse" then
             -- 仓库 → 主菜单
+            GameController.ShowMenu()
+        elseif screen == "character" then
+            -- 角色图鉴 → 主菜单
             GameController.ShowMenu()
         end
     end

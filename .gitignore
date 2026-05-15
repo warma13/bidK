@@ -1,6 +1,22 @@
-# 忽略所有
-/*
+# 引擎与构建目录
+.agent/
+.build/
+.claude/
+.cli/
+.emmylua/
+.project/
+.tmp/
+dist/
 
-# 只追踪以下目录
-!/scripts/
-!/assets/
+# 项目内其他目录
+bidK/
+bidking-ref/
+docs/
+engine-docs/
+examples/
+game_material/
+logs/
+lua-tools/
+schemas/
+templates/
+urhox-libs/

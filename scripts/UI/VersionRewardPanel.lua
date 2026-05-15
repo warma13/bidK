@@ -7,9 +7,9 @@
 
 local UI = require("urhox-libs/UI")
 local Config = require("Config")
+local Utils = require("UI.Utils")
 local MoneyHUD = require("UI.MoneyHUD")
 local MoneyManager = require("MoneyManager")
-local Utils = require("UI.Utils")
 
 local VersionRewardPanel = {}
 
@@ -215,6 +215,7 @@ function VersionRewardPanel.CreatePopup()
             variant = "primary",
             disabled = true,
             onClick = function()
+                Utils.PlayClick()
                 ClaimReward(vr, i)
             end,
         }

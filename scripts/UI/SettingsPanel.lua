@@ -458,7 +458,7 @@ function SettingsPanel.CreatePopup()
     redeemBtn = UI.Button {
         text = "兑换", width = "100%", height = sz(34), fontSize = sz(13),
         variant = "primary",
-        onClick = function() DoRedeem() end,
+        onClick = function() Utils.PlayClick(); DoRedeem() end,
     }
 
     redeemStatusLabel = UI.Label {

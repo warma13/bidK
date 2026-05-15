@@ -23,13 +23,11 @@ local MenuScreen = {}
 -- ============================================================================
 local ANNOUNCEMENTS = {
     {
-        date  = "2026-05-13",
-        title = "v1.3 更新公告",
+        date  = "2026-05-15",
+        title = "v1.4 更新公告",
         items = {
-            "移除了门票入场限制，现在无需门票即可参与竞拍",
-            "已有的旧门票已自动转换为高价值指定门票 ×10",
-            "新增区域与仓库：深海打捞站、文化艺术区等",
-            "新增品类：服饰、医疗",
+            "新增 1000 万场开放，挑战更高金额竞拍",
+            "新增多个角色：程云裳、江识玉、贺明珏、谢怀仁",
         },
     },
 }
@@ -217,7 +215,7 @@ local function CreateAnnouncementPopup()
     return overlay
 end
 
-function MenuScreen.Show(onStartCallback, onWarehouseCallback)
+function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback)
     UIState.currentScreen = "menu"
     local C = Config.COLORS
     local sz = Utils.sz
@@ -225,36 +223,55 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback)
     local announcementPopup = CreateAnnouncementPopup()
     local announcementBtn   = CreateAnnouncementButton(announcementPopup)
 
-    -- 左下角仓库入口
+    -- 左下角导航按钮组（合并为一行，竖线分隔）
+    local function MakeNavItem(label, sub, onClickFn)
+        return UI.Panel {
+            height = "100%",
+            flexDirection = "column",
+            alignItems = "center", justifyContent = "center",
+            gap = sz(2),
+            paddingHorizontal = sz(18),
+            cursor = "pointer",
+            onClick = function()
+                Utils.PlayClick()
+                if onClickFn then onClickFn() end
+            end,
+            children = {
+                UI.Label {
+                    text = label,
+                    fontSize = sz(10), fontWeight = "bold",
+                    fontColor = { 235, 210, 135, 255 },
+                    letterSpacing = 1,
+                },
+                UI.Label {
+                    text = sub,
+                    fontSize = sz(5),
+                    fontColor = { 195, 162, 72, 200 },
+                    letterSpacing = sz(1.5),
+                },
+            },
+        }
+    end
+
     local navBar = UI.Panel {
         position = "absolute", left = sz(8), bottom = sz(8),
         height = sz(38),
-        flexDirection = "column",
-        alignItems = "center", justifyContent = "center",
-        gap = sz(2),
-        paddingHorizontal = sz(18),
-        cursor = "pointer",
+        flexDirection = "row",
+        alignItems = "center",
         backgroundColor = { 18, 12, 6, 215 },
         borderWidth = 1,
         borderColor = { 110, 88, 45, 110 },
         borderRadius = sz(4),
-        onClick = function()
-            Utils.PlayClick()
-            if onWarehouseCallback then onWarehouseCallback() end
-        end,
+        overflow = "hidden",
         children = {
-            UI.Label {
-                text = "仓库",
-                fontSize = sz(10), fontWeight = "bold",
-                fontColor = { 235, 210, 135, 255 },
-                letterSpacing = 1,
+            MakeNavItem("仓库", "STORAGE", onWarehouseCallback),
+            -- 竖线分隔
+            UI.Panel {
+                width = 1, height = "60%",
+                backgroundColor = { 110, 88, 45, 150 },
+                flexShrink = 0,
             },
-            UI.Label {
-                text = "STORAGE",
-                fontSize = sz(5),
-                fontColor = { 195, 162, 72, 200 },
-                letterSpacing = sz(1.5),
-            },
+            MakeNavItem("角色", "CHARACTER", onCharacterCallback),
         },
     }
 

@@ -385,14 +385,6 @@ function AuctionEngine.EnterInfoReveal(round)
     -- 重置本轮信息揭示计时器（防止跨轮/跨局累积导致立即触发15秒超时）
     engine._infoRevealElapsed = 0
 
-    -- 重置本轮主动技能激活状态
-    _GameState.ResetRoundSkills()
-
-    -- 如果不是第1轮，说明上轮未成交，应用被动效果
-    if round > 1 then
-        _GameState.ApplyRoundPassives()
-    end
-
     _GameState.StartInfoReveal(round)
     local infos = _InfoSystem.GetRoundInfos(round)
     if engine.onInfoRevealed and infos then
@@ -423,48 +415,6 @@ function AuctionEngine.SetOnAISealedBidConfirmed(fn) engine.onAISealedBidConfirm
 function AuctionEngine.SetHeadless(val)
     engine.headless = val
 end
-
--- 玩家使用主动技能
-function AuctionEngine.PlayerUseActiveSkill()
-    local phase = _GameState.GetPhase()
-    -- 全押(all_in)允许在出价揭示阶段使用（判定前即可）
-    local skillInfo = _GameState.GetActiveSkillInfo(1)
-    local allowedPhase = (phase == _GameState.PHASE.SEALED_BID or phase == _GameState.PHASE.INFO_REVEAL)
-    if not allowedPhase then
-        if skillInfo and skillInfo.effect == "all_in" and phase == _GameState.PHASE.BID_REVEAL then
-            allowedPhase = true
-        end
-    end
-    if not allowedPhase then
-        return false, "当前阶段无法使用技能"
-    end
-    if not skillInfo then return false, "没有主动技能" end
-    if skillInfo.remaining <= 0 then return false, "技能已用完" end
-    if skillInfo.activatedThisRound then return false, "本轮已使用" end
-
-    local ok = _GameState.UseActiveSkill(1)
-    if not ok then return false, "使用失败" end
-
-    -- 执行技能效果
-    if skillInfo.effect == "reveal_top3" then
-        -- 顾千鹤：揭示价值第2~4高的物品（跳过最高价值）
-        local topItems = _InfoSystem.RevealTopItems(3, 1)
-        if engine.onActiveSkillUsed then
-            engine.onActiveSkillUsed(1, skillInfo, topItems)
-        end
-    elseif skillInfo.effect == "all_in" then
-        -- 伊莲娜：标记激活，判定时生效
-        if engine.onActiveSkillUsed then
-            engine.onActiveSkillUsed(1, skillInfo, nil)
-        end
-    end
-
-    return true
-end
-
--- 回调
-engine.onActiveSkillUsed = nil
-function AuctionEngine.SetOnActiveSkillUsed(fn) engine.onActiveSkillUsed = fn end
 
 -- 暗标阶段能否出价
 function AuctionEngine.CanSealedBid()

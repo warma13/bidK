@@ -294,7 +294,7 @@ function RewardPanel.CreatePopup()
     popupCollectBtn = UI.Button {
         text = "领取", width = "100%", height = 40, fontSize = 14,
         variant = "primary",
-        onClick = function() CollectReward() end,
+        onClick = function() Utils.PlayClick(); CollectReward() end,
     }
 
     popupCheaterLabel = UI.Label {
