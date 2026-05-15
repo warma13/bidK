@@ -10,6 +10,7 @@ local Config = require("Config")
 local Utils = require("UI.Utils")
 local MoneyHUD = require("UI.MoneyHUD")
 local MoneyManager = require("MoneyManager")
+local SaveSystem = require("SaveSystem")
 
 local VersionRewardPanel = {}
 
@@ -21,7 +22,7 @@ local C = Config.COLORS
 -- ============================================================================
 
 local VERSION_REWARDS = {
-    { version = "1.1.12", coins = 2000000, label = "v1.1.12 更新奖励" },
+    { version = "1.1.20", coins = 2000000, charCoins = 5, label = "v1.1.20 更新奖励" },
 }
 
 -- 云端键名前缀：ver_reward_1_0_7 = 1 表示已领取
@@ -112,9 +113,14 @@ local function ClaimReward(vr, idx)
         end,
         ok = function()
             claimedMap[vr.version] = true
+            -- 发放角色币
+            if vr.charCoins and vr.charCoins > 0 then
+                SaveSystem.AddCharacterCoins(vr.charCoins)
+                SaveSystem.Save()
+            end
             VersionRewardPanel.RefreshAll()
             Utils.PlaySfx("bid_success")
-            print("[VersionReward] Claimed " .. vr.version .. " +" .. vr.coins)
+            print("[VersionReward] Claimed " .. vr.version .. " +" .. vr.coins .. " coins, +" .. (vr.charCoins or 0) .. " charCoins")
         end,
         error = function(code, reason)
             if row and row.btn then row.btn:SetDisabled(false) end
@@ -238,18 +244,38 @@ function VersionRewardPanel.CreatePopup()
                             fontSize = 13, fontColor = C.textPrimary,
                         },
                         UI.Panel {
-                            flexDirection = "row", alignItems = "center", gap = 4,
+                            flexDirection = "row", alignItems = "center", gap = 8,
                             children = {
                                 UI.Panel {
-                                    width = 14, height = 14,
-                                    backgroundImage = Utils.GetIcon("coin"),
-                                    backgroundFit = "contain",
-                                    flexShrink = 0,
+                                    flexDirection = "row", alignItems = "center", gap = 4,
+                                    children = {
+                                        UI.Panel {
+                                            width = 14, height = 14,
+                                            backgroundImage = Utils.GetIcon("coin"),
+                                            backgroundFit = "contain",
+                                            flexShrink = 0,
+                                        },
+                                        UI.Label {
+                                            text = Utils.FormatMoney(vr.coins),
+                                            fontSize = 12, fontColor = { 255, 220, 100, 255 },
+                                        },
+                                    },
                                 },
-                                UI.Label {
-                                    text = Utils.FormatMoney(vr.coins),
-                                    fontSize = 12, fontColor = { 255, 220, 100, 255 },
-                                },
+                                vr.charCoins and UI.Panel {
+                                    flexDirection = "row", alignItems = "center", gap = 3,
+                                    children = {
+                                        UI.Panel {
+                                            width = 14, height = 14,
+                                            backgroundImage = Config.CHARACTER_COIN_ICON,
+                                            backgroundFit = "contain",
+                                            flexShrink = 0,
+                                        },
+                                        UI.Label {
+                                            text = "+" .. vr.charCoins,
+                                            fontSize = 12, fontColor = { 150, 200, 255, 255 },
+                                        },
+                                    },
+                                } or nil,
                             },
                         },
                     },
@@ -280,10 +306,6 @@ function VersionRewardPanel.CreatePopup()
                 fontColor = C.textPrimary,
             },
             UI.Panel { width = "100%", height = 1, backgroundColor = { 60, 70, 100, 150 } },
-            UI.Label {
-                text = "每个版本可领取一次",
-                fontSize = 10, fontColor = C.textMuted,
-            },
             UI.Panel {
                 width = "100%", flexDirection = "column",
                 children = rowChildren,

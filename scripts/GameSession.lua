@@ -37,6 +37,7 @@ local SaveFramework = require("SaveFramework")
 local AdCardPanel = require("UI.AdCardPanel")
 local MyWarehousePanel = require("UI.MyWarehousePanel")
 local AppPhase = require("AppPhase")
+local PropSystem = require("PropSystem")
 
 local GameSession = {}
 
@@ -513,6 +514,8 @@ function GameSession.Start(regionId, charIdx, diffIdx, warehouseTypeId)
     SaveFramework.PauseForGame()
     local SaveSystem = require("SaveSystem")
     SaveSystem.PauseForGame()
+
+    PropSystem.ResetGameUsage()
 
     AuctionEngine.Init(charIdx, regionId, diffIdx, warehouseTypeId)
     print("[GameSession] AuctionEngine.Init done")

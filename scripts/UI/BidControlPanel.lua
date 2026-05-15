@@ -10,6 +10,9 @@ local UIState = require("UI.UIState")
 local Utils = require("UI.Utils")
 local PlayerListPanel = require("UI.PlayerListPanel")
 local AIPlayer = require("AIPlayer")
+local PropSystem = require("PropSystem")
+local Props = require("Config.Props")
+local InfoFeed = require("UI.InfoFeed")
 
 local BidControlPanel = {}
 
@@ -91,6 +94,175 @@ local function BidReset()
     UIState.bidInputStr = ""
     UIState.playerBidAmount = 0
     refs.bidAmountLabel:SetText("0")
+end
+
+-- ============================================================================
+-- 道具系统（对局中使用）
+-- ============================================================================
+
+local propModal_ = nil
+
+local function ClosePropModal()
+    if propModal_ then
+        pcall(function() propModal_:Close() end)
+        propModal_ = nil
+    end
+end
+
+--- 使用道具并将效果信息注入 InfoFeed
+local function UseProp(propId)
+    local warehouseItems = GS.GetWarehouseItems()
+    local ok, info, errMsg = PropSystem.Use(propId, warehouseItems)
+    if not ok then
+        Utils.ShowMessage(errMsg or "使用失败")
+        return
+    end
+
+    -- 处理 reveals（更新 UIState.itemRevealLevels）
+    if info.reveals then
+        for _, r in ipairs(info.reveals) do
+            local cur = UIState.itemRevealLevels[r.itemIdx] or 0
+            if r.targetLevel > cur then
+                UIState.itemRevealLevels[r.itemIdx] = r.targetLevel
+            end
+        end
+    end
+
+    -- 注入信息流（isSkill=true 显示为紫色私人信息卡）
+    InfoFeed.Enqueue(info, true)
+
+    local def = Props.BY_ID[propId]
+    Utils.ShowMessage("使用了 " .. (def and def.name or "道具"))
+
+    -- 更新战利品展示面板
+    local LootPanel = require("UI.LootPanel")
+    LootPanel.Update()
+end
+
+--- 打开道具选择弹窗
+local function ShowPropModal()
+    ClosePropModal()
+
+    -- 收集有库存的道具
+    local availableProps = {}
+    for _, def in ipairs(Props.LIST) do
+        local count = PropSystem.GetCount(def.id)
+        local used = PropSystem.IsUsedThisGame(def.id)
+        if count > 0 then
+            availableProps[#availableProps + 1] = { def = def, count = count, used = used }
+        end
+    end
+
+    if #availableProps == 0 then
+        Utils.ShowMessage("没有可用道具，请在菜单中购买")
+        return
+    end
+
+    -- 构建道具列表
+    local listChildren = {}
+    for _, entry in ipairs(availableProps) do
+        local d = entry.def
+        local isUsed = entry.used
+
+        -- 效果类型颜色
+        local typeColors = {
+            [Props.EFFECT.SHOW_RARITY_CELL_COUNT] = { 70, 130, 220, 255 },
+            [Props.EFFECT.SHOW_RARITY_ITEM_COUNT] = { 70, 180, 100, 255 },
+            [Props.EFFECT.SHOW_RANDOM_SILHOUETTE] = { 150, 100, 200, 255 },
+            [Props.EFFECT.SHOW_SIZE_AVG_VALUE]    = { 220, 170, 50, 255 },
+        }
+        local typeColor = typeColors[d.effectType] or { 180, 180, 180, 255 }
+
+        local rowBg = isUsed and { 40, 40, 50, 200 } or { 30, 35, 50, 220 }
+        local nameColor = isUsed and { 120, 120, 130, 255 } or { 230, 235, 245, 255 }
+        local descColor = isUsed and { 90, 90, 100, 255 } or { 160, 165, 180, 255 }
+
+        local propId = d.id  -- 捕获到局部变量
+
+        local useBtn
+        if isUsed then
+            useBtn = UI.Label {
+                text = "已使用", fontSize = 11,
+                fontColor = { 120, 120, 130, 255 },
+            }
+        else
+            useBtn = UI.Button {
+                text = "使用", width = 56, height = 28, fontSize = 12,
+                variant = "primary",
+                onClick = function()
+                    Utils.PlayClick()
+                    ClosePropModal()
+                    UseProp(propId)
+                end,
+            }
+        end
+
+        listChildren[#listChildren + 1] = UI.Panel {
+            width = "100%",
+            backgroundColor = rowBg,
+            borderRadius = 4,
+            padding = 8,
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 8,
+            children = {
+                -- 图标
+                UI.Panel {
+                    width = 32, height = 32,
+                    backgroundColor = { typeColor[1], typeColor[2], typeColor[3], 60 },
+                    borderRadius = 4,
+                    justifyContent = "center", alignItems = "center",
+                    children = {
+                        UI.Label { text = d.icon, fontSize = 18 },
+                    },
+                },
+                -- 名称 + 描述
+                UI.Panel {
+                    flexDirection = "column",
+                    flexGrow = 1, flexShrink = 1,
+                    children = {
+                        UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = 6,
+                            children = {
+                                UI.Label { text = d.name, fontSize = 13, fontColor = nameColor, fontWeight = "bold" },
+                                UI.Label { text = "×" .. entry.count, fontSize = 11, fontColor = { 255, 200, 80, 255 } },
+                            },
+                        },
+                        UI.Label { text = d.desc, fontSize = 11, fontColor = descColor },
+                    },
+                },
+                -- 使用按钮
+                useBtn,
+            },
+        }
+    end
+
+    propModal_ = UI.Modal {
+        title = "使用道具",
+        size = "sm",
+        onClose = function()
+            propModal_ = nil
+        end,
+        children = {
+            UI.Panel {
+                width = "100%",
+                flexDirection = "column",
+                gap = 6,
+                children = listChildren,
+            },
+        },
+    }
+    propModal_:Open()
+end
+
+local function OnPropButtonClicked()
+    local phase = GS.GetPhase()
+    if phase ~= GS.PHASE.SEALED_BID then return end
+    if UIState.playerBidConfirmed then
+        Utils.ShowMessage("已确认出价，无法使用道具")
+        return
+    end
+    ShowPropModal()
 end
 
 local function ToggleBidPanel()
@@ -427,6 +599,11 @@ function BidControlPanel.Create()
         onClick = function() OnForfeitClicked() end,
     }
 
+    refs.toolbarPropBtn = UI.Button {
+        text = "道具", width = 80, height = 42, fontSize = 13,
+        onClick = function() Utils.PlayClick() OnPropButtonClicked() end,
+    }
+
     -- bidPanel 不再放在这里，由 GameController 提升到根级别以解决 z-index 层级问题
     return UI.Panel {
         id = "bidControlArea",
@@ -446,6 +623,7 @@ function BidControlPanel.Create()
                 paddingHorizontal = 12,
                 gap = 12,
                 children = {
+                    refs.toolbarPropBtn,
                     refs.toolbarBidBtn,
                     refs.toolbarForfeitBtn,
                 }
@@ -484,10 +662,12 @@ function BidControlPanel.Update()
     -- 工具栏按钮状态（默认恢复可见）
     refs.toolbarBidBtn:SetVisible(true)
     refs.toolbarForfeitBtn:SetVisible(true)
+    refs.toolbarPropBtn:SetVisible(true)
 
-    -- 阶段离开 SEALED_BID 时，清理残留的确认弹窗
+    -- 阶段离开 SEALED_BID 时，清理残留的确认/道具弹窗
     if phase ~= GS.PHASE.SEALED_BID then
         CloseBidConfirmModal()
+        ClosePropModal()
     end
 
     if phase == GS.PHASE.SEALED_BID then
@@ -500,12 +680,14 @@ function BidControlPanel.Update()
             end
             refs.toolbarBidBtn:SetDisabled(true)
             refs.toolbarForfeitBtn:SetDisabled(true)
+            refs.toolbarPropBtn:SetDisabled(true)
             refs.bidButton:SetDisabled(true)
             refs.bidButton:SetText("已锁定")
         else
             refs.toolbarBidBtn:SetText("出价")
             refs.toolbarBidBtn:SetDisabled(false)
             refs.toolbarForfeitBtn:SetDisabled(false)
+            refs.toolbarPropBtn:SetDisabled(false)
             refs.bidButton:SetText("确认出价")
             refs.bidButton:SetDisabled(false)
         end
@@ -524,6 +706,7 @@ function BidControlPanel.Update()
         refs.toolbarBidBtn:SetText("竞拍中")
         refs.toolbarBidBtn:SetDisabled(true)
         refs.toolbarForfeitBtn:SetDisabled(true)
+        refs.toolbarPropBtn:SetDisabled(true)
         if UIState.bidPanelVisible then
             UIState.bidPanelVisible = false
             if refs.bidPanel then refs.bidPanel:SetVisible(false) end
@@ -533,6 +716,7 @@ function BidControlPanel.Update()
         refs.toolbarBidBtn:SetText("结算")
         refs.toolbarBidBtn:SetDisabled(false)
         refs.toolbarForfeitBtn:SetDisabled(true)
+        refs.toolbarPropBtn:SetDisabled(true)
         if UIState.bidPanelVisible then
             UIState.bidPanelVisible = false
             if refs.bidPanel then refs.bidPanel:SetVisible(false) end
@@ -542,6 +726,7 @@ function BidControlPanel.Update()
         refs.toolbarBidBtn:SetText("出价")
         refs.toolbarBidBtn:SetDisabled(true)
         refs.toolbarForfeitBtn:SetDisabled(true)
+        refs.toolbarPropBtn:SetDisabled(true)
         refs.bidMultiplierLabel:SetText("")
         if UIState.bidPanelVisible then
             UIState.bidPanelVisible = false

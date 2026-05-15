@@ -78,6 +78,7 @@ local saveData = {
     tickets = {},
     characterCoins = 0,
     unlockedCharacters = {},
+    propItems = {},
 }
 
 -- ============================================================================
@@ -154,6 +155,7 @@ local function splitIntoGroups()
         tickets = saveData.tickets or {},
         characterCoins = saveData.characterCoins or 0,
         unlockedCharacters = saveData.unlockedCharacters or {},
+        propItems = saveData.propItems or {},
     }
 
     local compressedItems = {}
@@ -203,6 +205,7 @@ local function mergeGroups(groups)
         data.tickets = groups.core.tickets or {}
         data.characterCoins = groups.core.characterCoins or 0
         data.unlockedCharacters = groups.core.unlockedCharacters or {}
+        data.propItems = groups.core.propItems or {}
     end
 
     if groups.items and groups.items.list then
@@ -302,6 +305,7 @@ local function loadLocal()
     saveData.tickets = saveData.tickets or {}
     saveData.characterCoins = saveData.characterCoins or 0
     saveData.unlockedCharacters = saveData.unlockedCharacters or {}
+    saveData.propItems = saveData.propItems or {}
     print("[SaveSystem] Local load OK (" .. #saveData.items .. " items)")
     return true
 end
@@ -855,6 +859,34 @@ function SaveSystem.UnlockCharacter(charId)
     if not saveData.unlockedCharacters then saveData.unlockedCharacters = {} end
     saveData.unlockedCharacters[tostring(charId)] = true
     print("[SaveSystem] Character unlocked: id=" .. charId)
+end
+
+-- ============================================================================
+-- 竞拍道具（propItems）
+-- ============================================================================
+
+function SaveSystem.GetPropCount(propId)
+    local props = saveData.propItems
+    if not props then return 0 end
+    return props[propId] or 0
+end
+
+function SaveSystem.GetAllProps()
+    return saveData.propItems or {}
+end
+
+function SaveSystem.AddProp(propId, count)
+    if not saveData.propItems then saveData.propItems = {} end
+    local cur = saveData.propItems[propId] or 0
+    saveData.propItems[propId] = math.max(0, cur + (count or 1))
+    SaveFramework.MarkDirty(MODULE_NAME)
+    print("[SaveSystem] Prop " .. propId .. " +" .. (count or 1) .. " → " .. saveData.propItems[propId])
+end
+
+function SaveSystem.SetPropCount(propId, count)
+    if not saveData.propItems then saveData.propItems = {} end
+    saveData.propItems[propId] = math.max(0, count)
+    SaveFramework.MarkDirty(MODULE_NAME)
 end
 
 -- ============================================================================

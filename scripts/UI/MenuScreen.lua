@@ -215,7 +215,7 @@ local function CreateAnnouncementPopup()
     return overlay
 end
 
-function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback)
+function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback)
     UIState.currentScreen = "menu"
     local C = Config.COLORS
     local sz = Utils.sz
@@ -272,6 +272,13 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                 flexShrink = 0,
             },
             MakeNavItem("角色", "CHARACTER", onCharacterCallback),
+            -- 竖线分隔
+            UI.Panel {
+                width = 1, height = "60%",
+                backgroundColor = { 110, 88, 45, 150 },
+                flexShrink = 0,
+            },
+            MakeNavItem("道具", "ITEMS", onPropCallback),
         },
     }
 
