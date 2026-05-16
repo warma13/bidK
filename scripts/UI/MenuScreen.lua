@@ -14,6 +14,7 @@ local AdCardPanel = require("UI.AdCardPanel")
 local OnlineRewardPanel = require("UI.OnlineRewardPanel")
 local StatsPanel = require("UI.StatsPanel")
 local VersionRewardPanel = require("UI.VersionRewardPanel")
+local TaskPanel = require("UI.TaskPanel")
 local TicketTooltip = require("UI.TicketTooltip")
 
 local MenuScreen = {}
@@ -347,6 +348,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                     OnlineRewardPanel.CreateButton(),
                     announcementBtn,
                     VersionRewardPanel.CreateButton(),
+                    TaskPanel.CreateButton(),
                 },
             },
             SettingsPanel.CreatePopup(),
@@ -356,6 +358,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
             OnlineRewardPanel.CreatePopup(),
             announcementPopup,
             VersionRewardPanel.CreatePopup(),
+            TaskPanel.CreatePopup(),
             TicketTooltip.CreateOverlay(),
         }
     }

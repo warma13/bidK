@@ -159,6 +159,10 @@ function PropSystem.ComputeEffect(def, warehouseItems)
         return PropSystem._EffectRandomItemInfo(params, warehouseItems)
     elseif etype == Props.EFFECT.SHOW_RARITY_AVG_VALUE then
         return PropSystem._EffectRarityAvgValue(params, warehouseItems)
+    elseif etype == Props.EFFECT.SHOW_RARITY_AVG_CELL_COUNT then
+        return PropSystem._EffectRarityAvgCellCount(params, warehouseItems)
+    elseif etype == Props.EFFECT.SHOW_RANDOM_ITEM_INFO_MULTI then
+        return PropSystem._EffectRandomItemInfoMulti(params, warehouseItems)
     end
 
     return nil
@@ -306,6 +310,7 @@ function PropSystem._EffectRandomItemInfo(params, warehouseItems)
 end
 
 --- 显示指定品质物品的总数量、总价值和均价
+--- params.showTotalOnly = true 时只显示总价值一行
 function PropSystem._EffectRarityAvgValue(params, warehouseItems)
     local rarity = params.rarity or "green"
     local rar = Config.GetRarity(rarity)
@@ -333,13 +338,90 @@ function PropSystem._EffectRarityAvgValue(params, warehouseItems)
     end
 
     local avgValue = math.floor(totalValue / count)
-    local text = rarName .. "品质物品共 " .. count .. " 件，总价值 " .. formatVal(totalValue) .. "，均价 " .. formatVal(avgValue)
+    local text
+    if params.showTotalOnly then
+        text = rarName .. "品质物品共 " .. count .. " 件，总价值 " .. formatVal(totalValue)
+    else
+        text = rarName .. "品质物品共 " .. count .. " 件，总价值 " .. formatVal(totalValue) .. "，均价 " .. formatVal(avgValue)
+    end
     -- 为 AI 估值系统提供均价信号（EstimateValue 中的 sampleDampedMult 路径）
     return {
         text = text, icon = "",
         type = "random_avg_value",
         sampleAvgValue = avgValue,
     }
+end
+
+--- 显示指定品质物品的平均格数
+function PropSystem._EffectRarityAvgCellCount(params, warehouseItems)
+    local rarSet = {}
+    local rarNames = {}
+    for _, r in ipairs(params.rarities) do
+        rarSet[r] = true
+        local rar = Config.GetRarity(r)
+        rarNames[#rarNames + 1] = rar and rar.name or r
+    end
+
+    local totalCells = 0
+    local count = 0
+    for _, item in ipairs(warehouseItems) do
+        if rarSet[item.rarity] then
+            local cells = (item.w or 1) * (item.h or 1)
+            totalCells = totalCells + cells
+            count = count + 1
+        end
+    end
+
+    local qualityStr = table.concat(rarNames, "和")
+
+    if count == 0 then
+        return { text = qualityStr .. "品质物品暂无数据", icon = "" }
+    end
+
+    local avgCells = string.format("%.1f", totalCells / count)
+    local text = qualityStr .. "品质物品平均占 " .. avgCells .. " 格（共 " .. count .. " 件）"
+    return { text = text, icon = "" }
+end
+
+--- 随机显示N件物品的完整信息（L3：名称+品质+价值）
+function PropSystem._EffectRandomItemInfoMulti(params, warehouseItems)
+    local n = params.count or 2
+    if #warehouseItems == 0 then
+        return { text = "仓库中没有物品", icon = "" }
+    end
+
+    -- Fisher-Yates 洗牌后取前 n 件
+    local candidates = {}
+    for _, item in ipairs(warehouseItems) do
+        candidates[#candidates + 1] = item
+    end
+    for i = #candidates, 2, -1 do
+        local j = math.random(1, i)
+        candidates[i], candidates[j] = candidates[j], candidates[i]
+    end
+
+    local function formatVal(v)
+        if v >= 10000 then
+            return string.format("%.1f万", v / 10000)
+        end
+        return tostring(math.floor(v))
+    end
+
+    local lines = {}
+    local reveals = {}
+    local pickedCount = math.min(n, #candidates)
+    for i = 1, pickedCount do
+        local item = candidates[i]
+        local rar = Config.GetRarity(item.rarity)
+        local val = item.realValue or Config.GetItemRealValue(item)
+        lines[#lines + 1] = item.name .. "（" .. (rar and rar.name or item.rarity) .. "，" .. formatVal(val) .. "）"
+        if item.idx then
+            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 3 }
+        end
+    end
+
+    local text = "看透 " .. pickedCount .. " 件：" .. table.concat(lines, "；")
+    return { text = text, icon = "", reveals = reveals }
 end
 
 return PropSystem

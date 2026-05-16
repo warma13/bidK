@@ -142,6 +142,7 @@ function AuctionEngine.StartGame()
             if diff and diff.requiredTicket then
                 local ok = SaveSystem.ConsumeTicket(diff.requiredTicket)
                 if ok then
+                    SaveSystem.AddTicketGameStat()
                     SaveSystem.MarkDirty()
                     print("[AuctionEngine] Ticket consumed: " .. diff.requiredTicket)
                 end

@@ -72,6 +72,8 @@ local saveData = {
         totalItemsWon = 0,
         maxProfit = 0,
         highestBid = 0,
+        ticketGames = 0,   -- 使用指定门票参与的场次
+        redItemsWon = 0,   -- 拍得的红色物品件数
     },
     settings = {
         bgmVolume = 100,
@@ -262,6 +264,8 @@ local function mergeGroups(groups)
     -- 补齐新字段默认值（兼容旧存档）
     data.stats.maxProfit   = data.stats.maxProfit   or 0
     data.stats.highestBid  = data.stats.highestBid  or 0
+    data.stats.ticketGames = data.stats.ticketGames or 0
+    data.stats.redItemsWon = data.stats.redItemsWon or 0
 
     data.settings = {
         bgmVolume = 100,
@@ -745,7 +749,21 @@ function SaveSystem.AddWonItems(warehouseItems)
         }
     end
     saveData.stats.totalItemsWon = (saveData.stats.totalItemsWon or 0) + #warehouseItems
+    -- 统计红色稀有度物品
+    local redCount = 0
+    for _, item in ipairs(warehouseItems) do
+        if item.rarity == "red" then redCount = redCount + 1 end
+    end
+    if redCount > 0 then
+        saveData.stats.redItemsWon = (saveData.stats.redItemsWon or 0) + redCount
+    end
     print("[SaveSystem] Added " .. #warehouseItems .. " items. Total: " .. #saveData.items)
+end
+
+---使用门票参与了一场拍卖，统计 ticketGames
+function SaveSystem.AddTicketGameStat()
+    saveData.stats.ticketGames = (saveData.stats.ticketGames or 0) + 1
+    print("[SaveSystem] ticketGames = " .. saveData.stats.ticketGames)
 end
 
 function SaveSystem.RemoveItems(itemsToRemove)

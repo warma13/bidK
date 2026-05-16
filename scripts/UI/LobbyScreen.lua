@@ -229,6 +229,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                     -- 消耗一张区域指定券
                     if region.ticket then
                         SaveSystem.ConsumeTicket(region.ticket)
+                        SaveSystem.AddTicketGameStat()
                     end
                     whTypeId = region.warehouseTypes[selectedWhTypeIdx]
                 end

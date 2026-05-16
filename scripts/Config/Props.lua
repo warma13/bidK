@@ -6,12 +6,14 @@ local Props = {}
 
 -- 道具效果类型
 Props.EFFECT = {
-    SHOW_RARITY_CELL_COUNT  = "show_rarity_cell_count",   -- 显示指定品质物品的总格数
-    SHOW_RARITY_ITEM_COUNT  = "show_rarity_item_count",   -- 显示指定品质物品的总数量
-    SHOW_RANDOM_SILHOUETTE  = "show_random_silhouette",   -- 随机显示N件物品轮廓
-    SHOW_SIZE_AVG_VALUE     = "show_size_avg_value",      -- 显示指定占位格数物品的平均价值
-    SHOW_RANDOM_ITEM_INFO   = "show_random_item_info",    -- 随机显示一件物品的信息
-    SHOW_RARITY_AVG_VALUE   = "show_rarity_avg_value",    -- 显示指定品质物品的总/均价值
+    SHOW_RARITY_CELL_COUNT     = "show_rarity_cell_count",      -- 显示指定品质物品的总格数
+    SHOW_RARITY_ITEM_COUNT     = "show_rarity_item_count",      -- 显示指定品质物品的总数量
+    SHOW_RANDOM_SILHOUETTE     = "show_random_silhouette",      -- 随机显示N件物品轮廓
+    SHOW_SIZE_AVG_VALUE        = "show_size_avg_value",         -- 显示指定占位格数物品的平均价值
+    SHOW_RANDOM_ITEM_INFO      = "show_random_item_info",       -- 随机显示一件物品的信息
+    SHOW_RARITY_AVG_VALUE      = "show_rarity_avg_value",       -- 显示指定品质物品的总/均价值
+    SHOW_RARITY_AVG_CELL_COUNT = "show_rarity_avg_cell_count",  -- 显示指定品质物品的平均格数
+    SHOW_RANDOM_ITEM_INFO_MULTI= "show_random_item_info_multi", -- 随机显示N件物品的完整信息
 }
 
 -- 道具列表（按品质从低到高排序：白→绿→蓝→紫→红）
@@ -98,6 +100,66 @@ Props.LIST = {
         iconImage = "image/prop_geo_07_20260515201144.png",
         effectType = Props.EFFECT.SHOW_RARITY_CELL_COUNT,
         effectParams = { rarities = { "blue" } },
+        price = 2500,         -- 绿色品质
+        tier = "green",
+        maxStack = 99,
+    },
+    {
+        id = "dual_item_reveal",
+        name = "双重侦察仪",
+        desc = "随机显示两件物品的完整信息",
+        icon = "🔭",
+        iconImage = "image/prop_geo_09_20260516195128.png",
+        effectType = Props.EFFECT.SHOW_RANDOM_ITEM_INFO_MULTI,
+        effectParams = { count = 2 },
+        price = 2500,         -- 绿色品质
+        tier = "green",
+        maxStack = 99,
+    },
+    {
+        id = "avg_cell_blue",
+        name = "蓝品格数仪",
+        desc = "显示蓝色品质物品的平均格数",
+        icon = "📐",
+        iconImage = "image/prop_geo_10_20260516200521.png",
+        effectType = Props.EFFECT.SHOW_RARITY_AVG_CELL_COUNT,
+        effectParams = { rarities = { "blue" } },
+        price = 2500,         -- 绿色品质
+        tier = "green",
+        maxStack = 99,
+    },
+    {
+        id = "avg_cell_purple",
+        name = "紫品格数仪",
+        desc = "显示紫色品质物品的平均格数",
+        icon = "📏",
+        iconImage = "image/prop_geo_11_20260516195657.png",
+        effectType = Props.EFFECT.SHOW_RARITY_AVG_CELL_COUNT,
+        effectParams = { rarities = { "purple" } },
+        price = 2500,         -- 绿色品质
+        tier = "green",
+        maxStack = 99,
+    },
+    {
+        id = "avg_cell_white_green",
+        name = "低品格数仪",
+        desc = "显示白色和绿色品质物品的平均格数",
+        icon = "📋",
+        iconImage = "image/prop_geo_12_20260516195707.png",
+        effectType = Props.EFFECT.SHOW_RARITY_AVG_CELL_COUNT,
+        effectParams = { rarities = { "white", "green" } },
+        price = 2500,         -- 绿色品质
+        tier = "green",
+        maxStack = 99,
+    },
+    {
+        id = "total_value_green",
+        name = "绿品总价仪",
+        desc = "显示绿色品质物品的总价值",
+        icon = "💰",
+        iconImage = "image/prop_geo_13_20260516195658.png",
+        effectType = Props.EFFECT.SHOW_RARITY_AVG_VALUE,
+        effectParams = { rarity = "green", showTotalOnly = true },
         price = 2500,         -- 绿色品质
         tier = "green",
         maxStack = 99,
