@@ -234,6 +234,32 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
     local baseline = expectedValue * TIER_PRIOR_MULT / itemCount
     local revealLevels = infoState.itemRevealLevels or {}
 
+    -- 预处理：收集 quality_avg_value 信息，建立仓库内实际品质均价映射
+    -- 用于 L2 估值时优先使用仓库实际数据，而非池统计数据
+    local inWarehouseRarityAvg = {}  -- { [rarityId] = 仓库内实际均价 }
+    do
+        local publicInfos = infoState.publicInfos or {}
+        local skillInfos  = infoState.skillInfos  or {}
+        for _, infos in ipairs({ publicInfos, skillInfos }) do
+            for _, info in ipairs(infos) do
+                if info.type == "quality_avg_value" and info.rarityId and info.rarityAvgValue and info.rarityAvgValue > 0 then
+                    if not inWarehouseRarityAvg[info.rarityId] or info.rarityAvgValue > inWarehouseRarityAvg[info.rarityId] then
+                        inWarehouseRarityAvg[info.rarityId] = info.rarityAvgValue
+                    end
+                end
+                if info.extraInfos then
+                    for _, extra in ipairs(info.extraInfos) do
+                        if extra.type == "quality_avg_value" and extra.rarityId and extra.rarityAvgValue and extra.rarityAvgValue > 0 then
+                            if not inWarehouseRarityAvg[extra.rarityId] or extra.rarityAvgValue > inWarehouseRarityAvg[extra.rarityId] then
+                                inWarehouseRarityAvg[extra.rarityId] = extra.rarityAvgValue
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     -- 第一遍：按信息层级估算每件物品
     local perItemEstimate = {}  -- [idx] = 估值
     local perItemLevel = {}     -- [idx] = 信息层级
@@ -250,12 +276,17 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
             est = item.realValue or item.value or baseline
             l3Count = l3Count + 1
         elseif level >= 2 then
-            -- L2: 知品质 → 直接用池内该稀有度的真实均价（与 baseline 无关）
-            -- 避免 baseline 过低导致 AI 低估已知稀有度物品
-            -- 取 rarityAvgValue 和 baseline×rarityRelative 的较大值，确保先验不低于池均
+            -- L2: 知品质 → 优先用仓库内实际均价（quality_avg_value info），回退到池均价
+            -- 仓库内实际均价 > 池统计均价时，以实际均价为准（例：神秘仓库蓝色物品均价实际远高于池统计）
             local rr = rarityRelative[item.rarity] or 1.0
             local poolRarityAvg = rarityAvgValue[item.rarity] or (poolAvg * rr)
+            local warehouseRarityAvg = inWarehouseRarityAvg[item.rarity]  -- 仓库内实际均价（可能为 nil）
+            -- 取三者最大值：baseline×rr（tier先验）、池均价、仓库实际均价
             est = math.max(baseline * rr, poolRarityAvg)
+            if warehouseRarityAvg and warehouseRarityAvg > est then
+                est = warehouseRarityAvg
+                -- 注：不使用 AI 的 tier 先验折扣，因为 quality_avg_value 已是仓库实际数据
+            end
         elseif level >= 1 then
             -- L1: 知轮廓/类别 → baseline × categoryRelative
             local cr = categoryRelative[item.category] or 1.0
@@ -314,7 +345,7 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
             if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 and poolAvg > 0 then
                 local ratio = info.sampleAvgValue / poolAvg
                 local dm = math.sqrt(ratio)
-                dm = math.max(0.5, math.min(2.0, dm))
+                dm = math.max(0.5, math.min(5.0, dm))  -- 上限提高到 5x，支持神秘仓库等极高价值场景
                 -- 取影响最大的一条（离 1.0 最远）
                 if math.abs(dm - 1.0) > math.abs(sampleDampedMult - 1.0) then
                     sampleDampedMult = dm
