@@ -54,10 +54,10 @@ Transport.items = {
     { name = "飞行汽车原型引擎",   rows = 4, cols = 3, quality = "red", value = 6061058,  weight = 3,   desc = "eVTOL飞行汽车的电驱动力总成，仅存三台的工程样机", image = IMG .. "交通/飞行汽车原型引擎.png",  tags = {"automotive", "aerospace"} },
     { name = "协和号驾驶舱仪表盘", rows = 3, cols = 3, quality = "red", value = 1956811,  weight = 11,  desc = "协和号超音速客机退役拆解的完整驾驶仪表盘", image = IMG .. "交通/协和号驾驶舱仪表盘.png", tags = {"aerospace"} },
     { name = "一级方程式赛车引擎", rows = 4, cols = 3, quality = "red", value = 8762931,  weight = 2,   desc = "法拉利F1赛车的V10引擎总成，可运转",   image = IMG .. "交通/一级方程式赛车引擎.png",     tags = {"automotive"} },
-    { name = "古董摩托车",         rows = 3, cols = 2, quality = "red", value = 122793,   weight = 195, desc = "长江750边三轮摩托，可修复运转",         image = IMG .. "交通/古董摩托车.png",             tags = {"automotive"} },
-    { name = "老式火车模型",       rows = 2, cols = 3, quality = "red", value = 957587,   weight = 23,  desc = "蒸汽火车1:10铜制精密模型，可喷蒸汽",   image = IMG .. "交通/老式火车模型.png" },
-    { name = "老式马车车轮",       rows = 2, cols = 2, quality = "red", value = 122793,   weight = 195, desc = "欧式四轮马车的铁箍木轮，雕花轮毂",     image = IMG .. "交通/老式马车车轮.png" },
-    { name = "帆船铜舵轮",         rows = 2, cols = 2, quality = "red", value = 390682,   weight = 58,  desc = "大型帆船的黄铜包木舵轮，八辐设计",     image = IMG .. "交通/帆船铜舵轮.png",             tags = {"maritime"} },
+    { name = "古董摩托车",         rows = 3, cols = 2, quality = "red", value = 122793,   weight = 12, desc = "长江750边三轮摩托，可修复运转",         image = IMG .. "交通/古董摩托车.png",             tags = {"automotive"} },
+    { name = "老式火车模型",       rows = 2, cols = 3, quality = "red", value = 957587,   weight = 8,  desc = "蒸汽火车1:10铜制精密模型，可喷蒸汽",   image = IMG .. "交通/老式火车模型.png" },
+    { name = "老式马车车轮",       rows = 2, cols = 2, quality = "red", value = 122793,   weight = 12, desc = "欧式四轮马车的铁箍木轮，雕花轮毂",     image = IMG .. "交通/老式马车车轮.png" },
+    { name = "帆船铜舵轮",         rows = 2, cols = 2, quality = "red", value = 390682,   weight = 6,  desc = "大型帆船的黄铜包木舵轮，八辐设计",     image = IMG .. "交通/帆船铜舵轮.png",             tags = {"maritime"} },
     { name = "老船用铜钟",         rows = 1, cols = 1, quality = "purple", value = 2233,  weight = 5,   desc = "轮船甲板的报时铜钟，声音洪亮",         image = IMG .. "交通/老船用铜钟.png",             tags = {"maritime", "horology"} },
     { name = "旧火车钟",           rows = 1, cols = 1, quality = "purple", value = 3752,  weight = 3,   desc = "铁路车站挂钟，黑色铸铁壳",             image = IMG .. "交通/旧火车钟.png",               tags = {"horology"} },
     -- 紫（补充）
@@ -69,6 +69,28 @@ Transport.items = {
     { name = "追光者引擎原型",     rows = 3, cols = 3, quality = "red",    value = 28000000, desc = "实验性空间弯曲推进系统，功率不足",      image = IMG .. "交通/追光者引擎原型.png",    tags = {"aerospace"} },
     -- ===== 新增数据中心物品 =====
     { name = "深渊之眼监控核心", rows = 2, cols = 2, quality = "purple", value = 75000, desc = "深海无人探测器的核心监控模块", image = IMG .. "交通/深渊之眼监控核心.png",         tags = {"maritime"} },
+
+    -- ===== 补充平衡物品（填补价格断层）=====
+    -- 蓝（5k~10k 新增）
+    { name = "老式摩托头盔",   rows = 2, cols = 2, quality = "blue",   value = 6200,  weight = 2,  desc = "五十年代复古皮质摩托头盔，有磨损",       image = IMG .. "交通/老式摩托头盔.png",     tags = {"automotive"} },
+    { name = "机械里程表",     rows = 1, cols = 2, quality = "blue",   value = 5800,  weight = 2,  desc = "老式机械里程计数仪表盘",                 image = IMG .. "交通/机械里程表.png",       tags = {"automotive"} },
+    { name = "旧帆船罗盘",     rows = 2, cols = 2, quality = "blue",   value = 8500,  weight = 1,  desc = "铜壳老式航海罗盘，指针尚准",             image = IMG .. "交通/旧帆船罗盘.png",       tags = {"maritime"} },
+    { name = "飞机铭牌",       rows = 1, cols = 3, quality = "blue",   value = 7600,  weight = 1,  desc = "民航退役客机的舱门铸铝铭牌",             image = IMG .. "交通/飞机铭牌.png",         tags = {"aerospace"} },
+    -- 紫（10k~22k 新增填补）
+    { name = "蒸汽朋克仪表盘", rows = 2, cols = 3, quality = "purple", value = 13500, weight = 2,  desc = "改装蒸汽朋克风格多表盘组合仪表",         image = IMG .. "交通/蒸汽朋克仪表盘.png" },
+    { name = "老式船锚链节",   rows = 2, cols = 2, quality = "purple", value = 10800, weight = 3,  desc = "大型帆船的铸铁锚链环节，锈迹斑斑",       image = IMG .. "交通/老式船锚链节.png",     tags = {"maritime"} },
+    { name = "旧摩托车发动机", rows = 3, cols = 2, quality = "purple", value = 18000, weight = 2,  desc = "可修复的老式摩托车单缸发动机",           image = IMG .. "交通/旧摩托车发动机.png",   tags = {"automotive"} },
+    { name = "铁路道钉锤",     rows = 2, cols = 1, quality = "purple", value = 11200, weight = 3,  desc = "铁路工程用的老式道钉锤，有编号",         image = IMG .. "交通/铁路道钉锤.png" },
+    -- 金（补充中等尺寸）
+    { name = "帆船模型",       rows = 3, cols = 4, quality = "gold",   value = 68000, weight = 2,  desc = "三桅帆船1:20精密木制模型，含帆装具",     image = IMG .. "交通/帆船模型.png",         tags = {"maritime"} },
+    { name = "老式飞行镜",     rows = 2, cols = 2, quality = "gold",   value = 38000, weight = 4,  desc = "二战飞行员铜壳护目镜，皮革完好",         image = IMG .. "交通/老式飞行镜.png",       tags = {"aerospace"} },
+    { name = "铸铁方向盘",     rows = 3, cols = 3, quality = "gold",   value = 55000, weight = 3,  desc = "二十世纪初老爷车的铸铁木包方向盘",       image = IMG .. "交通/铸铁方向盘.png",       tags = {"automotive"} },
+    -- 红（补充体量）
+    { name = "老爷机螺旋桨",   rows = 3, cols = 3, quality = "red",    value = 480000, weight = 15, desc = "二战战斗机原装三叶铝质螺旋桨",           image = IMG .. "交通/老爷机螺旋桨.png",     tags = {"aerospace"} },
+    -- ===== 同尺寸低价诱饵 =====
+    -- 4×3（对应飞行汽车原型引擎、一级方程式赛车引擎）
+    { name = "旧农用拖拉机机头", rows = 4, cols = 3, quality = "white", value = 2800, weight = 2, desc = "报废手扶拖拉机的引擎舱总成，零件散乱", image = IMG .. "交通/旧农用拖拉机机头.png", tags = {"automotive"} },
+    { name = "旧船用柴油机",     rows = 4, cols = 3, quality = "green", value = 9500, weight = 1, desc = "退役渔船拆下的老式柴油发动机，可修复", image = IMG .. "交通/旧船用柴油机.png",     tags = {"maritime"} },
 
 }
 

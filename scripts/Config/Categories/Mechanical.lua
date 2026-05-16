@@ -55,15 +55,15 @@ Mechanical.items = {
     { name = "铜质天平",         rows = 1, cols = 2, quality = "purple",  value = 4995, weight = 3,    desc = "带砝码套装的精密铜天平，刻度清晰",     image = IMG .. "机械/铜质天平.png" },
     { name = "航海六分仪",       rows = 1, cols = 1, quality = "gold",    value = 15573, weight = 11,    desc = "黄铜航海六分仪，镜片有划痕",           image = IMG .. "机械/航海六分仪.png",       tags = {"maritime"} },
     { name = "老式显微镜",       rows = 1, cols = 1, quality = "gold",    value = 26524, weight = 6,   desc = "黄铜筒身的老式光学显微镜",             image = IMG .. "机械/老式显微镜.png",       tags = {"precision_optics"} },
-    { name = "蒸汽朋克机械钟",   rows = 2, cols = 2, quality = "red",     value = 187461, weight = 125,  desc = "纯手工齿轮传动座钟，齿轮外露可赏",     image = IMG .. "机械/蒸汽朋克机械钟.png",   tags = {"horology"} },
-    { name = "潜艇潜望镜",       rows = 3, cols = 1, quality = "red",     value = 786253, weight = 28,  desc = "退役潜艇拆下的光学潜望镜筒",           image = IMG .. "机械/潜艇潜望镜.png",       tags = {"maritime"} },
+    { name = "蒸汽朋克机械钟",   rows = 2, cols = 2, quality = "red",     value = 187461, weight = 8,  desc = "纯手工齿轮传动座钟，齿轮外露可赏",     image = IMG .. "机械/蒸汽朋克机械钟.png",   tags = {"horology"} },
+    { name = "潜艇潜望镜",       rows = 3, cols = 1, quality = "red",     value = 786253, weight = 5,  desc = "退役潜艇拆下的光学潜望镜筒",           image = IMG .. "机械/潜艇潜望镜.png",       tags = {"maritime"} },
     { name = "胜家缝纫机头",   rows = 1, cols = 2, quality = "purple",  value = 2900, weight = 4,    desc = "带金色花纹的胜家缝纫机头",                 image = IMG .. "机械/老缝纫机头.png" },
     { name = "铜质打字机键",   rows = 1, cols = 1, quality = "purple",  value = 1998, weight = 5,    desc = "一整套圆形铜质打字机按键",                 image = IMG .. "机械/铜质打字机键.png" },
     { name = "老钟表发条",     rows = 1, cols = 1, quality = "purple",  value = 4526, weight = 3,    desc = "瑞士产座钟的盘形发条组件",                 image = IMG .. "机械/老钟表发条.png" },
     { name = "老式计量秤",     rows = 1, cols = 2, quality = "gold",    value = 14769, weight = 11,    desc = "带铜砝码的精密药房计量秤",                 image = IMG .. "机械/老式计量秤.png" },
     { name = "铜质望远镜筒",   rows = 1, cols = 2, quality = "gold",    value = 20178, weight = 8,   desc = "黄铜制舰载望远镜的镜筒",                   image = IMG .. "机械/铜质望远镜筒.png" },
-    { name = "古董留声机",     rows = 2, cols = 2, quality = "red",     value = 335560, weight = 68,  desc = "完整的大喇叭花铜质留声机",                 image = IMG .. "机械/古董留声机.png" },
-    { name = "瑞士八音盒",     rows = 1, cols = 2, quality = "red",     value = 104218, weight = 232,  desc = "72音瑞士机械八音盒，可演奏多首曲",         image = IMG .. "机械/瑞士八音盒.png" },
+    { name = "古董留声机",     rows = 2, cols = 2, quality = "red",     value = 335560, weight = 6,  desc = "完整的大喇叭花铜质留声机",                 image = IMG .. "机械/古董留声机.png" },
+    { name = "瑞士八音盒",     rows = 1, cols = 2, quality = "red",     value = 104218, weight = 12,  desc = "72音瑞士机械八音盒，可演奏多首曲",         image = IMG .. "机械/瑞士八音盒.png" },
 
     -- ===== DataCenter 义体机械物品 =====
     -- 白 x3
@@ -124,6 +124,13 @@ Mechanical.items = {
     { name = "机房空调机组", rows = 2, cols = 3, quality = "green", value = 4500, desc = "精密机房专用空调，制冷量10kW", image = IMG .. "机械/机房空调机组.png" },
     { name = "磁悬浮底盘组件", rows = 2, cols = 2, quality = "purple", value = 68000, desc = "磁悬浮交通工具的底盘悬浮模块", image = IMG .. "机械/磁悬浮底盘组件.png" },
     { name = "磁浮列车制动器", rows = 1, cols = 2, quality = "blue", value = 18000, desc = "涡流制动器，磁浮列车专用", image = IMG .. "机械/磁浮列车制动器.png" },
+    -- ===== 同尺寸低价诱饵 =====
+    -- 4×4（对应ASML光刻机核心组件）
+    { name = "废弃服务器机架", rows = 4, cols = 4, quality = "white", value = 2200, weight = 2, desc = "空的19英寸服务器机架，导轨完好", image = IMG .. "机械/废弃服务器机架.png", tags = {"server_hw"} },
+    { name = "旧工业机柜",     rows = 4, cols = 4, quality = "green", value = 7800, weight = 1, desc = "废弃厂房的配电机柜，铜排尚存", image = IMG .. "机械/旧工业机柜.png" },
+    -- 3×4（对应铁骑全身外骨骼、粒子加速腔）
+    { name = "旧工控机柜",     rows = 3, cols = 4, quality = "white", value = 1600, weight = 2, desc = "拆光了内件的旧工控系统机柜", image = IMG .. "机械/旧工控机柜.png" },
+    { name = "液压集成组件",   rows = 3, cols = 4, quality = "green", value = 6500, weight = 1, desc = "液压控制阀台，管路有渗漏", image = IMG .. "机械/液压集成组件.png" },
 
 }
 

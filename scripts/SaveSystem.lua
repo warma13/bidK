@@ -54,6 +54,8 @@ local LOCAL_FILE = "save_data.json"
 local initialized = false
 local saveConfirmed = false         -- 云端数据已成功加载
 local playTime = 0                  -- 累计游戏时长
+local playTimeAtLastDirty = 0       -- 上次因时长变化标脏时的 playTime
+local PLAY_TIME_DIRTY_INTERVAL = 60 -- 每累计 60 秒标一次脏
 
 -- 运行时存档数据
 local saveData = {
@@ -489,6 +491,16 @@ SaveFramework.Register(MODULE_NAME, {
                     print("[SaveSystem] Incomplete chunks for group '" .. groupName .. "', aborting load")
                     return
                 end
+                -- 逐片校验（多片组 cs 是 table）
+                if type(info.cs) == "table" then
+                    for i, part in ipairs(parts) do
+                        local expected = info.cs[i]
+                        if expected and CalcChecksum(part) ~= expected then
+                            print("[SaveSystem] Chunk checksum mismatch: " .. keyBase .. "_" .. (i-1) .. ", aborting load")
+                            return
+                        end
+                    end
+                end
                 json = table.concat(parts)
             else
                 json = values[keyBase]
@@ -498,11 +510,11 @@ SaveFramework.Register(MODULE_NAME, {
                 if type(json) == "table" then
                     groups[groupName] = json
                 else
-                    -- 校验
+                    -- 单片校验
                     if type(info.cs) == "number" then
-                        local cs = CalcChecksum(json)
-                        if cs ~= info.cs then
-                            print("[SaveSystem] Checksum mismatch for " .. groupName)
+                        if CalcChecksum(json) ~= info.cs then
+                            print("[SaveSystem] Checksum mismatch for group '" .. groupName .. "', aborting load")
+                            return
                         end
                     end
                     local ok3, parsed = pcall(cjson.decode, json)
@@ -687,6 +699,11 @@ end
 function SaveSystem.Update(dt)
     if not initialized then return end
     playTime = playTime + dt
+    -- 每 60 秒标一次脏，确保游戏时长被自动保存持久化
+    if playTime - playTimeAtLastDirty >= PLAY_TIME_DIRTY_INTERVAL then
+        playTimeAtLastDirty = playTime
+        SaveFramework.MarkDirty(MODULE_NAME)
+    end
     -- 注意：SaveFramework.Update(dt) 由 Standalone.lua 调用，这里不重复调用
 end
 

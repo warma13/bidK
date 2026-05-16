@@ -106,20 +106,45 @@ local function ConfirmExit()
     confirmBackModal_ = UI.Modal {
         title = "确认返回",
         size = "sm",
+        borderRadius = 0,
+        headerBgColor = { 30, 32, 38, 200 },
+        contentBgColor = { 22, 24, 30, 180 },
         onClose = function()
             confirmBackModal_ = nil
         end,
         children = {
-            UI.Label { text = "确定要返回竞拍大厅吗？", fontSize = 14 },
+            UI.Panel {
+                flexDirection = "column",
+                alignItems = "center",
+                gap = 8,
+                paddingVertical = 6,
+                children = {
+                    UI.Label {
+                        text = "确定要离开本局竞拍吗？",
+                        fontSize = 15,
+                        fontColor = "#FFFFFF",
+                        fontWeight = "bold",
+                    },
+                },
+            },
         },
     }
     local footer = UI.Panel {
         flexDirection = "row",
-        justifyContent = "flex-end",
-        gap = 10, width = "100%",
+        justifyContent = "center",
+        gap = 12, width = "100%",
+        paddingVertical = 4,
     }
     footer:AddChild(UI.Button {
-        text = "取消", variant = "secondary",
+        text = "取消",
+        width = 110, height = 38,
+        fontSize = 14,
+        backgroundColor = { 50, 55, 65, 200 },
+        hoverBackgroundColor = { 70, 75, 90, 230 },
+        pressedBackgroundColor = { 35, 38, 48, 255 },
+        borderWidth = 1,
+        borderColor = { 100, 105, 120, 130 },
+        borderRadius = 0,
         onClick = function()
             Utils.PlayClick()
             confirmBackModal_:Close()
@@ -127,7 +152,16 @@ local function ConfirmExit()
         end,
     })
     footer:AddChild(UI.Button {
-        text = "确定", variant = "primary",
+        text = "离开",
+        width = 110, height = 38,
+        fontSize = 14,
+        fontWeight = "bold",
+        fontColor = { 255, 255, 255, 255 },
+        backgroundColor = { 185, 45, 35, 220 },
+        hoverBackgroundColor = { 210, 60, 48, 255 },
+        pressedBackgroundColor = { 150, 30, 22, 255 },
+        borderWidth = 0,
+        borderRadius = 0,
         onClick = function()
             Utils.PlayClick()
             confirmBackModal_:Close()
@@ -179,31 +213,31 @@ local function CreateGameUI()
 
     -- 返回按钮（在 topInfoBar 之前创建，以便引用）
     local sz = Utils.sz
-    refs.backBtn = UI.Panel {
-        height = 28,
-        backgroundColor = { 255, 255, 255, 0 },
-        paddingHorizontal = 8,
-        flexDirection = "row",
-        alignItems = "center",
-        cursor = "pointer",
+    refs.backBtn = UI.Button {
+        text = "返回",
+        height = sz(28),
+        fontSize = sz(12),
+        fontColor = { 195, 215, 40, 230 },
+        fontWeight = "bold",
+        backgroundColor = { 195, 215, 40, 20 },
+        hoverBackgroundColor = { 195, 215, 40, 50 },
+        pressedBackgroundColor = { 195, 215, 40, 110 },
+        borderWidth = 1,
+        borderColor = { 195, 215, 40, 160 },
+        borderRadius = 0,
+        paddingHorizontal = sz(10),
         onClick = function()
             Utils.PlayClick()
             ConfirmExit()
         end,
-        children = {
-            UI.Label {
-                text = "< 返回",
-                fontSize = 12, fontColor = { 200, 205, 220, 200 },
-                pointerEvents = "none",
-            },
-        },
     }
 
     local topInfoBar = UI.Panel {
         position = "absolute",
         top = 0, left = 0, right = 0,
-        height = 32,
-        backgroundColor = "rgba(0,0,0,0.55)",
+        height = sz(44),
+        paddingHorizontal = sz(12),
+        backgroundColor = { 0, 0, 0, 180 },
         flexDirection = "row",
         alignItems = "center",
         children = {
@@ -211,29 +245,28 @@ local function CreateGameUI()
             UI.Panel {
                 flexDirection = "row",
                 alignItems = "center",
-                gap = 2,
-                width = 200,
+                gap = sz(4),
                 children = {
                     refs.backBtn,
                     SettingsPanel.CreateCompactButton(),
                     PlayerListPanel.CreateMoneyHUD(),
                 },
             },
-            -- 中间：仓库名居中（用 flexGrow 撑开）
+            -- 中间：仓库名绝对定位居中（与大厅顶部栏保持一致）
             UI.Panel {
-                flexGrow = 1,
-                justifyContent = "center",
-                alignItems = "center",
+                position = "absolute", left = 0, right = 0, top = 0, bottom = 0,
+                flexDirection = "row", alignItems = "center", justifyContent = "center",
+                gap = sz(4),
+                pointerEvents = "none",
                 children = {
                     UI.Label {
                         text = infoText,
-                        fontSize = 14,
+                        fontSize = sz(16),
                         fontColor = "#FFD700",
+                        fontWeight = "bold",
                     },
                 },
             },
-            -- 右侧占位（与左侧对称，让中间真正居中）
-            UI.Panel { width = 200 },
         },
     }
 
@@ -298,6 +331,8 @@ local function CreateGameUI()
             TiebreakPanel.Create(),
             topInfoBar,
             (function() refs.settingsPopup = SettingsPanel.CreatePopup(); return refs.settingsPopup end)(),
+            -- 结算界面 overlay（预挂载，避免动态 AddChild 布局刷新问题）
+            GameOverDialog.CreateOverlay(),
         }
     }
     refs.gameRoot = uiRoot

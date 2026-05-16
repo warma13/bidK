@@ -93,6 +93,9 @@ Energy.items = {
     { name = "老煤气灯头", rows = 1, cols = 1, quality = "green", value = 1200, desc = "民国街头煤气路灯的铸铁灯头", image = IMG .. "能源/老煤气灯头.png" },
     { name = "老黄铜吊灯", rows = 2, cols = 2, quality = "blue", value = 9500, desc = "维多利亚时代黄铜瓦斯吊灯，做工精细", image = IMG .. "能源/老黄铜吊灯.png" },
     { name = "铜质油壶灯", rows = 1, cols = 1, quality = "green", value = 2200, desc = "手工锻铜阿拉伯风格油壶灯，有使用痕迹", image = IMG .. "能源/铜质油壶灯.png" },
+    -- ===== 同尺寸低价诱饵（3×3：对应特斯拉线圈模型）=====
+    { name = "旧锅炉箱", rows = 3, cols = 3, quality = "white", value = 1850, weight = 2, desc = "锈蚀严重的民用小型锅炉箱，阀门缺失", image = IMG .. "能源/旧锅炉箱.png" },
+    { name = "旧变电柜", rows = 3, cols = 3, quality = "green", value = 5200, weight = 1, desc = "废弃厂房拆下的旧变电开关柜，铜件尚存", image = IMG .. "能源/旧变电柜.png" },
 
 }
 

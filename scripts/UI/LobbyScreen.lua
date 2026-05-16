@@ -47,20 +47,20 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     -- 左侧右列：角色详情控件
     -- =========================================================================
     local charTitleLabel = UI.Label {
-        text = "", fontSize = 11,
+        text = "", fontSize = Utils.sz(11),
         fontColor = C.accent, fontWeight = "bold",
     }
     local charNameLabel = UI.Label {
-        text = "", fontSize = 18,
+        text = "", fontSize = Utils.sz(18),
         fontColor = C.textPrimary, fontWeight = "bold",
     }
     local charDescLabel = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = C.textSecondary, lineHeight = 1.5,
         whiteSpace = "normal", width = "100%", flexShrink = 1,
     }
     local charSkillLabel = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = { 180, 220, 255, 255 }, lineHeight = 1.3,
         whiteSpace = "normal", width = "100%", flexShrink = 1,
     }
@@ -71,15 +71,15 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
 
     -- 角色币显示（图标 + 数字）
     local charCoinText = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = { 255, 200, 80, 255 },
     }
     local charCoinLabel = UI.Panel {
-        flexDirection = "row", alignItems = "center", gap = 4,
+        flexDirection = "row", alignItems = "center", gap = Utils.sz(4),
         visible = false,
         children = {
             UI.Panel {
-                width = 14, height = 14,
+                width = Utils.sz(14), height = Utils.sz(14),
                 backgroundImage = Config.CHARACTER_COIN_ICON,
                 backgroundFit = "contain", flexShrink = 0,
             },
@@ -89,8 +89,8 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
 
     -- 解锁按钮
     local unlockBtn = UI.Button {
-        text = "解锁", width = "100%", height = 28,
-        fontSize = 11, variant = "primary",
+        text = "解锁", width = "100%", height = Utils.sz(28),
+        fontSize = Utils.sz(11), variant = "primary",
         visible = false,
         onClick = function()
             Utils.PlayClick()
@@ -118,22 +118,22 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     -- 右侧：仓库信息控件
     -- =========================================================================
     local warehouseNameLabel = UI.Label {
-        text = "", fontSize = 14,
+        text = "", fontSize = Utils.sz(14),
         fontColor = C.accent, fontWeight = "bold",
     }
     local warehouseDescLabel = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = C.textSecondary, lineHeight = 1.3,
         whiteSpace = "normal", width = "100%", flexShrink = 1,
     }
     -- 仓库指定门票显示（非神秘仓库时显示，用 SetVisible 控制）
     local whTicketIcon = UI.Panel {
-        width = 16, height = 16,
+        width = Utils.sz(16), height = Utils.sz(16),
         backgroundFit = "contain",
         flexShrink = 0, visible = false,
     }
     local whTicketLabel = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = { 255, 200, 80, 255 }, flexShrink = 0, visible = false,
     }
 
@@ -149,20 +149,20 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     local diffBtns = {}
     local diffBtnLabels = {}
     local entryFeeLabel = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = { 160, 220, 160, 255 }, flexShrink = 0,
     }
     local assetReqLabel = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = { 180, 180, 220, 255 }, flexShrink = 0,
     }
     local ticketIcon = UI.Panel {
-        width = 20, height = 12,
+        width = Utils.sz(20), height = Utils.sz(12),
         backgroundFit = "contain",
         flexShrink = 0, display = "none",
     }
     local ticketLabel = UI.Label {
-        text = "", fontSize = 10,
+        text = "", fontSize = Utils.sz(10),
         fontColor = { 255, 200, 80, 255 }, flexShrink = 0,
     }
 
@@ -173,8 +173,10 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     local startBtnRef = UI.Button {
         text = "开始行动",
         variant = "primary",
-        width = 160, height = 44,
-        fontSize = 15,
+        textColor = { 20, 25, 10, 255 },
+        fontWeight = "bold",
+        width = Utils.sz(160), height = Utils.sz(46),
+        fontSize = Utils.sz(15),
         onClick = function()
             Utils.PlayClick()
             -- 检查角色是否锁定
@@ -308,13 +310,13 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
 
     local diffRow = {}
     for i = 1, maxDiffCount do
-        local label = UI.Label { text = "", fontSize = 14, fontColor = C.textPrimary, textAlign = "center" }
+        local label = UI.Label { text = "", fontSize = Utils.sz(14), fontColor = C.textPrimary, textAlign = "center" }
         diffBtnLabels[i] = label
         local idx = i
         local btn = UI.Panel {
-            height = 36, paddingHorizontal = 18,
+            height = Utils.sz(36), paddingHorizontal = Utils.sz(18),
             backgroundColor = { 35, 40, 60, 180 },
-            borderRadius = 18, borderWidth = 1,
+            borderRadius = Utils.sz(18), borderWidth = 1,
             borderColor = C.gridSlotBorder,
             justifyContent = "center", alignItems = "center",
             cursor = "pointer", flexShrink = 0,
@@ -337,7 +339,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     local POCKET_SIZE = 5
     for i = 1, POCKET_SIZE do
         pocketSlots[i] = UI.Panel {
-            width = 32, height = 32,
+            width = Utils.sz(32), height = Utils.sz(32),
             backgroundColor = { 45, 50, 70, 180 },
             borderRadius = 0, borderWidth = 1,
             borderColor = C.gridSlotBorder,
@@ -448,10 +450,10 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         avatarLockOverlays[i] = lockOverlay
 
         local avatar = UI.Panel {
-            width = 48, height = 48, flexShrink = 0,
+            width = Utils.sz(48), height = Utils.sz(48), flexShrink = 0,
             backgroundImage = ch.avatar,
             backgroundFit = "cover",
-            borderRadius = 4, borderWidth = 1,
+            borderRadius = Utils.sz(4), borderWidth = 1,
             borderColor = { 60, 65, 80, 150 },
             cursor = "pointer",
             onTap = function()
@@ -553,7 +555,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         if wt then
             local nameLabel = UI.Label {
                 text = wt.name or key,
-                fontSize = 11, fontColor = { 20, 25, 10, 255 },
+                fontSize = Utils.sz(11), fontColor = { 20, 25, 10, 255 },
                 fontWeight = "bold",
                 flexShrink = 0,
                 visible = false,  -- 默认隐藏，激活后显示
@@ -563,7 +565,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
             local iconWidget
             if isImgIcon then
                 iconWidget = UI.Panel {
-                    width = 28, height = 28,
+                    width = Utils.sz(28), height = Utils.sz(28),
                     backgroundImage = wt.icon,
                     backgroundFit = "contain",
                     imageTint = { 255, 255, 255, 255 },
@@ -572,20 +574,20 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
             else
                 iconWidget = UI.Label {
                     text = (wt.icon and wt.icon ~= "") and wt.icon or "🏚",
-                    fontSize = 20, textAlign = "center",
+                    fontSize = Utils.sz(20), textAlign = "center",
                     flexShrink = 0,
                 }
             end
             local idx = i
             local iconPanel = UI.Panel {
-                height = 44,
-                paddingLeft = 10, paddingRight = 0,
+                height = Utils.sz(44),
+                paddingLeft = Utils.sz(10), paddingRight = 0,
                 paddingVertical = 0,
                 backgroundColor = { 0, 0, 0, 0 },
-                borderRadius = 6,
+                borderRadius = Utils.sz(6),
                 flexDirection = "row",
                 justifyContent = "center", alignItems = "center",
-                gap = 6, flexShrink = 0,
+                gap = Utils.sz(6), flexShrink = 0,
                 cursor = "pointer",
                 onTap = function()
                     Utils.PlayClick()
@@ -609,7 +611,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
             -- 除最后一项外，每个图标后加竖线分隔
             if i < #region.warehouseTypes then
                 warehouseIconItems[#warehouseIconItems + 1] = UI.Panel {
-                    width = 1, height = 24, flexShrink = 0,
+                    width = 1, height = Utils.sz(24), flexShrink = 0,
                     backgroundColor = { 80, 85, 100, 160 },
                 }
             end
@@ -620,22 +622,24 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     -- 构建左侧面板（头像列表 + 角色详情，左右分栏）
     -- =========================================================================
     local leftPanel = UI.Panel {
-        width = 220, flexShrink = 0,
-        flexDirection = "row", gap = 8,
+        width = Utils.sz(280), flexShrink = 0,
+        flexDirection = "row", gap = Utils.sz(8),
         overflow = "hidden",
         backgroundColor = { 15, 18, 28, 180 },
-        borderRadius = 4,
-        padding = 8,
+        borderRadius = Utils.sz(4),
+        padding = Utils.sz(8),
         children = {
-            -- 左列：头像滚动列表
+            -- 左列：头像两列网格滚动列表
             UI.ScrollView {
-                width = 56, flexShrink = 0,
+                width = Utils.sz(108), flexShrink = 0,
                 scrollX = false, scrollY = true,
                 showScrollbar = false,
                 children = {
                     UI.Panel {
                         width = "100%",
-                        flexDirection = "column", gap = 4,
+                        flexDirection = "row",
+                        flexWrap = "wrap",
+                        gap = Utils.sz(4),
                         children = avatarPanels,
                     },
                 },
@@ -643,14 +647,14 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
             -- 右列：选中角色详情
             UI.Panel {
                 flexGrow = 1, flexShrink = 1,
-                flexDirection = "column", gap = 4,
+                flexDirection = "column", gap = Utils.sz(4),
                 children = {
                     -- 称号
                     UI.Panel {
-                        flexDirection = "row", alignItems = "center", gap = 3,
+                        flexDirection = "row", alignItems = "center", gap = Utils.sz(3),
                         flexShrink = 0,
                         children = {
-                            UI.Panel { width = 3, height = 12, backgroundColor = C.accent, flexShrink = 0 },
+                            UI.Panel { width = Utils.sz(3), height = Utils.sz(12), backgroundColor = C.accent, flexShrink = 0 },
                             charTitleLabel,
                         },
                     },
@@ -674,7 +678,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     -- =========================================================================
     local rightContent = UI.Panel {
         width = "100%",
-        flexDirection = "column", gap = 8,
+        flexDirection = "column", gap = Utils.sz(8),
         children = {
             -- 仓库信息卡
             UI.Panel {
@@ -682,28 +686,28 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                 backgroundColor = { 30, 35, 55, 220 },
                 borderRadius = 0, borderWidth = 1,
                 borderColor = C.gridSlotBorder,
-                padding = 8, gap = 4,
+                padding = Utils.sz(8), gap = Utils.sz(4),
                 flexDirection = "column", flexShrink = 0,
                 children = {
-                    UI.Label { text = "仓库信息", fontSize = 10, fontColor = C.textMuted },
+                    UI.Label { text = "仓库信息", fontSize = Utils.sz(10), fontColor = C.textMuted },
                     warehouseNameLabel,
                     warehouseDescLabel,
                     UI.Panel {
-                        flexDirection = "row", alignItems = "center", gap = 4,
+                        flexDirection = "row", alignItems = "center", gap = Utils.sz(4),
                         children = { whTicketIcon, whTicketLabel },
                     },
                     UI.Panel {
                         flexDirection = "row", justifyContent = "space-between",
                         children = {
-                            UI.Label { text = "拍卖轮数", fontSize = 10, fontColor = C.textMuted },
-                            UI.Label { text = tostring(Config.GAME.MaxRounds), fontSize = 10, fontColor = C.textPrimary },
+                            UI.Label { text = "拍卖轮数", fontSize = Utils.sz(10), fontColor = C.textMuted },
+                            UI.Label { text = tostring(Config.GAME.MaxRounds), fontSize = Utils.sz(10), fontColor = C.textPrimary },
                         },
                     },
                     UI.Panel {
                         flexDirection = "row", justifyContent = "space-between",
                         children = {
-                            UI.Label { text = "竞拍人数", fontSize = 10, fontColor = C.textMuted },
-                            UI.Label { text = tostring(Config.GAME.MaxPlayers) .. "人", fontSize = 10, fontColor = C.textPrimary },
+                            UI.Label { text = "竞拍人数", fontSize = Utils.sz(10), fontColor = C.textMuted },
+                            UI.Label { text = tostring(Config.GAME.MaxPlayers) .. "人", fontSize = Utils.sz(10), fontColor = C.textPrimary },
                         },
                     },
                 },
@@ -754,7 +758,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
             UI.Panel {
                 width = "100%", flexGrow = 1, flexShrink = 1,
                 flexDirection = "row",
-                padding = 10, gap = 10,
+                padding = Utils.sz(10), gap = Utils.sz(10),
                 overflow = "hidden",
                 children = {
                     -- 左列：角色头像列表 + 详情（内部左右分栏）
@@ -765,7 +769,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
 
                     -- 右列：可滚动配置面板
                     UI.ScrollView {
-                        width = 220, flexShrink = 0,
+                        width = Utils.sz(280), flexShrink = 0,
                         scrollX = false, scrollY = true,
                         showScrollbar = false,
                         children = { rightContent },
@@ -778,18 +782,19 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                 width = "100%", flexShrink = 0,
                 flexDirection = "row", alignItems = "flex-end",
                 justifyContent = "space-between",
-                paddingHorizontal = 12, paddingBottom = 8,
+                paddingHorizontal = Utils.sz(12), paddingBottom = Utils.sz(8),
                 children = {
                     -- 左侧：返回按钮（独立在外） + 仓库图标栏
                     UI.Panel {
                         flexDirection = "row", alignItems = "center",
-                        gap = 8, flexShrink = 1,
+                        gap = Utils.sz(8), flexShrink = 1,
                         children = {
                             -- 返回按钮（独立，不在仓库容器内）
                             UI.Button {
-                                text = "←", fontSize = 18,
-                                width = 44, height = 44,
+                                text = "←", fontSize = Utils.sz(18),
+                                width = Utils.sz(44), height = Utils.sz(44),
                                 flexShrink = 0,
+                                pressedBackgroundColor = { 40, 50, 80, 255 },
                                 onClick = function()
                                     Utils.PlayClick()
                                     if onBackCallback then onBackCallback() end
@@ -798,17 +803,17 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                             -- 仓库图标栏（圆角容器，自适应宽度，可横向滚动）
                             UI.ScrollView {
                                 flexShrink = 1,
-                                height = 52,
+                                height = Utils.sz(52),
                                 scrollX = true, scrollY = false,
                                 showScrollbar = false,
                                 backgroundColor = { 15, 18, 25, 210 },
-                                borderRadius = 26,
-                                paddingHorizontal = 8,
+                                borderRadius = Utils.sz(26),
+                                paddingHorizontal = Utils.sz(8),
                                 children = {
                                     UI.Panel {
                                         flexDirection = "row", gap = 0,
                                         alignItems = "center",
-                                        height = 52,
+                                        height = Utils.sz(52),
                                         children = warehouseIconItems,
                                     },
                                 },
@@ -819,17 +824,17 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                     UI.Panel {
                         flexDirection = "column", alignItems = "flex-end",
                         backgroundColor = { 0, 0, 0, 180 },
-                        borderRadius = 4, paddingHorizontal = 10, paddingVertical = 8,
-                        gap = 6, flexShrink = 0,
+                        borderRadius = Utils.sz(4), paddingHorizontal = Utils.sz(10), paddingVertical = Utils.sz(8),
+                        gap = Utils.sz(6), flexShrink = 0,
                         children = {
                             -- 第一行：场次按钮
                             UI.Panel {
-                                flexDirection = "row", gap = 4, alignItems = "center",
+                                flexDirection = "row", gap = Utils.sz(4), alignItems = "center",
                                 children = diffRow,
                             },
                             -- 第二行：场次信息
                             UI.Panel {
-                                flexDirection = "row", gap = 8, alignItems = "center",
+                                flexDirection = "row", gap = Utils.sz(8), alignItems = "center",
                                 children = {
                                     entryFeeLabel,
                                     assetReqLabel,

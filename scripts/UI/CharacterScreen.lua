@@ -326,24 +326,22 @@ function CharacterScreen.Show(onBackCallback)
                             flexDirection = "row",
                             alignItems = "center",
                             children = {
-                                UI.Panel {
+                                UI.Button {
+                                    text = "返回",
+                                    fontSize = sz(13),
+                                    fontColor = { 195, 215, 40, 230 },
+                                    fontWeight = "bold",
                                     paddingHorizontal = sz(14), paddingVertical = sz(7),
-                                    backgroundColor = { 30, 32, 50, 210 },
-                                    borderRadius = sz(6),
+                                    backgroundColor = { 195, 215, 40, 20 },
+                                    hoverBackgroundColor = { 195, 215, 40, 50 },
+                                    pressedBackgroundColor = { 195, 215, 40, 110 },
                                     borderWidth = 1,
-                                    borderColor = { 60, 65, 95, 200 },
-                                    cursor = "pointer",
+                                    borderColor = { 195, 215, 40, 160 },
+                                    borderRadius = 0,
                                     onClick = function()
                                         Utils.PlayClick()
                                         if onBackCallback then onBackCallback() end
                                     end,
-                                    children = {
-                                        UI.Label {
-                                            text = "返回",
-                                            fontSize = sz(13),
-                                            fontColor = { 180, 185, 210, 230 },
-                                        },
-                                    },
                                 },
                             },
                         },

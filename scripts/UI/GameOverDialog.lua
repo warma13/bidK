@@ -28,6 +28,22 @@ local settlementPanel = nil
 ---@type table|nil
 local centerActionPanel = nil
 
+-- 预创建的全屏 overlay 容器（在 CreateGameUI 时挂载，避免 AddChild 动态追加布局问题）
+---@type table|nil
+local overlayRoot_ = nil
+
+--- 创建并返回预挂载的 overlay 根容器（由 GameSession.CreateGameUI 调用一次）
+function GameOverDialog.CreateOverlay()
+    overlayRoot_ = UI.Panel {
+        id = "gameOverOverlay",
+        position = "absolute",
+        left = 0, top = 0, right = 0, bottom = 0,
+        pointerEvents = "box-none",
+        visible = false,
+    }
+    return overlayRoot_
+end
+
 -- 回收状态
 local recycleState = {
     selectedRarities = {},  -- { white=true, green=true, ... }
@@ -119,20 +135,45 @@ local function ConfirmGoHome()
     confirmModal_ = UI.Modal {
         title = "确认返回",
         size = "sm",
+        borderRadius = 0,
+        headerBgColor = { 30, 32, 38, 200 },
+        contentBgColor = { 22, 24, 30, 180 },
         onClose = function()
             confirmModal_ = nil
         end,
         children = {
-            UI.Label { text = "确定要返回竞拍大厅吗？", fontSize = 14 },
+            UI.Panel {
+                flexDirection = "column",
+                alignItems = "center",
+                gap = 8,
+                paddingVertical = 6,
+                children = {
+                    UI.Label {
+                        text = "确定要返回竞拍大厅吗？",
+                        fontSize = 15,
+                        fontColor = "#FFFFFF",
+                        fontWeight = "bold",
+                    },
+                },
+            },
         },
     }
     local footer = UI.Panel {
         flexDirection = "row",
-        justifyContent = "flex-end",
-        gap = 10, width = "100%",
+        justifyContent = "center",
+        gap = 12, width = "100%",
+        paddingVertical = 4,
     }
     footer:AddChild(UI.Button {
-        text = "取消", variant = "secondary",
+        text = "取消",
+        width = 110, height = 38,
+        fontSize = 14,
+        backgroundColor = { 50, 55, 65, 200 },
+        hoverBackgroundColor = { 70, 75, 90, 230 },
+        pressedBackgroundColor = { 35, 38, 48, 255 },
+        borderWidth = 1,
+        borderColor = { 100, 105, 120, 130 },
+        borderRadius = 0,
         onClick = function()
             Utils.PlayClick()
             confirmModal_:Close()
@@ -140,7 +181,16 @@ local function ConfirmGoHome()
         end,
     })
     footer:AddChild(UI.Button {
-        text = "确定", variant = "primary",
+        text = "确定",
+        width = 110, height = 38,
+        fontSize = 14,
+        fontWeight = "bold",
+        fontColor = { 255, 255, 255, 255 },
+        backgroundColor = { 185, 45, 35, 220 },
+        hoverBackgroundColor = { 210, 60, 48, 255 },
+        pressedBackgroundColor = { 150, 30, 22, 255 },
+        borderWidth = 0,
+        borderRadius = 0,
         onClick = function()
             Utils.PlayClick()
             confirmModal_:Close()
@@ -597,9 +647,17 @@ function GameOverDialog.Show()
         }
     }
 
-    if refs.gameRoot then
-        refs.gameRoot:AddChild(settlementPanel)
-        refs.gameRoot:AddChild(centerActionPanel)
+    -- 将两个面板放入预挂载的 overlay 容器，避免动态 AddChild 布局刷新问题
+    if overlayRoot_ then
+        overlayRoot_:AddChild(settlementPanel)
+        overlayRoot_:AddChild(centerActionPanel)
+        overlayRoot_:SetVisible(true)
+    else
+        -- 降级兜底：直接追加到 gameRoot（旧行为）
+        if refs.gameRoot then
+            refs.gameRoot:AddChild(settlementPanel)
+            refs.gameRoot:AddChild(centerActionPanel)
+        end
     end
 end
 
@@ -699,6 +757,10 @@ function GameOverDialog.Hide()
     if centerActionPanel then
         centerActionPanel:Remove()
         centerActionPanel = nil
+    end
+    -- 隐藏并清空 overlay 容器（下一局 Show 时重新填充）
+    if overlayRoot_ then
+        overlayRoot_:SetVisible(false)
     end
     anim.lootLabel = nil
     anim.profitLabel = nil

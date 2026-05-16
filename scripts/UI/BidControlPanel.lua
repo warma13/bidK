@@ -352,22 +352,48 @@ local function OnBidButtonClicked()
                 bidConfirmModal_ = UI.Modal {
                     title = "出价提醒",
                     size = "sm",
+                    borderRadius = 0,
+                    headerBgColor = { 30, 32, 38, 200 },
+                    contentBgColor = { 22, 24, 30, 180 },
+                    onClose = function()
+                        bidConfirmModal_ = nil
+                    end,
                     children = {
-                        UI.Label {
-                            text = confirmReason,
-                            fontSize = 14,
+                        UI.Panel {
+                            flexDirection = "column",
+                            alignItems = "center",
+                            gap = Utils.sz(6),
+                            paddingVertical = Utils.sz(4),
+                            children = {
+    
+                                UI.Label {
+                                    text = confirmReason,
+                                    fontSize = Utils.sz(13),
+                                    fontColor = { 210, 215, 230, 255 },
+                                    textAlign = "center",
+                                    lineHeight = 1.5,
+                                },
+                            },
                         },
                     },
                 }
                 local footer = UI.Panel {
                     flexDirection = "row",
-                    justifyContent = "flex-end",
-                    gap = 10,
+                    justifyContent = "center",
+                    gap = Utils.sz(12),
                     width = "100%",
+                    paddingVertical = Utils.sz(4),
                 }
                 footer:AddChild(UI.Button {
                     text = "取消",
-                    variant = "secondary",
+                    flexGrow = 1, height = Utils.sz(38),
+                    fontSize = Utils.sz(14),
+                    backgroundColor = { 50, 55, 65, 200 },
+                    hoverBackgroundColor = { 70, 75, 90, 230 },
+                    pressedBackgroundColor = { 35, 38, 48, 255 },
+                    borderWidth = 1,
+                    borderColor = { 100, 105, 120, 130 },
+                    borderRadius = 0,
                     onClick = function()
                         Utils.PlayClick()
                         CloseBidConfirmModal()
@@ -375,7 +401,15 @@ local function OnBidButtonClicked()
                 })
                 footer:AddChild(UI.Button {
                     text = "确认出价",
-                    variant = "primary",
+                    flexGrow = 1, height = Utils.sz(38),
+                    fontSize = Utils.sz(14),
+                    fontWeight = "bold",
+                    fontColor = { 255, 255, 255, 255 },
+                    backgroundColor = { 60, 170, 130, 255 },
+                    hoverBackgroundColor = { 80, 200, 155, 255 },
+                    pressedBackgroundColor = { 45, 140, 105, 255 },
+                    borderWidth = 0,
+                    borderRadius = 0,
                     onClick = function()
                         Utils.PlayClick()
                         CloseBidConfirmModal()
@@ -420,30 +454,33 @@ function BidControlPanel.Create()
 
     -- 键盘区×倍率数值标签
     refs.bidMultiplierValueLabel = UI.Label {
-        text = "×1.0", fontSize = 12, fontColor = { 255, 255, 255, 255 }, fontWeight = "bold",
+        text = "×1.0", fontSize = sz(12), fontColor = { 255, 255, 255, 255 }, fontWeight = "bold",
     }
 
     -- 金额显示
     refs.bidAmountLabel = UI.Label {
-        text = "0", fontSize = 22, fontColor = C.accent, textAlign = "right", fontWeight = "bold",
+        text = "0", fontSize = sz(22), fontColor = C.accent, textAlign = "right", fontWeight = "bold",
     }
 
     -- 确认按钮
     refs.bidButton = UI.Button {
         text = "确认出价",
-        width = "100%", height = 36, fontSize = 13,
+        width = "100%", height = sz(36), fontSize = sz(13),
         onClick = function() OnBidButtonClicked() end,
     }
 
     -- 倍率提示
     refs.bidMultiplierLabel = UI.Label {
-        text = "", fontSize = 11, fontColor = KB.txtDim, lineHeight = 1.4,
+        text = "", fontSize = sz(11), fontColor = KB.txtDim, lineHeight = 1.4,
     }
 
     -- 数字键按钮生成
-    local function keyBtn(label, w, onPress)
+    local KEY_W = sz(52)
+    local KEY_H = sz(42)
+    local SIDE_W = sz(56)
+    local function keyBtn(label, onPress)
         return UI.Button {
-            text = label, width = w or 52, height = 42, fontSize = 15,
+            text = label, width = KEY_W, height = KEY_H, fontSize = sz(15),
             backgroundColor = KB.btn,
             borderRadius = KB.radius,
             textColor = KB.txtW,
@@ -454,17 +491,16 @@ function BidControlPanel.Create()
     end
 
     -- 出价弹出面板（由 GameController 提升到根级别，定位相对于全屏 uiRoot）
-    -- paddingVertical="6%" 在 Yoga 中基于宽度解析（同 CSS）
-    local bidBottom = math.floor(UI.GetWidth() * 0.06 + 50)
+    local bidBottom = math.floor(UI.GetWidth() * 0.06 + sz(50))
     refs.bidPanel = UI.Panel {
         id = "bidPanel",
         position = "absolute",
         bottom = bidBottom,
         left = "24%",
-        width = 420,
+        width = KEY_W * 3 + SIDE_W + sz(6) * 3 + sz(12) + sz(160),  -- 键盘+侧栏+右栏自适应
         backgroundColor = KB.bg,
         borderRadius = 0,
-        padding = 6, gap = 8,
+        padding = sz(6), gap = sz(8),
         flexDirection = "row",
         visible = false,
         children = {
@@ -477,35 +513,35 @@ function BidControlPanel.Create()
                         flexDirection = "column", gap = KB.gap,
                         children = {
                             UI.Panel { flexDirection = "row", gap = KB.gap, children = {
-                                keyBtn("1", 52, function() AppendBidDigit("1") end),
-                                keyBtn("2", 52, function() AppendBidDigit("2") end),
-                                keyBtn("3", 52, function() AppendBidDigit("3") end),
+                                keyBtn("1", function() AppendBidDigit("1") end),
+                                keyBtn("2", function() AppendBidDigit("2") end),
+                                keyBtn("3", function() AppendBidDigit("3") end),
                             }},
                             UI.Panel { flexDirection = "row", gap = KB.gap, children = {
-                                keyBtn("4", 52, function() AppendBidDigit("4") end),
-                                keyBtn("5", 52, function() AppendBidDigit("5") end),
-                                keyBtn("6", 52, function() AppendBidDigit("6") end),
+                                keyBtn("4", function() AppendBidDigit("4") end),
+                                keyBtn("5", function() AppendBidDigit("5") end),
+                                keyBtn("6", function() AppendBidDigit("6") end),
                             }},
                             UI.Panel { flexDirection = "row", gap = KB.gap, children = {
-                                keyBtn("7", 52, function() AppendBidDigit("7") end),
-                                keyBtn("8", 52, function() AppendBidDigit("8") end),
-                                keyBtn("9", 52, function() AppendBidDigit("9") end),
+                                keyBtn("7", function() AppendBidDigit("7") end),
+                                keyBtn("8", function() AppendBidDigit("8") end),
+                                keyBtn("9", function() AppendBidDigit("9") end),
                             }},
                             UI.Panel { flexDirection = "row", gap = KB.gap, children = {
-                                keyBtn("0", 52, function() AppendBidDigit("0") end),
-                                keyBtn("00", 52, function() AppendBidDigit("00") end),
-                                keyBtn("000", 52, function() AppendBidDigit("000") end),
+                                keyBtn("0",   function() AppendBidDigit("0") end),
+                                keyBtn("00",  function() AppendBidDigit("00") end),
+                                keyBtn("000", function() AppendBidDigit("000") end),
                             }},
                         }
                     },
                     -- 3个竖向按钮
                     UI.Panel {
                         flexDirection = "column", gap = KB.gap,
-                        width = 56,
+                        width = SIDE_W,
                         children = {
                             -- 退格按钮
                             UI.Panel {
-                                width = 56, flexGrow = 1,
+                                width = SIDE_W, flexGrow = 1,
                                 backgroundImage = "backspace_icon_20260318061717.png",
                                 backgroundFit = "contain",
                                 backgroundColor = KB.btn,
@@ -520,7 +556,7 @@ function BidControlPanel.Create()
                             },
                             -- ×倍率按钮
                             UI.Panel {
-                                width = 56, flexGrow = 2,
+                                width = SIDE_W, flexGrow = 2,
                                 backgroundColor = KB.accent,
                                 borderRadius = KB.radius,
                                 justifyContent = "center", alignItems = "center",
@@ -534,7 +570,7 @@ function BidControlPanel.Create()
                             },
                             -- 清空按钮
                             UI.Panel {
-                                width = 56, flexGrow = 1,
+                                width = SIDE_W, flexGrow = 1,
                                 backgroundColor = KB.btn,
                                 borderRadius = KB.radius,
                                 justifyContent = "center", alignItems = "center",
@@ -545,7 +581,7 @@ function BidControlPanel.Create()
                                 onPointerUp = function(_, w) w:SetStyle({ backgroundColor = KB.btn }) end,
                                 onPointerLeave = function(_, w) w:SetStyle({ backgroundColor = KB.btn }) end,
                                 children = {
-                                    UI.Label { text = "清空", fontSize = 12, fontColor = KB.txtDim },
+                                    UI.Label { text = "清空", fontSize = sz(12), fontColor = KB.txtDim },
                                 }
                             },
                         }
@@ -554,7 +590,7 @@ function BidControlPanel.Create()
             },
             -- 右栏：信息 + 金额 + 确认
             UI.Panel {
-                flexDirection = "column", gap = 6,
+                flexDirection = "column", gap = sz(6),
                 flexGrow = 1, flexShrink = 1,
                 justifyContent = "space-between",
                 children = {
@@ -564,7 +600,7 @@ function BidControlPanel.Create()
                         backgroundColor = { 10, 12, 20, 255 },
                         borderRadius = KB.radius, borderWidth = 1,
                         borderColor = { 80, 90, 110, 180 },
-                        padding = { 8, 10 },
+                        paddingVertical = sz(8), paddingHorizontal = sz(10),
                         justifyContent = "center", alignItems = "flex-end",
                         children = { refs.bidAmountLabel },
                     },
@@ -576,18 +612,28 @@ function BidControlPanel.Create()
 
     -- 底部工具栏按钮
     refs.toolbarBidBtn = UI.Button {
-        text = "出价", width = 120, height = 42, fontSize = 14,
+        text = "出价", width = sz(120), height = sz(42), fontSize = sz(14),
         variant = "primary",
+        textColor = { 20, 25, 10, 255 },
+        fontWeight = "bold",
         onClick = function() Utils.PlayClick() ToggleBidPanel() end,
     }
 
     refs.toolbarForfeitBtn = UI.Button {
-        text = "弃权", width = 80, height = 42, fontSize = 13,
+        text = "弃权", width = sz(80), height = sz(42), fontSize = sz(13),
+        backgroundColor = { 180, 45, 45, 255 },
+        hoverBackgroundColor = { 210, 60, 60, 255 },
+        pressedBackgroundColor = { 150, 30, 30, 255 },
+        textColor = { 255, 220, 220, 255 },
         onClick = function() OnForfeitClicked() end,
     }
 
     refs.toolbarPropBtn = UI.Button {
-        text = "道具", width = 80, height = 42, fontSize = 13,
+        text = "道具", width = sz(80), height = sz(42), fontSize = sz(13),
+        backgroundColor = { 60, 100, 180, 255 },
+        hoverBackgroundColor = { 80, 120, 210, 255 },
+        pressedBackgroundColor = { 45, 80, 155, 255 },
+        textColor = { 210, 225, 255, 255 },
         onClick = function() Utils.PlayClick() OnPropButtonClicked() end,
     }
 
@@ -865,7 +911,7 @@ function BidControlPanel.Create()
             -- 底部工具栏（marginTop=auto 推到底部，与战利品仓库底部对齐）
             UI.Panel {
                 id = "bottomToolbar",
-                width = "100%", height = 50,
+                width = "100%", height = sz(50),
                 backgroundColor = C.bgPanel,
                 borderRadius = 0,
                 flexDirection = "row",

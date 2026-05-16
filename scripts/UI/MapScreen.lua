@@ -34,11 +34,33 @@ function MapScreen.Show(onBackCallback, onRegionSelected)
             left = tostring(math.floor(region.mapX * 100)) .. "%",
             top  = tostring(math.floor(region.mapY * 100)) .. "%",
             marginLeft = -sz(80), marginTop = -sz(20),
-            backgroundColor = { 40, 45, 70, 200 },
-            borderRadius = 0, borderWidth = math.max(1, sz(2)),
-            borderColor = { 200, 200, 220, 180 },
+            backgroundColor = { 10, 12, 20, 160 },
+            borderRadius = 0, borderWidth = 1,
+            borderColor = { 220, 225, 235, 120 },
             justifyContent = "center", alignItems = "center",
             cursor = "pointer",
+            hoverStyle = {
+                backgroundColor = { 30, 35, 50, 200 },
+                borderColor = { 220, 225, 235, 200 },
+            },
+            onPointerDown = function(_, w)
+                w:SetStyle({
+                    backgroundColor = { 195, 215, 40, 120 },
+                    borderColor = { 195, 215, 40, 255 },
+                })
+            end,
+            onPointerUp = function(_, w)
+                w:SetStyle({
+                    backgroundColor = { 10, 12, 20, 160 },
+                    borderColor = { 220, 225, 235, 120 },
+                })
+            end,
+            onPointerLeave = function(_, w)
+                w:SetStyle({
+                    backgroundColor = { 10, 12, 20, 160 },
+                    borderColor = { 220, 225, 235, 120 },
+                })
+            end,
             onClick = function()
                 Utils.PlayClick()
                 if onRegionSelected then
@@ -50,6 +72,7 @@ function MapScreen.Show(onBackCallback, onRegionSelected)
                     text = region.name, fontSize = sz(13),
                     fontColor = C.textPrimary, fontWeight = "bold",
                     textAlign = "center",
+                    pointerEvents = "none",
                 },
             },
         }
@@ -105,13 +128,29 @@ function MapScreen.Show(onBackCallback, onRegionSelected)
                 position = "absolute",
                 bottom = sz(6), left = sz(8),
                 children = {
-                    UI.Button {
-                        text = "← 返回",
-                        width = sz(72), height = sz(30), fontSize = sz(12),
+                    UI.Panel {
+                        height = sz(30),
+                        paddingHorizontal = sz(12),
+                        backgroundColor = { 195, 215, 40, 20 },
+                        borderWidth = 1,
+                        borderColor = { 195, 215, 40, 160 },
+                        flexDirection = "row",
+                        alignItems = "center",
+                        cursor = "pointer",
+                        hoverStyle = { backgroundColor = { 195, 215, 40, 50 } },
                         onClick = function()
                             Utils.PlayClick()
                             if onBackCallback then onBackCallback() end
                         end,
+                        children = {
+                            UI.Label {
+                                text = "返回",
+                                fontSize = sz(12),
+                                fontColor = { 195, 215, 40, 230 },
+                                fontWeight = "bold",
+                                pointerEvents = "none",
+                            },
+                        },
                     },
                 },
             },

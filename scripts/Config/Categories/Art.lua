@@ -86,15 +86,15 @@ Art.items = {
     { name = "粗陶花瓶",         rows = 1, cols = 1, quality = "purple",  value = 3492, weight = 4,    desc = "民间艺人手捏的粗陶花瓶，釉色素雅",     image = IMG .. "艺术/粗陶花瓶.png" },
     { name = "老年画原版",       rows = 1, cols = 2, quality = "gold",    value = 10181, weight = 16,    desc = "杨柳青年画木版原版，刻工细腻",         image = IMG .. "艺术/老年画原版.png" },
     { name = "民国月份牌",       rows = 1, cols = 1, quality = "gold",    value = 15235, weight = 11,    desc = "民国彩印美女月份牌广告画",             image = IMG .. "艺术/民国月份牌.png" },
-    { name = "清宫如意",         rows = 2, cols = 1, quality = "red",     value = 104218, weight = 232,  desc = "紫檀嵌玉如意，做工精细",               image = IMG .. "艺术/清宫如意.png" },
-    { name = "宋代瓷枕",         rows = 1, cols = 2, quality = "red",     value = 558839, weight = 40,  desc = "磁州窑虎形瓷枕，纹饰清晰",             image = IMG .. "艺术/宋代瓷枕.png" },
+    { name = "清宫如意",         rows = 2, cols = 1, quality = "red",     value = 104218, weight = 12,  desc = "紫檀嵌玉如意，做工精细",               image = IMG .. "艺术/清宫如意.png" },
+    { name = "宋代瓷枕",         rows = 1, cols = 2, quality = "red",     value = 558839, weight = 6,  desc = "磁州窑虎形瓷枕，纹饰清晰",             image = IMG .. "艺术/宋代瓷枕.png" },
     { name = "老铜墨盒",       rows = 1, cols = 1, quality = "purple",  value = 2618, weight = 4,    desc = "盖面刻山水画的文房铜墨盒",                 image = IMG .. "艺术/老铜墨盒.png" },
     { name = "核雕手串",       rows = 1, cols = 1, quality = "purple",  value = 2156, weight = 5,    desc = "橄榄核雕十八罗汉手串",                     image = IMG .. "艺术/核雕手串.png" },
     { name = "木版年画",       rows = 1, cols = 2, quality = "purple",  value = 4871, weight = 3,    desc = "保存尚好的老版杨柳青年画",                 image = IMG .. "艺术/木版年画.png" },
     { name = "石雕门墩",       rows = 2, cols = 2, quality = "gold",    value = 15573, weight = 11,    desc = "青石抱鼓石门墩，浮雕狮子",                 image = IMG .. "艺术/石雕门墩.png" },
     { name = "铜制文镇",       rows = 1, cols = 1, quality = "gold",    value = 10458, weight = 15,    desc = "铜雕卧牛造型文镇，做工精致",               image = IMG .. "艺术/铜制文镇.png" },
-    { name = "明代木雕佛像",   rows = 2, cols = 2, quality = "red",     value = 152813, weight = 155,  desc = "金漆大部脱落的明代木雕观音",               image = IMG .. "艺术/明代木雕佛像.png" },
-    { name = "唐卡残片",       rows = 1, cols = 2, quality = "red",     value = 60493, weight = 410,  desc = "带矿物颜料的老唐卡画面残片",               image = IMG .. "艺术/唐卡残片.png" },
+    { name = "明代木雕佛像",   rows = 2, cols = 2, quality = "red",     value = 152813, weight = 10,  desc = "金漆大部脱落的明代木雕观音",               image = IMG .. "艺术/明代木雕佛像.png" },
+    { name = "唐卡残片",       rows = 1, cols = 2, quality = "red",     value = 60493, weight = 15,  desc = "带矿物颜料的老唐卡画面残片",               image = IMG .. "艺术/唐卡残片.png" },
 
     -- ===== DataCenter 赛博艺术物品 =====
     -- 白 x5
