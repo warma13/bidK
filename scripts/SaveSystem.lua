@@ -82,6 +82,44 @@ local saveData = {
 }
 
 -- ============================================================================
+-- 数据消毒：递归清理 NaN / Inf / function / userdata，防止 cjson 编码崩溃
+-- ============================================================================
+
+local function SanitizeTable(t, path, visited)
+    path    = path    or "root"
+    visited = visited or {}
+    if visited[t] then
+        print("[SaveSystem] SanitizeTable: circular ref at " .. path .. ", skipped")
+        return {}
+    end
+    visited[t] = true
+
+    local out = {}
+    for k, v in pairs(t) do
+        local tp = type(v)
+        if tp == "number" then
+            if v ~= v then        -- NaN
+                print("[SaveSystem] SanitizeTable: NaN replaced at " .. path .. "." .. tostring(k))
+                out[k] = 0
+            elseif v == math.huge or v == -math.huge then
+                print("[SaveSystem] SanitizeTable: Inf replaced at " .. path .. "." .. tostring(k))
+                out[k] = 0
+            else
+                out[k] = v
+            end
+        elseif tp == "string" or tp == "boolean" then
+            out[k] = v
+        elseif tp == "table" then
+            out[k] = SanitizeTable(v, path .. "." .. tostring(k), visited)
+        else
+            -- function / userdata / thread → 丢弃
+            print("[SaveSystem] SanitizeTable: dropped " .. tp .. " at " .. path .. "." .. tostring(k))
+        end
+    end
+    return out
+end
+
+-- ============================================================================
 -- DJB2 校验
 -- ============================================================================
 
@@ -396,9 +434,10 @@ SaveFramework.Register(MODULE_NAME, {
         KEY_HEAD, KEY_CORE, KEY_ITEMS, KEY_STATS, KEY_SETTINGS,
     },
     -- 投机性预取：物品分片 key（玩家可能有 0-N 片）
+    -- 10 片 × 8000 bytes ≈ 最多 ~700 件物品
     speculativeKeys = {
-        "save_items_0", "save_items_1", "save_items_2",
-        "save_items_3", "save_items_4",
+        "save_items_0", "save_items_1", "save_items_2", "save_items_3", "save_items_4",
+        "save_items_5", "save_items_6", "save_items_7", "save_items_8", "save_items_9",
     },
 
     -- 从 BatchGet 返回的 values 中恢复存档数据
@@ -437,15 +476,20 @@ SaveFramework.Register(MODULE_NAME, {
                 for i = 0, info.chunks - 1 do
                     local part = values[keyBase .. "_" .. i]
                     if not part then
-                        print("[SaveSystem] Missing chunk: " .. keyBase .. "_" .. i)
+                        print("[SaveSystem] Missing chunk: " .. keyBase .. "_" .. i
+                            .. " (need " .. info.chunks .. " chunks total)")
                         allFound = false
                         break
                     end
                     parts[#parts + 1] = part
                 end
-                if allFound then
-                    json = table.concat(parts)
+                if not allFound then
+                    -- 分片不完整，拒绝加载，让 Standalone 提示重试
+                    -- 不设 saveConfirmed，防止不完整数据覆盖云端存档
+                    print("[SaveSystem] Incomplete chunks for group '" .. groupName .. "', aborting load")
+                    return
                 end
+                json = table.concat(parts)
             else
                 json = values[keyBase]
             end
@@ -490,9 +534,16 @@ SaveFramework.Register(MODULE_NAME, {
         saveData.playTime = playTime
 
         local groups = splitIntoGroups()
+
+        -- 消毒：清理 NaN / Inf / function，防止 cjson 编码崩溃导致本次保存静默放弃
+        local sanitized = {}
+        for groupName, groupData in pairs(groups) do
+            sanitized[groupName] = SanitizeTable(groupData, groupName)
+        end
+
         local headKeys = {}
 
-        for groupName, groupData in pairs(groups) do
+        for groupName, groupData in pairs(sanitized) do
             local chunks, checksums, lengths = encodeAndChunk(groupData)
             local keyBase = "save_" .. groupName
 
@@ -594,9 +645,15 @@ function SaveSystem.WriteToBatch(batch)
     saveData.playTime = playTime
 
     local groups = splitIntoGroups()
+
+    local sanitized = {}
+    for groupName, groupData in pairs(groups) do
+        sanitized[groupName] = SanitizeTable(groupData, groupName)
+    end
+
     local headKeys = {}
 
-    for groupName, groupData in pairs(groups) do
+    for groupName, groupData in pairs(sanitized) do
         local chunks, checksums, lengths = encodeAndChunk(groupData)
         local keyBase = "save_" .. groupName
         if #chunks == 1 then
