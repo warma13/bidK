@@ -7,6 +7,7 @@ local Config = require("Config")
 local GameState = require("GameState")
 local UIState = require("UI.UIState")
 local Utils = require("UI.Utils")
+local Props = require("Config.Props")
 local PlayerListPanel = {}
 
 local refs = UIState.refs
@@ -26,6 +27,20 @@ local lastRoundBidsSnapshot = {}  -- 上次各玩家各轮出价快照 [idx][r] 
 local lastBidVisible = {}      -- 上次出价区域可见状态 [idx] = bool
 local lastBidText = {}         -- 上次出价文本 [idx] = string
 local lastBidWidth = {}        -- 上次出价宽度 [idx] = number
+local lastRoundPropSnapshot = {}  -- 上次道具使用快照 [idx][r] = propId or ""
+
+-- 道具品质层级颜色（与 PropScreen/BidControlPanel 保持一致）
+local function GetTierColors(price)
+    if price <= 2000 then
+        return { hexTint = nil,                    headerBg = { 75, 78, 88, 255 },   headerText = { 210, 212, 220, 255 } }
+    elseif price <= 5000 then
+        return { hexTint = { 80, 230, 120, 255 },  headerBg = { 30, 110, 65, 255 },  headerText = { 190, 255, 210, 255 } }
+    else
+        return { hexTint = { 200, 100, 255, 255 }, headerBg = { 85, 35, 130, 255 },  headerText = { 230, 200, 255, 255 } }
+    end
+end
+
+
 
 -- 出价揭示动画状态（UI 驱动）
 local revealAnim = {
@@ -58,10 +73,59 @@ local function CreatePlayerCard(idx)
     -- 轮次道具格 + 出价
     refs.playerRoundSlots[idx] = {}
     refs.playerRoundBids[idx] = {}
+    if not refs.playerRoundSlotPanels then refs.playerRoundSlotPanels = {} end
+    refs.playerRoundSlotPanels[idx] = {}
     local roundSlotChildren = {}
     for r = 1, maxRounds do
         local slotLabel = UI.Label { text = "", fontSize = 11, textAlign = "center" }
         refs.playerRoundSlots[idx][r] = slotLabel
+
+        -- 道具图标：六边形背景框 + 图标图片（使用道具后显示）
+        local propHexFrame = UI.Panel {
+            position = "absolute",
+            width = "70%", height = "86%",
+            backgroundImage = "image/ui_hex_frame_trimmed.png",
+            backgroundFit = "fill",
+            visible = false,
+        }
+        local propIconImg = UI.Panel {
+            position = "absolute",
+            width = "48%", height = "48%",
+            backgroundImage = "",
+            backgroundFit = "contain",
+            visible = false,
+        }
+
+        local slotPanel = UI.Panel {
+            width = "100%", aspectRatio = 1,
+            backgroundColor = { 50, 55, 80, 180 },
+            borderRadius = 0,
+            justifyContent = "center", alignItems = "center",
+            children = { slotLabel, propHexFrame, propIconImg },
+        }
+
+        -- 用 Popover 包裹道具槽，onOpen 时动态填入道具名+描述
+        local slotWidget = (function(playerI, roundI)
+            return UI.Popover {
+                trigger = "click",
+                placement = "right",
+                maxWidth = 240,
+                onOpen = function(pop)
+                    local roundUsage = GS.GetRoundPropUsage()
+                    local usage = roundUsage[roundI] and roundUsage[roundI][playerI]
+                    if not usage then pop:Close() return end
+                    local def = Props.BY_ID[usage.id]
+                    if not def then pop:Close() return end
+                    local players = GS.GetPlayers()
+                    local who = players[playerI] and players[playerI].name or ("玩家" .. playerI)
+                    pop:SetTitle(def.name .. "  ·  第" .. roundI .. "轮 · " .. who)
+                    pop:SetContent(def.desc)
+                end,
+                children = { slotPanel },
+            }
+        end)(idx, r)
+
+        refs.playerRoundSlotPanels[idx][r] = { panel = slotPanel, propIcon = propIconImg, propHexFrame = propHexFrame }
 
         local bidLabel = UI.Label {
             text = "", fontSize = 8, fontColor = C.textMuted, textAlign = "center",
@@ -73,13 +137,7 @@ local function CreatePlayerCard(idx)
             flexGrow = 1, flexBasis = 0,
             children = {
                 UI.Label { text = tostring(r), fontSize = 8, fontColor = C.textMuted, textAlign = "center" },
-                UI.Panel {
-                    width = "100%", aspectRatio = 1,
-                    backgroundColor = { 50, 55, 80, 180 },
-                    borderRadius = 0,
-                    justifyContent = "center", alignItems = "center",
-                    children = { slotLabel },
-                },
+                slotWidget,
                 bidLabel,
             }
         }
@@ -168,25 +226,44 @@ local function CreatePlayerCard(idx)
                         flexDirection = "column", alignItems = "center", gap = 1,
                         flexShrink = 1,
                         children = {
-                            UI.Panel {
-                                id = "playerAvatar_" .. idx,
-                                width = 40, height = 44,
-                                backgroundColor = { 50, 55, 80, 200 },
-                                borderRadius = 0,
-                                justifyContent = "center", alignItems = "center",
-                                children = {
-                                    (function()
-                                        local icon = UI.Panel {
-                                            width = 28, height = 28,
-                                            backgroundImage = "",
-                                            backgroundFit = "cover",
-                                            borderRadius = 0,
-                                        }
-                                        refs.playerAvatarIcons[idx] = icon
-                                        return icon
-                                    end)()
+                            -- 用 Popover 包裹头像，onOpen 时动态填入角色信息
+                            (function(playerI)
+                                local icon = UI.Panel {
+                                    width = 28, height = 28,
+                                    backgroundImage = "",
+                                    backgroundFit = "cover",
+                                    borderRadius = 0,
                                 }
-                            },
+                                refs.playerAvatarIcons[playerI] = icon
+                                return UI.Popover {
+                                    trigger = "click",
+                                    placement = "right",
+                                    maxWidth = 220,
+                                    onOpen = function(pop)
+                                        local players = GS.GetPlayers()
+                                        local player = players[playerI]
+                                        if not player then pop:Close() return end
+                                        local ch = player.character
+                                        pop:SetTitle(ch.name or "")
+                                        local content = ""
+                                        if ch.ability and ch.ability ~= "" then
+                                            content = ch.ability .. "\n\n"
+                                        end
+                                        content = content .. (ch.desc or "")
+                                        pop:SetContent(content)
+                                    end,
+                                    children = {
+                                        UI.Panel {
+                                            id = "playerAvatar_" .. playerI,
+                                            width = 40, height = 44,
+                                            backgroundColor = { 50, 55, 80, 200 },
+                                            borderRadius = 0,
+                                            justifyContent = "center", alignItems = "center",
+                                            children = { icon },
+                                        },
+                                    },
+                                }
+                            end)(idx),
                             charLabel,
                         }
                     },
@@ -215,7 +292,7 @@ function PlayerListPanel.Create()
         backgroundColor = { 0, 0, 0, 0 },
         flexDirection = "column",
         gap = 4,
-        overflow = "hidden",
+        overflow = "visible",
         children = cards,
     }
 end
@@ -295,6 +372,40 @@ function PlayerListPanel.Update()
         lastBidVisible = {}
         lastBidText = {}
         lastBidWidth = {}
+        lastRoundPropSnapshot = {}
+    end
+
+    -- 更新道具图标（轮次格）
+    local roundPropUsage = GS.GetRoundPropUsage()
+    for idx = 1, 4 do
+        if not lastRoundPropSnapshot[idx] then lastRoundPropSnapshot[idx] = {} end
+        local slotPanels = refs.playerRoundSlotPanels and refs.playerRoundSlotPanels[idx]
+        if slotPanels then
+            for r = 1, maxRounds do
+                local usage = roundPropUsage[r] and roundPropUsage[r][idx]
+                local newPropId = usage and usage.id or ""
+                if newPropId ~= lastRoundPropSnapshot[idx][r] then
+                    lastRoundPropSnapshot[idx][r] = newPropId
+                    local sp = slotPanels[r]
+                    if sp then
+                        if newPropId ~= "" then
+                            local def = Props.BY_ID[newPropId]
+                            local imgPath = def and def.iconImage or ""
+                            local tier = def and GetTierColors(def.price) or GetTierColors(0)
+                            sp.propIcon:SetStyle({ backgroundImage = imgPath })
+                            sp.propIcon:SetVisible(true)
+                            sp.propHexFrame:SetStyle({ imageTint = tier.hexTint })
+                            sp.propHexFrame:SetVisible(true)
+                            -- 有道具时隐藏普通文字标签
+                            refs.playerRoundSlots[idx][r]:SetText("")
+                        else
+                            sp.propIcon:SetVisible(false)
+                            sp.propHexFrame:SetVisible(false)
+                        end
+                    end
+                end
+            end
+        end
     end
 
     for idx = 1, 4 do

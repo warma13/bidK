@@ -60,6 +60,8 @@ local state = {
     currentBidder = 0,
     bidHistory = {},
     roundBids = {},             -- { [round] = { [playerIdx] = amount } } 每轮出价记录
+    roundPropUsage = {},        -- { [round] = { [playerIdx] = propId } } 每轮道具使用记录
+    aiProps = {},               -- { [playerIdx] = { { id=propId, used=false }, ... } } AI持有的道具
 
     -- 倒计时
     timer = 0,
@@ -116,6 +118,8 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
     -- 创建玩家
     state.players = {}
     state.roundBids = {}
+    state.roundPropUsage = {}
+    state.aiProps = {}
 
     if playersConfig then
         -- ========================================
@@ -232,6 +236,9 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
     -- 通知资金变动（人类玩家初始资金）
     MoneyManager.NotifyMoneyChanged(1, state.players[1].money)
 
+    -- 初始化 AI 道具（按难度/tier 随机分配）
+    GameState._InitAIProps(diffIdx)
+
     print("[GameState] Initialized. Warehouse: " .. state.warehouseName)
     print("[GameState] Items: " .. #state.warehouseItems .. ", Total value: " .. state.warehouseTotalValue)
     for idx, player in ipairs(state.players) do
@@ -239,6 +246,117 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
             .. ") money=" .. player.money
             .. " skill=" .. (player.character.activeSkill and player.character.activeSkill.name or "none"))
     end
+end
+
+-- ============================================================================
+-- AI 道具初始化
+-- ============================================================================
+
+--- 按难度为 AI 玩家随机分配若干道具（不同品质）
+---@param diffIdx number 难度索引（1=简单, 2=普通, 3=困难...）
+function GameState._InitAIProps(diffIdx)
+    local Props = require("Config.Props")
+    -- 按难度决定 AI 道具数量和可用品质档次
+    -- diffIdx 1: 低档道具(price<=1500)，0~1个
+    -- diffIdx 2: 低+中档(price<=2500)，1~2个
+    -- diffIdx 3+: 所有档次，2~3个
+    local d = diffIdx or 1
+    local maxCount, maxPrice
+    if d <= 1 then
+        maxCount = 1; maxPrice = 1500
+    elseif d == 2 then
+        maxCount = 2; maxPrice = 2500
+    else
+        maxCount = 3; maxPrice = 99999
+    end
+
+    -- 筛选可用道具
+    local availProps = {}
+    for _, def in ipairs(Props.LIST) do
+        if def.price <= maxPrice then
+            availProps[#availProps + 1] = def
+        end
+    end
+    if #availProps == 0 then return end
+
+    -- 为每个 AI 玩家分配道具
+    for idx, player in ipairs(state.players) do
+        if not player.isHuman then
+            local count = math.random(0, maxCount)
+            local assigned = {}
+            -- 不重复地随机选道具
+            local pool = {}
+            for _, def in ipairs(availProps) do pool[#pool + 1] = def end
+            for i = #pool, 2, -1 do
+                local j = math.random(1, i)
+                pool[i], pool[j] = pool[j], pool[i]
+            end
+            for i = 1, math.min(count, #pool) do
+                assigned[#assigned + 1] = { id = pool[i].id, def = pool[i], used = false }
+            end
+            state.aiProps[idx] = assigned
+            if #assigned > 0 then
+                local names = {}
+                for _, ap in ipairs(assigned) do names[#names + 1] = ap.def.name end
+                print("[GameState] AI " .. idx .. " props: " .. table.concat(names, ", "))
+            end
+        end
+    end
+end
+
+--- 记录某轮某玩家使用了道具
+---@param round number
+---@param playerIdx number
+---@param propId string
+---@param propName string
+function GameState.RecordPropUsage(round, playerIdx, propId, propName)
+    if not state.roundPropUsage[round] then
+        state.roundPropUsage[round] = {}
+    end
+    state.roundPropUsage[round][playerIdx] = { id = propId, name = propName }
+    print("[GameState] Round " .. round .. " player " .. playerIdx .. " used prop: " .. propName)
+end
+
+--- 获取每轮道具使用记录
+---@return table { [round] = { [playerIdx] = { id, name } } }
+function GameState.GetRoundPropUsage()
+    return state.roundPropUsage
+end
+
+--- 获取 AI 玩家分配的道具列表
+---@param playerIdx number
+---@return table { { id, def, used }, ... }
+function GameState.GetAIProps(playerIdx)
+    return state.aiProps[playerIdx] or {}
+end
+
+--- 标记某 AI 已使用本轮道具
+---@param playerIdx number
+---@param propIndex number 在 aiProps[playerIdx] 中的下标
+function GameState.MarkAIPropUsed(playerIdx, propIndex)
+    local props = state.aiProps[playerIdx]
+    if props and props[propIndex] then
+        props[propIndex].used = true
+    end
+end
+
+--- 获取 AI 本轮可用道具（未使用过的）
+---@param playerIdx number
+---@param round number
+---@return table|nil  第一个可用道具的条目，或 nil
+function GameState.GetAIAvailableProp(playerIdx, round)
+    -- 检查本轮该 AI 是否已使用
+    local usage = state.roundPropUsage[round]
+    if usage and usage[playerIdx] then return nil end  -- 本轮已用过
+
+    local props = state.aiProps[playerIdx]
+    if not props then return nil end
+    for i, ap in ipairs(props) do
+        if not ap.used then
+            return ap, i
+        end
+    end
+    return nil
 end
 
 -- ============================================================================

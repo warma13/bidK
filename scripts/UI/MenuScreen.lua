@@ -37,25 +37,30 @@ local function CreateAnnouncementButton(announcementOverlay)
     local visible = false
 
     local btn = UI.Panel {
-        height = sz(38),
-        backgroundColor = { 0, 0, 0, 100 },
-        borderRadius = 0,
-        paddingHorizontal = sz(12),
-        flexDirection = "row",
-        alignItems = "center",
-        gap = sz(5),
+        paddingHorizontal = sz(10), paddingVertical = sz(4),
+        flexDirection = "column",
+        alignItems = "center", justifyContent = "center",
+        gap = sz(2),
         cursor = "pointer",
+        backgroundColor = { 20, 24, 38, 180 },
+        borderWidth = 1,
+        borderColor = { 70, 85, 130, 160 },
+        borderRadius = sz(6),
         onClick = function()
             Utils.PlayClick()
             visible = not visible
             announcementOverlay:SetVisible(visible)
         end,
         children = {
-            UI.Label { text = "📢", fontSize = sz(14), pointerEvents = "none" },
+            UI.Panel {
+                width = sz(26), height = sz(26),
+                backgroundImage = "image/nav_announce_20260515210730.png",
+                backgroundFit = "contain",
+                pointerEvents = "none",
+            },
             UI.Label {
                 text = "公告",
-                fontSize = sz(13),
-                fontColor = { 255, 220, 120, 230 },
+                fontSize = sz(11), fontColor = { 200, 205, 220, 200 },
                 pointerEvents = "none",
             },
         },
@@ -336,8 +341,8 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                 gap = Utils.sz(8),
                 children = {
                     SettingsPanel.CreateButton(),
-                    StatsPanel.CreateButton(),
                     MoneyHUD.CreatePanel(),
+                    StatsPanel.CreateButton(),
                     AdCardPanel.CreateButton(),
                     OnlineRewardPanel.CreateButton(),
                     announcementBtn,

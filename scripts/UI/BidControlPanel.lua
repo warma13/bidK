@@ -100,14 +100,13 @@ end
 -- 道具系统（对局中使用）
 -- ============================================================================
 
-local propModal_ = nil
-
-local function ClosePropModal()
-    if propModal_ then
-        pcall(function() propModal_:Close() end)
-        propModal_ = nil
-    end
-end
+-- 效果类型对应颜色
+local PROP_TYPE_COLORS = {
+    [Props.EFFECT.SHOW_RARITY_CELL_COUNT] = { 70, 130, 220, 255 },
+    [Props.EFFECT.SHOW_RARITY_ITEM_COUNT] = { 70, 180, 100, 255 },
+    [Props.EFFECT.SHOW_RANDOM_SILHOUETTE] = { 150, 100, 200, 255 },
+    [Props.EFFECT.SHOW_SIZE_AVG_VALUE]    = { 220, 170, 50, 255 },
+}
 
 --- 使用道具并将效果信息注入 InfoFeed
 local function UseProp(propId)
@@ -134,125 +133,95 @@ local function UseProp(propId)
     local def = Props.BY_ID[propId]
     Utils.ShowMessage("使用了 " .. (def and def.name or "道具"))
 
+    -- 记录到 GameState（用于轮次框图标显示）
+    local round = GS.GetCurrentRound()
+    GS.RecordPropUsage(round, 1, propId, def and def.name or propId)
+
+    -- 更新道具面板状态（本轮已用，禁用所有道具按钮）
+    BidControlPanel.UpdatePropPanelState()
+
+    -- 刷新玩家列表面板（使轮次框道具图标立即显示）
+    PlayerListPanel.Update()
+
     -- 更新战利品展示面板
     local LootPanel = require("UI.LootPanel")
     LootPanel.Update()
 end
 
---- 打开道具选择弹窗
-local function ShowPropModal()
-    ClosePropModal()
-
-    -- 收集有库存的道具
-    local availableProps = {}
-    for _, def in ipairs(Props.LIST) do
-        local count = PropSystem.GetCount(def.id)
-        local used = PropSystem.IsUsedThisGame(def.id)
-        if count > 0 then
-            availableProps[#availableProps + 1] = { def = def, count = count, used = used }
-        end
+--- 同步点击外部关闭遮罩的可见状态
+local function UpdateDismissOverlay()
+    local bidOpen  = UIState.bidPanelVisible
+    local propOpen = refs.propPanel and refs.propPanel:IsVisible()
+    if refs.panelDismissOverlay then
+        refs.panelDismissOverlay:SetVisible(bidOpen or (propOpen == true))
     end
+end
 
-    if #availableProps == 0 then
-        Utils.ShowMessage("没有可用道具，请在菜单中购买")
-        return
+--- 关闭道具浮窗
+local function ClosePropPanel()
+    if refs.propPanel then
+        refs.propPanel:SetVisible(false)
     end
+    UpdateDismissOverlay()
+end
 
-    -- 构建道具列表
-    local listChildren = {}
-    for _, entry in ipairs(availableProps) do
-        local d = entry.def
-        local isUsed = entry.used
+--- 刷新道具浮窗内容（每次打开前调用）
+local function UpdatePropPanel()
+    if not refs.propRows then return end
+    -- 本轮是否已用过道具（每轮只能用一次）
+    local roundUsed = PropSystem.IsUsedThisRound()
+    local hasAny = false
+    for i, row in ipairs(refs.propRows) do
+        local d = row.def
+        local count = PropSystem.GetCount(d.id)
+        local hasCount = count > 0
 
-        -- 效果类型颜色
-        local typeColors = {
-            [Props.EFFECT.SHOW_RARITY_CELL_COUNT] = { 70, 130, 220, 255 },
-            [Props.EFFECT.SHOW_RARITY_ITEM_COUNT] = { 70, 180, 100, 255 },
-            [Props.EFFECT.SHOW_RANDOM_SILHOUETTE] = { 150, 100, 200, 255 },
-            [Props.EFFECT.SHOW_SIZE_AVG_VALUE]    = { 220, 170, 50, 255 },
-        }
-        local typeColor = typeColors[d.effectType] or { 180, 180, 180, 255 }
+        -- 显示/隐藏行（无库存隐藏）
+        row.widget:SetVisible(hasCount)
+        if hasCount then hasAny = true end
 
-        local rowBg = isUsed and { 40, 40, 50, 200 } or { 30, 35, 50, 220 }
-        local nameColor = isUsed and { 120, 120, 130, 255 } or { 230, 235, 245, 255 }
-        local descColor = isUsed and { 90, 90, 100, 255 } or { 160, 165, 180, 255 }
+        -- 刷新数量标签
+        row.countLabel:SetText("×" .. count)
 
-        local propId = d.id  -- 捕获到局部变量
-
-        local useBtn
-        if isUsed then
-            useBtn = UI.Label {
-                text = "已使用", fontSize = 11,
-                fontColor = { 120, 120, 130, 255 },
-            }
+        -- 刷新使用按钮（本轮已用过则全部禁用）
+        if roundUsed then
+            row.useBtn:SetText("本轮已用")
+            row.useBtn:SetDisabled(true)
+            row.useBtn:SetStyle({ backgroundColor = { 50, 50, 60, 180 } })
         else
-            useBtn = UI.Button {
-                text = "使用", width = 56, height = 28, fontSize = 12,
-                variant = "primary",
-                onClick = function()
-                    Utils.PlayClick()
-                    ClosePropModal()
-                    UseProp(propId)
-                end,
-            }
+            row.useBtn:SetText("使用")
+            row.useBtn:SetDisabled(false)
+            row.useBtn:SetStyle({ backgroundColor = { 60, 170, 130, 255 } })
         end
 
-        listChildren[#listChildren + 1] = UI.Panel {
-            width = "100%",
-            backgroundColor = rowBg,
-            borderRadius = 4,
-            padding = 8,
-            flexDirection = "row",
-            alignItems = "center",
-            gap = 8,
-            children = {
-                -- 图标
-                UI.Panel {
-                    width = 32, height = 32,
-                    backgroundColor = { typeColor[1], typeColor[2], typeColor[3], 60 },
-                    borderRadius = 4,
-                    justifyContent = "center", alignItems = "center",
-                    children = {
-                        UI.Label { text = d.icon, fontSize = 18 },
-                    },
-                },
-                -- 名称 + 描述
-                UI.Panel {
-                    flexDirection = "column",
-                    flexGrow = 1, flexShrink = 1,
-                    children = {
-                        UI.Panel {
-                            flexDirection = "row", alignItems = "center", gap = 6,
-                            children = {
-                                UI.Label { text = d.name, fontSize = 13, fontColor = nameColor, fontWeight = "bold" },
-                                UI.Label { text = "×" .. entry.count, fontSize = 11, fontColor = { 255, 200, 80, 255 } },
-                            },
-                        },
-                        UI.Label { text = d.desc, fontSize = 11, fontColor = descColor },
-                    },
-                },
-                -- 使用按钮
-                useBtn,
-            },
-        }
+        -- 图标透明度
+        if roundUsed then
+            row.iconPanel:SetStyle({ opacity = 0.4 })
+        else
+            row.iconPanel:SetStyle({ opacity = 1.0 })
+        end
     end
 
-    propModal_ = UI.Modal {
-        title = "使用道具",
-        size = "sm",
-        onClose = function()
-            propModal_ = nil
-        end,
-        children = {
-            UI.Panel {
-                width = "100%",
-                flexDirection = "column",
-                gap = 6,
-                children = listChildren,
-            },
-        },
-    }
-    propModal_:Open()
+    -- 无道具时显示提示
+    if refs.propEmptyLabel then
+        refs.propEmptyLabel:SetVisible(not hasAny)
+    end
+
+end
+
+--- 外部调用：使用道具后立即刷新道具面板状态
+function BidControlPanel.UpdatePropPanelState()
+    UpdatePropPanel()
+end
+
+--- 打开/刷新道具浮窗
+local function ShowPropPanel()
+    UpdatePropPanel()
+    if refs.propPanel then
+        refs.propPanel:SetVisible(true)
+    end
+
+    UpdateDismissOverlay()
 end
 
 local function OnPropButtonClicked()
@@ -262,7 +231,17 @@ local function OnPropButtonClicked()
         Utils.ShowMessage("已确认出价，无法使用道具")
         return
     end
-    ShowPropModal()
+    -- 切换浮窗显示/隐藏
+    if refs.propPanel and refs.propPanel:IsVisible() then
+        ClosePropPanel()
+    else
+        -- 如果出价面板打开，先关闭
+        if UIState.bidPanelVisible then
+            UIState.bidPanelVisible = false
+            if refs.bidPanel then refs.bidPanel:SetVisible(false) end
+        end
+        ShowPropPanel()
+    end
 end
 
 local function ToggleBidPanel()
@@ -279,11 +258,15 @@ local function ToggleBidPanel()
     end
     -- 已确认出价/弃权后不允许再打开
     if UIState.playerBidConfirmed then return end
+    -- 打开出价面板时关闭道具浮窗
+    if refs.propPanel and refs.propPanel:IsVisible() then
+        ClosePropPanel()
+    end
     UIState.bidPanelVisible = not UIState.bidPanelVisible
     if refs.bidPanel then
         refs.bidPanel:SetVisible(UIState.bidPanelVisible)
     end
-
+    UpdateDismissOverlay()
 end
 
 local function OnForfeitClicked()
@@ -300,6 +283,7 @@ local function OnForfeitClicked()
         if refs.bidPanel then
             refs.bidPanel:SetVisible(false)
         end
+        UpdateDismissOverlay()
         BidControlPanel.Update()
         PlayerListPanel.Update()
     end
@@ -326,6 +310,7 @@ local function SubmitSealedBid(amount)
     Utils.PlaySfx("bid_place")
     UIState.bidPanelVisible = false
     if refs.bidPanel then refs.bidPanel:SetVisible(false) end
+    UpdateDismissOverlay()
     BidControlPanel.Update()
     PlayerListPanel.Update()
 end
@@ -426,6 +411,8 @@ end
 -- ============================================================================
 
 function BidControlPanel.Create()
+    local sz = Utils.sz
+
     -- 隐藏标签（逻辑兼容）
     refs.timerLabel = UI.Label { text = "", fontSize = 1, visible = false }
     refs.bidStatusLabel = UI.Label { text = "", fontSize = 1, visible = false }
@@ -604,6 +591,270 @@ function BidControlPanel.Create()
         onClick = function() Utils.PlayClick() OnPropButtonClicked() end,
     }
 
+    -- -------------------------------------------------------------------------
+    -- 道具浮窗（横向卡片 + 可滑动，absolute，提升至根级别）
+    -- -------------------------------------------------------------------------
+    local propBottom = math.floor(UI.GetWidth() * 0.06 + 50)
+    local CARD_W   = sz(96)   -- 卡片宽度（缩放）
+    local CARD_H   = sz(152)  -- 卡片高度（缩放）
+    local PPAD     = sz(8)    -- 面板内边距
+    local HEX_SZ   = sz(62)   -- 六边形背景框尺寸
+    local ICON_SZ  = sz(36)   -- 道具图标尺寸
+
+    -- 品质层级颜色（与商店保持一致）
+    local function GetTierColors(price)
+        if price <= 2000 then
+            return { headerBg = { 75, 78, 88, 255 }, headerText = { 210, 212, 220, 255 },
+                     cardBg = { 28, 30, 42, 235 }, cardBorder = { 65, 68, 78, 180 }, hexTint = nil }
+        elseif price <= 5000 then
+            return { headerBg = { 30, 110, 65, 255 }, headerText = { 190, 255, 210, 255 },
+                     cardBg = { 20, 35, 28, 235 }, cardBorder = { 40, 100, 65, 200 }, hexTint = { 80, 230, 120, 255 } }
+        else
+            return { headerBg = { 85, 35, 130, 255 }, headerText = { 230, 200, 255, 255 },
+                     cardBg = { 26, 16, 40, 235 }, cardBorder = { 100, 50, 155, 200 }, hexTint = { 200, 100, 255, 255 } }
+        end
+    end
+
+    -- 构建所有道具卡片（静态结构，通过 UpdatePropPanel 刷新状态）
+    refs.propRows = {}
+    local propCardWidgets = {}
+
+    for i, d in ipairs(Props.LIST) do
+        local propId = d.id
+        local tier   = GetTierColors(d.price)
+
+        -- 六边形背景框 + 道具图标（点击弹出描述 Popover）
+        local iconPanel = UI.Popover {
+            title = d.name,
+            content = d.desc,
+            placement = "top",
+            trigger = "click",
+            maxWidth = 220,
+            children = {
+                UI.Panel {
+                    width = HEX_SZ, height = HEX_SZ, flexShrink = 0,
+                    alignItems = "center", justifyContent = "center",
+                    cursor = "pointer",
+                    children = {
+                        UI.Panel {
+                            position = "absolute",
+                            width = HEX_SZ * 0.88, height = HEX_SZ,
+                            backgroundImage = "image/ui_hex_frame_trimmed.png",
+                            backgroundFit = "fill",
+                            imageTint = tier.hexTint,
+                        },
+                        d.iconImage and UI.Panel {
+                            width = ICON_SZ, height = ICON_SZ,
+                            backgroundImage = d.iconImage,
+                            backgroundFit = "contain",
+                        } or UI.Label { text = d.icon, fontSize = sz(26) },
+                    },
+                },
+            },
+        }
+
+        local countLabel = UI.Label {
+            text = "×0", fontSize = sz(11),
+            fontColor = { 200, 205, 215, 220 }, fontWeight = "bold",
+            textAlign = "center",
+        }
+
+        local useBtn = UI.Button {
+            text = "使用",
+            width = CARD_W - PPAD * 2, height = sz(28), fontSize = sz(12),
+            backgroundColor = { 60, 170, 130, 255 },
+            borderRadius = sz(6),
+            onClick = function()
+                Utils.PlayClick()
+                ClosePropPanel()
+                UseProp(propId)
+            end,
+        }
+
+        -- 卡片：名称条（同商店）+ 六边形图标 + 数量 + 使用按钮
+        local cardWidget = UI.Panel {
+            width = CARD_W, height = CARD_H, flexShrink = 0,
+            backgroundColor = tier.cardBg,
+            borderRadius = sz(8),
+            borderWidth = 1,
+            borderColor = tier.cardBorder,
+            overflow = "hidden",
+            flexDirection = "column",
+            alignItems = "center",
+            children = {
+                -- 名称条（顶部色带）
+                UI.Panel {
+                    width = "100%",
+                    paddingVertical = sz(5), paddingHorizontal = sz(6),
+                    backgroundColor = tier.headerBg,
+                    children = {
+                        UI.Label {
+                            text = d.name, fontSize = sz(10), fontWeight = "bold",
+                            fontColor = tier.headerText, textAlign = "center",
+                            width = "100%",
+                        },
+                    },
+                },
+                -- 图标区（六边形）
+                UI.Panel {
+                    flexGrow = 1, width = "100%",
+                    alignItems = "center", justifyContent = "center",
+                    paddingVertical = sz(4),
+                    gap = sz(2),
+                    flexDirection = "column",
+                    children = {
+                        iconPanel,
+                        countLabel,
+                    },
+                },
+                -- 使用按钮区
+                UI.Panel {
+                    width = "100%",
+                    paddingHorizontal = PPAD, paddingVertical = sz(6),
+                    alignItems = "center",
+                    children = { useBtn },
+                },
+            },
+        }
+
+        refs.propRows[i] = {
+            def        = d,
+            widget     = cardWidget,
+            iconPanel  = iconPanel,
+            countLabel = countLabel,
+            useBtn     = useBtn,
+        }
+        propCardWidgets[i] = cardWidget
+    end
+
+    refs.propEmptyLabel = UI.Label {
+        text = "暂无可用道具，请在商店购买",
+        fontSize = sz(12),
+        fontColor = { 130, 135, 155, 255 },
+        textAlign = "center",
+        visible = false,
+    }
+
+    -- 浮窗宽度：展示 4.5 张卡片（半露第 5 张提示可滑动），超出横向滑动
+    -- panelW 固定（不随卡片数量增加），内部 ScrollView 负责滚动
+    -- 4.5 * CARD_W + 3.5 * gap + 2 * PPAD
+    local panelW = math.floor(4.5 * sz(96) + 3.5 * sz(8)) + PPAD * 2
+
+    refs.propPanel = UI.Panel {
+        id = "propPanel",
+        position = "absolute",
+        bottom = propBottom + sz(4),
+        left = math.floor((UI.GetWidth() - panelW) / 2),
+        width = panelW,
+        backgroundColor = { 12, 14, 24, 248 },
+        borderRadius = sz(14),
+        borderWidth = 1,
+        borderColor = { 55, 60, 88, 200 },
+        paddingHorizontal = PPAD, paddingTop = sz(10), paddingBottom = sz(10),
+        gap = sz(8),
+        flexDirection = "column",
+        visible = false,
+        children = {
+            -- 标题行
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row", alignItems = "center",
+                justifyContent = "space-between",
+                children = {
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = sz(7),
+                        children = {
+                            UI.Panel {
+                                width = sz(3), height = sz(14),
+                                backgroundColor = { 100, 200, 160, 255 },
+                                borderRadius = sz(2),
+                            },
+                            UI.Label {
+                                text = "使用道具", fontSize = sz(13), fontWeight = "bold",
+                                fontColor = { 215, 225, 240, 255 },
+                            },
+                        },
+                    },
+                    UI.Panel {
+                        width = sz(22), height = sz(22),
+                        backgroundColor = { 45, 50, 72, 210 },
+                        borderRadius = sz(11),
+                        justifyContent = "center", alignItems = "center",
+                        cursor = "pointer",
+                        hoverStyle = { backgroundColor = { 70, 75, 100, 255 } },
+                        onClick = function() ClosePropPanel() end,
+                        children = {
+                            UI.Label { text = "✕", fontSize = sz(10), fontColor = { 170, 175, 195, 255 } },
+                        },
+                    },
+                },
+            },
+            -- 横向可滑动卡片区
+            (function()
+                -- 卡片总宽度：显式告知 Yoga 内容宽度，确保 ScrollView 检测到溢出
+                local totalCardW = #propCardWidgets * CARD_W + math.max(0, #propCardWidgets - 1) * sz(8)
+                local sv = UI.ScrollView {
+                    width = "100%",
+                    height = CARD_H,
+                    scrollX = true,
+                    scrollY = false,
+                    showScrollbar = false,
+                    bounces = true,
+                    children = {
+                        UI.Panel {
+                            width = totalCardW,   -- 显式宽度：确保 Yoga 在 overflow:hidden 容器里正确撑开
+                            flexDirection = "row",
+                            alignItems = "flex-start",
+                            gap = sz(8),
+                            children = (function()
+                                local cards = {}
+                                for _, w in ipairs(propCardWidgets) do
+                                    cards[#cards + 1] = w
+                                end
+                                return cards
+                            end)(),
+                        },
+                    },
+                }
+                -- 桌面端：竖向滚轮 → 横向滚动（同 patchTabWheel 模式）
+                sv.OnWheel = function(self, dx, dy)
+                    local dir = 0
+                    if math.abs(dx) > math.abs(dy) then
+                        dir = dx > 0 and 1 or -1
+                    elseif dy ~= 0 then
+                        dir = dy > 0 and -1 or 1  -- 滚轮向下 → 向右滚
+                    end
+                    if dir ~= 0 then
+                        self:ScrollBy(dir * 60, 0)
+                        self.scrollbarOpacity_ = 1
+                        self.scrollbarFadeTimer_ = 1
+                    end
+                end
+                return sv
+            end)(),
+            refs.propEmptyLabel,
+        },
+    }
+
+    -- -------------------------------------------------------------------------
+    -- 点击外部关闭遮罩（全屏透明，置于 bidPanel/propPanel 之下）
+    -- -------------------------------------------------------------------------
+    refs.panelDismissOverlay = UI.Panel {
+        id = "panelDismissOverlay",
+        position = "absolute",
+        left = 0, top = 0, right = 0, bottom = 0,
+        backgroundColor = { 0, 0, 0, 0 },
+        visible = false,
+        onClick = function()
+            UIState.bidPanelVisible = false
+            if refs.bidPanel then refs.bidPanel:SetVisible(false) end
+            ClosePropPanel()
+            if refs.panelDismissOverlay then
+                refs.panelDismissOverlay:SetVisible(false)
+            end
+        end,
+    }
+
     -- bidPanel 不再放在这里，由 GameController 提升到根级别以解决 z-index 层级问题
     return UI.Panel {
         id = "bidControlArea",
@@ -664,10 +915,10 @@ function BidControlPanel.Update()
     refs.toolbarForfeitBtn:SetVisible(true)
     refs.toolbarPropBtn:SetVisible(true)
 
-    -- 阶段离开 SEALED_BID 时，清理残留的确认/道具弹窗
+    -- 阶段离开 SEALED_BID 时，清理残留的确认/道具浮窗
     if phase ~= GS.PHASE.SEALED_BID then
         CloseBidConfirmModal()
-        ClosePropModal()
+        ClosePropPanel()
     end
 
     if phase == GS.PHASE.SEALED_BID then

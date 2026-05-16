@@ -3,6 +3,7 @@
 -- ============================================================================
 
 local Config = require("Config")
+local PlatformUtils = require("urhox-libs.Platform.PlatformUtils")
 
 local Utils = {}
 
@@ -147,11 +148,16 @@ end
 -- UI 缩放系数（基于屏幕逻辑高度，440px 为基准）
 -- ============================================================================
 
---- 返回缩放系数（≥1.0，PC 上会变大，手机保持基准）
+--- 返回缩放系数（基于屏幕逻辑高度）
+--- 手机端（Android/iOS）不限上限；Web/PC 端最大 1.5x，避免 UI 过大
 function Utils.GetScale()
     local dpr = graphics:GetDPR()
     local screenH = graphics:GetHeight() / dpr
-    return math.max(1.0, screenH / 440)
+    local scale = math.max(1.0, screenH / 440)
+    if not PlatformUtils.IsMobilePlatform() then
+        scale = math.min(1.5, scale)
+    end
+    return scale
 end
 
 --- 缩放尺寸：将设计基准值按屏幕比例放大

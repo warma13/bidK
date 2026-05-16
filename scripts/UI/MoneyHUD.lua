@@ -54,13 +54,13 @@ function MoneyHUD.CreatePanel()
         fontWeight = "bold",
     }
     hudPanel = UI.Panel {
-        height = sz(38),
+        height = sz(34),
         flexDirection = "row",
         alignItems = "center",
         gap = sz(6),
-        paddingHorizontal = sz(14),
+        paddingHorizontal = sz(10),
         backgroundColor = { 0, 0, 0, 120 },
-        borderRadius = 0,
+        borderRadius = sz(4),
         cursor = "pointer",
         onClick = function()
             Utils.PlayClick()

@@ -251,7 +251,9 @@ local function CreateGameUI()
             refs.playerListPanel,
             refs.centerColumn,
             LootPanel.Create(),
+            refs.panelDismissOverlay,
             refs.bidPanel,
+            refs.propPanel,
             (function()
                 refs.panelBackdrop = UI.Panel {
                     position = "absolute",
@@ -505,7 +507,7 @@ function GameSession.Start(regionId, charIdx, diffIdx, warehouseTypeId)
         _EstimateValue.InjectDeps(GameState)
         _InfoEstimation.InjectDeps(_EstimateValue, _AntiCheat, GameState)
         _Strategies.InjectDeps(GameState, _InfoSystem, _EstimateValue)
-        AIPlayer.InjectDeps(GameState, _Strategies, _InfoEstimation, _AntiCheat)
+        AIPlayer.InjectDeps(GameState, _Strategies, _InfoEstimation, _AntiCheat, _EstimateValue)
         AuctionEngine.InjectDeps(GameState, AIPlayer, _InfoSystem)
     end
     print("[GameSession] Deps injected")

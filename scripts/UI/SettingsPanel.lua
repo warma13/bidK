@@ -359,12 +359,8 @@ function SettingsPanel.CreateButton()
     popupVisible = false
 
     return UI.Panel {
-        height = sz(38),
-        backgroundColor = { 0, 0, 0, 120 },
-        borderRadius = 0,
-        paddingHorizontal = sz(14),
-        flexDirection = "row",
-        alignItems = "center",
+        width = sz(34), height = sz(34),
+        alignItems = "center", justifyContent = "center",
         cursor = "pointer",
         onClick = function()
             Utils.PlayClick()
@@ -374,9 +370,10 @@ function SettingsPanel.CreateButton()
             end
         end,
         children = {
-            UI.Label {
-                text = "设置",
-                fontSize = sz(15), fontColor = { 200, 205, 220, 220 },
+            UI.Panel {
+                width = sz(26), height = sz(26),
+                backgroundImage = "image/nav_settings_20260515210738.png",
+                backgroundFit = "contain",
                 pointerEvents = "none",
             },
         },

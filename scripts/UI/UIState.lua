@@ -18,6 +18,18 @@ UIState.refs = {
     playerNameLabels = {},
     playerCharLabels = {},
     playerAvatarIcons = {},
+    playerRoundSlotPanels = {},  -- { [idx] = { [r] = { panel, propIcon } } }
+
+    -- 道具信息浮窗
+    propTooltipIcon = nil,
+    propTooltipWho = nil,
+    propTooltipName = nil,
+    propTooltipDesc = nil,
+    -- 角色信息浮窗
+    charTooltipPortrait = nil,
+    charTooltipName = nil,
+    charTooltipAbility = nil,
+    charTooltipDesc = nil,
 
     roundLabel = nil,
     multiplierLabel = nil,

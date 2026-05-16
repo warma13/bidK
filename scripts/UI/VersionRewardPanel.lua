@@ -183,13 +183,15 @@ function VersionRewardPanel.CreateButton()
     end
 
     return UI.Panel {
-        height = sz(38),
-        backgroundColor = { 0, 0, 0, 120 },
-        borderRadius = 0,
-        paddingHorizontal = sz(14),
-        flexDirection = "row",
-        alignItems = "center",
+        paddingHorizontal = sz(10), paddingVertical = sz(4),
+        flexDirection = "column",
+        alignItems = "center", justifyContent = "center",
+        gap = sz(2),
         cursor = "pointer",
+        backgroundColor = { 20, 24, 38, 180 },
+        borderWidth = 1,
+        borderColor = { 70, 85, 130, 160 },
+        borderRadius = sz(6),
         onClick = function()
             Utils.PlayClick()
             popupVisible = not popupVisible
@@ -199,12 +201,18 @@ function VersionRewardPanel.CreateButton()
             end
         end,
         children = {
+            UI.Panel {
+                width = sz(26), height = sz(26),
+                backgroundImage = "image/nav_reward_20260515210532.png",
+                backgroundFit = "contain",
+                pointerEvents = "none",
+                children = { btnBadge },
+            },
             UI.Label {
                 text = "版本奖励",
-                fontSize = sz(15), fontColor = { 200, 205, 220, 220 },
+                fontSize = sz(11), fontColor = { 200, 205, 220, 200 },
                 pointerEvents = "none",
             },
-            btnBadge,
         },
     }
 end

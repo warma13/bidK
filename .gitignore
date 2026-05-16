@@ -1,2 +1,9 @@
-.build/
-dist/
+# Ignore everything by default
+*
+
+# Only track scripts and assets
+!.gitignore
+!scripts/
+!scripts/**
+!assets/
+!assets/**

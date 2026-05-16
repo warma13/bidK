@@ -4,6 +4,7 @@
 -- ============================================================================
 
 local Config = require("Config")
+local Props = require("Config.Props")
 
 local Strategies = {}
 
@@ -209,6 +210,61 @@ local function analyzeOpponents(round, playerIdx)
         end
     end
 
+    -- 道具使用置信度修正：
+    -- 上一轮若有对手使用了道具且出高价，说明对方可能掌握更多仓库信息，
+    -- 置信度按道具品质（tier）× 效果类型（effectType）双维度加权
+    result.usedPropHighBid = 0
+    result.usedPropCount = 0
+    result.propConfidenceBoost = 0  -- 对威胁出价的置信度加权 [0, 0.4]
+
+    -- 品质基础权重：品质越高 → 道具信息越精确 → 置信度越高
+    local TIER_WEIGHT = {
+        white  = 0.04,   -- 初级道具，信息粗糙
+        green  = 0.08,   -- 中级道具，信息适中
+        blue   = 0.13,   -- 蓝色道具
+        purple = 0.20,   -- 紫色道具，信息精准（如大件估价器）
+        red    = 0.30,   -- 红色道具（预留）
+    }
+
+    -- 效果类型修正系数：信息含量越高 → 系数越大
+    local EFFECT_MULT = {
+        [Props.EFFECT.SHOW_RARITY_CELL_COUNT]  = 0.6,  -- 只知道格数，间接推断
+        [Props.EFFECT.SHOW_RARITY_ITEM_COUNT]  = 0.8,  -- 知道件数，略优
+        [Props.EFFECT.SHOW_RANDOM_SILHOUETTE]  = 1.0,  -- 知轮廓（L1），直接揭示
+        [Props.EFFECT.SHOW_RARITY_AVG_VALUE]   = 1.2,  -- 知某品质均价，定价信息
+        [Props.EFFECT.SHOW_RANDOM_ITEM_INFO]   = 1.4,  -- 知一件物品详情（L2），精确
+        [Props.EFFECT.SHOW_SIZE_AVG_VALUE]     = 1.6,  -- 知大件均价，针对高价物品
+    }
+
+    if round >= 2 and _GameState then
+        local roundPropUsage = _GameState.GetRoundPropUsage()
+        local prevPropUsage = roundPropUsage and roundPropUsage[round - 1]
+        local prevBids = _GameState.GetRoundBids()[round - 1]
+
+        if prevPropUsage and prevBids then
+            local totalBoost = 0
+            for idx, usage in pairs(prevPropUsage) do
+                if idx ~= playerIdx then
+                    result.usedPropCount = result.usedPropCount + 1
+                    local bid = prevBids[idx] or 0
+                    -- 出价高于最大威胁出价的 70%，视为"高价 + 用了道具"
+                    if result.maxThreatBid > 0 and bid >= result.maxThreatBid * 0.7 then
+                        result.usedPropHighBid = result.usedPropHighBid + 1
+
+                        -- 按道具品质和效果类型计算本次贡献
+                        local def = Props.BY_ID[usage.id]
+                        local tierW  = (def and TIER_WEIGHT[def.tier]) or TIER_WEIGHT.white
+                        local effMul = (def and EFFECT_MULT[def.effectType]) or 1.0
+                        totalBoost = totalBoost + tierW * effMul
+                    end
+                end
+            end
+
+            -- 累加所有高价+道具对手的贡献，上限 0.4
+            result.propConfidenceBoost = math.min(0.4, totalBoost)
+        end
+    end
+
     return result
 end
 
@@ -384,6 +440,16 @@ local function estimateSecondBid(round, playerIdx, expectedValue, estimate, oppo
                 escalation = escalation + opponentInfo.bidTrend * 0.08
             elseif opponentInfo and opponentInfo.bidTrend < -0.2 then
                 escalation = escalation - 0.05  -- 下降趋势 → 对手可能减速
+            end
+
+            -- 道具置信度修正：上轮有对手用道具且出高价 → 对其出价更认真
+            -- 逻辑：用了道具还出高价，说明对方可能真的掌握更多信息
+            -- 但也有虚张声势可能，所以只加 propConfidenceBoost 的 50% 作为保守估计
+            if opponentInfo and opponentInfo.propConfidenceBoost and opponentInfo.propConfidenceBoost > 0 then
+                escalation = escalation + opponentInfo.propConfidenceBoost * 0.5
+                print("[Strategies] propConfidenceBoost=" .. string.format("%.2f", opponentInfo.propConfidenceBoost)
+                    .. " usedPropHighBid=" .. (opponentInfo.usedPropHighBid or 0)
+                    .. " → escalation+" .. string.format("%.2f", opponentInfo.propConfidenceBoost * 0.5))
             end
 
             -- 加权：最近轮次的最高出价权重大，如有两轮数据则混合

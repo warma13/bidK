@@ -197,20 +197,21 @@ function StatsPanel.CreateButton()
     local sz = Utils.sz
     popupVisible = false
     return UI.Panel {
-        height = sz(38),
-        backgroundColor = { 0, 0, 0, 120 },
-        borderRadius = 0,
-        paddingHorizontal = sz(14),
-        flexDirection = "row",
-        alignItems = "center",
+        paddingHorizontal = sz(10), paddingVertical = sz(4),
+        flexDirection = "column",
+        alignItems = "center", justifyContent = "center",
+        gap = sz(2),
         cursor = "pointer",
+        backgroundColor = { 20, 24, 38, 180 },
+        borderWidth = 1,
+        borderColor = { 70, 85, 130, 160 },
+        borderRadius = sz(6),
         onClick = function()
             Utils.PlayClick()
             popupVisible = not popupVisible
             if popupOverlay then
                 popupOverlay:SetVisible(popupVisible)
                 if popupVisible then
-                    -- 每次打开刷新数据：移除旧内容，添加新内容
                     if popupOverlay._contentSlot then
                         local slot = popupOverlay._contentSlot
                         if slot._currentContent then
@@ -224,9 +225,15 @@ function StatsPanel.CreateButton()
             end
         end,
         children = {
+            UI.Panel {
+                width = sz(26), height = sz(26),
+                backgroundImage = "image/nav_stats_20260515210551.png",
+                backgroundFit = "contain",
+                pointerEvents = "none",
+            },
             UI.Label {
                 text = "战绩",
-                fontSize = sz(15), fontColor = { 200, 205, 220, 220 },
+                fontSize = sz(11), fontColor = { 200, 205, 220, 200 },
                 pointerEvents = "none",
             },
         },

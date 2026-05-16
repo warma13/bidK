@@ -29,12 +29,11 @@ function MapScreen.Show(onBackCallback, onRegionSelected)
     for i, region in ipairs(Config.REGIONS) do
         -- 用外层 Panel 做中心点定位，内层是实际按钮
         local marker = UI.Panel {
-            width = sz(120), height = sz(40),
+            width = sz(160), height = sz(40),
             positionType = "absolute",
-            -- left/top 指向中心点，再向左上偏移半个按钮尺寸
             left = tostring(math.floor(region.mapX * 100)) .. "%",
-            top = tostring(math.floor(region.mapY * 100)) .. "%",
-            marginLeft = -sz(60), marginTop = -sz(20),
+            top  = tostring(math.floor(region.mapY * 100)) .. "%",
+            marginLeft = -sz(80), marginTop = -sz(20),
             backgroundColor = { 40, 45, 70, 200 },
             borderRadius = 0, borderWidth = math.max(1, sz(2)),
             borderColor = { 200, 200, 220, 180 },
@@ -49,7 +48,8 @@ function MapScreen.Show(onBackCallback, onRegionSelected)
             children = {
                 UI.Label {
                     text = region.name, fontSize = sz(13),
-                    fontColor = C.textPrimary, fontWeight = "bold", textAlign = "center",
+                    fontColor = C.textPrimary, fontWeight = "bold",
+                    textAlign = "center",
                 },
             },
         }

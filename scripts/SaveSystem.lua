@@ -828,6 +828,21 @@ function SaveSystem.ConsumeTicket(ticketId)
 end
 
 -- ============================================================================
+-- 道具背包
+-- ============================================================================
+
+function SaveSystem.GetPropCount(propId)
+    return (saveData.props and saveData.props[propId]) or 0
+end
+
+function SaveSystem.AddProp(propId, count)
+    if not saveData.props then saveData.props = {} end
+    saveData.props[propId] = math.max(0, (saveData.props[propId] or 0) + (count or 1))
+    SaveFramework.MarkDirty(MODULE_NAME)
+    print("[SaveSystem] Prop changed: " .. propId .. " +" .. (count or 1) .. " → " .. saveData.props[propId])
+end
+
+-- ============================================================================
 -- 角色币 & 角色解锁
 -- ============================================================================
 
@@ -886,6 +901,28 @@ end
 function SaveSystem.SetPropCount(propId, count)
     if not saveData.propItems then saveData.propItems = {} end
     saveData.propItems[propId] = math.max(0, count)
+    SaveFramework.MarkDirty(MODULE_NAME)
+end
+
+-- ============================================================================
+-- 道具每日购买记录（用于限购）
+-- ============================================================================
+
+--- 获取今日某道具已购买次数
+function SaveSystem.GetPropDailyBought(propId)
+    local today = os.date("%Y-%m-%d")
+    local rec = saveData.propDailyBuy
+    if not rec or rec.date ~= today then return 0 end
+    return rec[propId] or 0
+end
+
+--- 记录今日购买（count 通常为购买数量，默认1）
+function SaveSystem.RecordPropDailyBuy(propId, count)
+    local today = os.date("%Y-%m-%d")
+    if not saveData.propDailyBuy or saveData.propDailyBuy.date ~= today then
+        saveData.propDailyBuy = { date = today }
+    end
+    saveData.propDailyBuy[propId] = (saveData.propDailyBuy[propId] or 0) + (count or 1)
     SaveFramework.MarkDirty(MODULE_NAME)
 end
 

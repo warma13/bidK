@@ -3,6 +3,7 @@
 -- ============================================================================
 
 local Config = require("Config")
+local PropSystem = require("PropSystem")
 
 local AIPlayer = {}
 
@@ -14,17 +15,20 @@ local _GameState = nil
 local _AntiCheat = nil
 local _Strategies = nil
 local _InfoEstimation = nil
+local _EstimateValue = nil  -- 玩家端 EstimateValue（用于已知信息最低价保底）
 
 --- 注入依赖（必须在使用前调用）
 ---@param gameState table GameState 模块
 ---@param strategies table AI.Strategies 模块
 ---@param infoEstimation table AI.InfoEstimation 模块
 ---@param antiCheat table AntiCheat 模块
-function AIPlayer.InjectDeps(gameState, strategies, infoEstimation, antiCheat)
+---@param estimateValue table EstimateValue 模块（玩家端，用于最低价保底）
+function AIPlayer.InjectDeps(gameState, strategies, infoEstimation, antiCheat, estimateValue)
     _GameState = gameState
     _Strategies = strategies
     _InfoEstimation = infoEstimation
     _AntiCheat = antiCheat
+    _EstimateValue = estimateValue
 end
 
 local INTENT  -- 延迟初始化，在 InjectDeps 后才可用
@@ -107,7 +111,17 @@ function AIPlayer.StartSealedBidThinking(gameState, infoSystem)
             ai.thinkDecided[idx] = false
             ai.pendingCount = ai.pendingCount + 1
 
+            -- 预初始化 infoState，让道具注入有容器可写
+            if not ai.infoStates[idx] then
+                ai.infoStates[idx] = { publicInfos = {}, skillInfos = {}, itemRevealLevels = {} }
+            end
+
+            -- AI 先尝试使用道具（顺序重要：必须在 ComputeEstimate 之前，
+            -- 这样道具揭示的信息可以被本轮估值利用）
+            AIPlayer._TryUseAIProp(idx, player, round, gameState)
+
             -- 用 InfoEstimation 模块计算估值（以池均价为先验锚点）
+            -- 此时 infoStates[idx].skillInfos 中已含本轮道具信息
             local ok, estimate, secureSv, expectedTotal, poolAvg, itemCount =
                 pcall(_InfoEstimation.ComputeEstimate, idx, round, infoSystem, ai.infoStates, expectedValue, whTypeId)
             if ok then
@@ -135,6 +149,67 @@ function AIPlayer.StartSealedBidThinking(gameState, infoSystem)
                     #state.skillInfos .. " skill)")
             end
         end
+    end
+end
+
+--- AI 尝试在本轮使用一个道具
+---@param playerIdx number
+---@param player table
+---@param round number
+---@param gameState table
+function AIPlayer._TryUseAIProp(playerIdx, player, round, gameState)
+    -- 根据性格决定使用道具的概率（aggressiveness: 激进型更积极）
+    local p = player.personality
+    local style = p and p.style or "info_driven"
+    local useProb
+    if style == "gambler" or style == "specialist" then
+        useProb = 0.75  -- 激进/专家：大概率用道具
+    elseif style == "banker" or style == "veteran" then
+        useProb = 0.55  -- 稳健/老手：中等概率
+    else
+        useProb = 0.40  -- 其余：较低概率
+    end
+    -- 后期轮次更积极使用道具
+    if round >= 3 then useProb = math.min(useProb + 0.20, 0.95) end
+
+    if math.random() > useProb then return end
+
+    -- 查询本轮是否有可用道具
+    local ap, apIdx = gameState.GetAIAvailableProp(playerIdx, round)
+    if not ap then return end
+
+    local warehouseItems = gameState.GetWarehouseItems()
+    local ok, info = PropSystem.UseForAI(ap.id, warehouseItems)
+    if not ok then return end
+
+    -- 记录使用
+    gameState.MarkAIPropUsed(playerIdx, apIdx)
+    gameState.RecordPropUsage(round, playerIdx, ap.id, ap.def.name)
+    print("[AIPlayer] " .. player.name .. " used prop: " .. ap.def.name)
+
+    -- 把道具揭示信息注入 skillInfos，让 ComputeEstimate 能利用它
+    -- （注意：_TryUseAIProp 在 ComputeEstimate 之前调用，所以顺序是正确的）
+    local state = ai.infoStates[playerIdx]
+    if state and info then
+        state.skillInfos[#state.skillInfos + 1] = info
+        -- 如果道具有揭示物品（reveals），立即更新 itemRevealLevels
+        if info.reveals then
+            local levels = state.itemRevealLevels
+            for _, r in ipairs(info.reveals) do
+                local cur = levels[r.itemIdx] or 0
+                if r.targetLevel > cur then
+                    levels[r.itemIdx] = r.targetLevel
+                end
+            end
+        end
+        -- 如果是单件物品详细信息（revealedItem），更新到 L3
+        if info.revealedItem and info.revealedItem.idx then
+            local cur = state.itemRevealLevels[info.revealedItem.idx] or 0
+            if 3 > cur then state.itemRevealLevels[info.revealedItem.idx] = 3 end
+        end
+        print("[AIPlayer] " .. player.name .. " prop info injected into skillInfos"
+            .. (info.type == "random_avg_value" and (" sampleAvgValue=" .. tostring(info.sampleAvgValue)) or "")
+            .. (info.reveals and (" reveals=" .. #info.reveals) or ""))
     end
 end
 
@@ -208,16 +283,6 @@ function AIPlayer.DecideSealedBid(playerIdx, player, round)
         bidAmount = bidAmount * (0.95 + math.random() * 0.10)
     end
 
-    -- 底价保护：COMPETE 意图的出价不应低于估值的 30%
-    -- 最终安全网，防止策略折扣 + 随机波动把出价压到不合理的低位
-    -- 基于 estimate 而非 expectedValue，因为 expectedValue 可能远高于实际仓库价值
-    if intent == INTENT.COMPETE and estimate > 0 then
-        local absoluteFloor = estimate * 0.30
-        if bidAmount < absoluteFloor then
-            bidAmount = absoluteFloor
-        end
-    end
-
     -- 限制不超过持有资金
     bidAmount = math.min(bidAmount, player.money)
     bidAmount = math.max(bidAmount, 0)
@@ -225,6 +290,29 @@ function AIPlayer.DecideSealedBid(playerIdx, player, round)
     -- 第三层：数字风格化（仅非弃权意图）
     if intent ~= INTENT.RESIGN then
         bidAmount = _Strategies.StylizeNumber(bidAmount, personality.numberStyle)
+    end
+
+    -- 底价保护：必须在风格化之后执行，防止风格化将数字向下取整绕过保底
+    -- COMPETE 意图的出价不应低于已知信息的最低预估价
+    if intent == INTENT.COMPETE then
+        -- 方案A：已知信息下界（与 UI 显示的"预估最低价"同源）
+        local infoFloor = 0
+        if _EstimateValue then
+            local whData = _GameState.GetWarehouseData()
+            local whTypeId = whData and whData.warehouseTypeId or nil
+            local minEst = _EstimateValue.Calculate(aiInfoState, whTypeId)
+            infoFloor = minEst or 0
+        end
+        -- 方案B：AI 自身估值的 30%（保留作为兜底，防止 EstimateValue 异常）
+        local estimateFloor = estimate > 0 and estimate * 0.30 or 0
+        local absoluteFloor = math.max(infoFloor, estimateFloor)
+        if absoluteFloor > 0 and bidAmount < absoluteFloor then
+            print("[AIPlayer] floor applied: bid " .. math.floor(bidAmount)
+                .. " -> " .. math.floor(absoluteFloor)
+                .. " (infoFloor=" .. math.floor(infoFloor)
+                .. " estimateFloor=" .. math.floor(estimateFloor) .. ")")
+            bidAmount = absoluteFloor
+        end
     end
 
     -- 最终限制
