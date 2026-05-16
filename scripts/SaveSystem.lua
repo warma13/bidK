@@ -458,8 +458,8 @@ SaveFramework.Register(MODULE_NAME, {
         end
 
         if type(head) ~= "table" or not head.keys then
-            print("[SaveSystem] Invalid head format, using defaults")
-            saveConfirmed = true
+            -- head 损坏时不设 saveConfirmed，防止空数据覆盖云端真实存档
+            print("[SaveSystem] Invalid head format, aborting load (cloud data may still exist)")
             return
         end
 
@@ -509,7 +509,9 @@ SaveFramework.Register(MODULE_NAME, {
                     if ok3 then
                         groups[groupName] = parsed
                     else
-                        print("[SaveSystem] Decode failed for " .. groupName)
+                        -- 关键分组解码失败时中止加载，防止用不完整数据（空物品等）覆盖云端
+                        print("[SaveSystem] Decode failed for group '" .. groupName .. "', aborting load")
+                        return
                     end
                 end
             end
@@ -520,6 +522,9 @@ SaveFramework.Register(MODULE_NAME, {
         saveData.tickets = saveData.tickets or {}
         saveData.characterCoins = saveData.characterCoins or 0
         saveData.unlockedCharacters = saveData.unlockedCharacters or {}
+
+        -- 恢复累计游戏时长（从云端存档，不是从本次会话的 0 开始）
+        playTime = saveData.playTime or 0
 
         runMigrations()
         saveConfirmed = true

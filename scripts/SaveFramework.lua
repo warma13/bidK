@@ -343,11 +343,10 @@ end
 function SaveFramework.Save(label)
     if not initialized or not clientCloud then return end
 
-    -- 熔断：自动保存路径被屏蔽（用户主动保存仍允许通过）
-    local autoLabels = { dirty_delay = true, auto_save = true, retry = true,
-                         pending_flush = true, resume_after_game = true }
-    if circuitBroken and autoLabels[label or ""] then
-        print("[SaveFramework] Circuit broken, skipping auto-save: " .. tostring(label))
+    -- 熔断：只停掉定时轮询式保存，重试路径和用户主动保存不受影响
+    local pollLabels = { dirty_delay = true, auto_save = true, resume_after_game = true }
+    if circuitBroken and pollLabels[label or ""] then
+        print("[SaveFramework] Circuit broken, skipping poll-save: " .. tostring(label))
         return
     end
 
