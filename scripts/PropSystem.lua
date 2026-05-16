@@ -275,7 +275,7 @@ function PropSystem._EffectSizeAvgValue(params, warehouseItems)
     return info
 end
 
---- 随机显示一件物品的信息（品质+尺寸+价值）
+--- 随机显示一件物品的完整信息（L3：名称+品质+价值）
 function PropSystem._EffectRandomItemInfo(params, warehouseItems)
     if #warehouseItems == 0 then
         return { text = "仓库中没有物品", icon = "" }
@@ -286,9 +286,6 @@ function PropSystem._EffectRandomItemInfo(params, warehouseItems)
     local item = warehouseItems[idx]
 
     local rar = Config.GetRarity(item.rarity)
-    local rarName = rar and rar.name or item.rarity
-    local w = item.w or 1
-    local h = item.h or 1
     local val = item.realValue or Config.GetItemRealValue(item)
 
     local function formatVal(v)
@@ -300,11 +297,12 @@ function PropSystem._EffectRandomItemInfo(params, warehouseItems)
 
     local reveals = {}
     if item.idx then
-        reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 2 }
+        reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 3 }
     end
 
-    local text = "侦察到一件" .. rarName .. "品质物品，占位" .. w .. "×" .. h .. "格，价值约" .. formatVal(val)
-    return { text = text, icon = "", reveals = reveals }
+    -- 复用 L3 模板格式：「看透：物品名（品质，价值）」
+    local text = "看透：" .. item.name .. "（" .. rar.name .. "，" .. formatVal(val) .. "）"
+    return { text = text, icon = "", reveals = reveals, revealedItem = item }
 end
 
 --- 显示指定品质物品的总数量、总价值和均价

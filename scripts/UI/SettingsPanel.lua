@@ -138,8 +138,12 @@ local function DoRedeem()
     end
 
     -- 验证兑换码：先尝试全服通用码，再尝试用户码
-    local result, err = RedeemCode.VerifyUniversal(code)
+    local result, err = RedeemCode.VerifyUniversal(code, userId)
     if not result then
+        if err == "wrong_user" then
+            SetRedeemStatus("该兑换码不属于当前账号", C.danger)
+            return
+        end
         result, err = RedeemCode.Verify(code, userId)
         if not result then
             if err == "invalid_format" then
@@ -171,11 +175,20 @@ local function DoRedeem()
         end,
         ok = function()
             redeemedBits = newBits
-            SetRedeemStatus("兑换成功！+" .. Utils.FormatMoney(coins), { 100, 220, 100, 255 })
+            -- 发放角色币
+            if result.charCoins and result.charCoins > 0 then
+                SaveSystem.AddCharacterCoins(result.charCoins)
+                SaveSystem.Save()
+            end
+            local statusText = "兑换成功！+" .. Utils.FormatMoney(coins)
+            if result.charCoins and result.charCoins > 0 then
+                statusText = statusText .. "，+" .. result.charCoins .. "角色币"
+            end
+            SetRedeemStatus(statusText, { 100, 220, 100, 255 })
             Utils.PlaySfx("bid_success")
             if redeemInput then redeemInput:Clear() end
             if redeemBtn then redeemBtn:SetDisabled(false) end
-            print("[RedeemCode] Redeemed serial=" .. result.serial .. " amount=" .. coins)
+            print("[RedeemCode] Redeemed serial=" .. result.serial .. " amount=" .. coins .. " charCoins=" .. tostring(result.charCoins))
         end,
         error = function(errCode, reason)
             SetRedeemStatus("兑换失败，请重试", C.danger)
