@@ -189,8 +189,14 @@ function InfoEstimation.ComputeEstimate(playerIdx, round, infoSystem, infoStates
     end
 
     -- 1. 收集信息 & 更新揭示等级
+    -- 注意：道具 info 由 AIPlayer._TryUseAIProp 提前注入 state.skillInfos
+    -- 这里追加角色固有技能信息，不能覆盖（否则道具信息丢失）
     state.publicInfos = infoSystem.GetAllPublicInfos(round)
-    state.skillInfos = infoSystem.GetPlayerSkillInfos(playerIdx, round)
+    local systemSkillInfos = infoSystem.GetPlayerSkillInfos(playerIdx, round)
+    -- 将技能系统信息追加到已有的 skillInfos（道具注入在前，技能系统在后）
+    for _, info in ipairs(systemSkillInfos) do
+        state.skillInfos[#state.skillInfos + 1] = info
+    end
     InfoEstimation.UpdateRevealLevels(state)
 
     -- 2. 确保新估值模块已初始化

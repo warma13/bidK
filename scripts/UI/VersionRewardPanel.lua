@@ -11,6 +11,9 @@ local Utils = require("UI.Utils")
 local MoneyHUD = require("UI.MoneyHUD")
 local MoneyManager = require("MoneyManager")
 local SaveSystem = require("SaveSystem")
+local Props = require("Config.Props")
+local PropSystem = require("PropSystem")
+local SaveFramework = require("SaveFramework")
 
 local VersionRewardPanel = {}
 
@@ -22,8 +25,18 @@ local C = Config.COLORS
 -- ============================================================================
 
 local VERSION_REWARDS = {
-    { version = "1.1.20", coins = 2000000, charCoins = 5, label = "v1.1.20 更新奖励" },
+    {
+        version = "1.1.22",
+        coins = 0,
+        label = "v1.1.22 更新奖励",
+        props = {},
+    },
 }
+
+-- 自动填充：每种道具各 3 个
+for _, p in ipairs(Props.LIST) do
+    table.insert(VERSION_REWARDS[1].props, { id = p.id, count = 3 })
+end
 
 -- 云端键名前缀：ver_reward_1_0_7 = 1 表示已领取
 local function CloudKey(version)
@@ -106,10 +119,19 @@ local function ClaimReward(vr, idx)
     local row = rewardRows[idx]
     if row and row.btn then row.btn:SetDisabled(true) end
 
+    -- 先发放道具（本地）
+    if vr.props and #vr.props > 0 then
+        for _, pr in ipairs(vr.props) do
+            SaveSystem.AddProp(pr.id, pr.count)
+        end
+    end
+
     -- 通过统一入口加金币 + 持久化（自动乐观更新 + 失败回滚）
     MoneyManager.AddMoneyFromMenu(vr.coins, "版本奖励", {
         batchSetup = function(batch)
             batch:SetInt(CloudKey(vr.version), 1)
+            -- 道具数据写入云端
+            SaveSystem.WriteToBatch(batch)
         end,
         ok = function()
             claimedMap[vr.version] = true
@@ -120,9 +142,15 @@ local function ClaimReward(vr, idx)
             end
             VersionRewardPanel.RefreshAll()
             Utils.PlaySfx("bid_success")
-            print("[VersionReward] Claimed " .. vr.version .. " +" .. vr.coins .. " coins, +" .. (vr.charCoins or 0) .. " charCoins")
+            print("[VersionReward] Claimed " .. vr.version .. " props + " .. vr.coins .. " coins")
         end,
         error = function(code, reason)
+            -- 回滚道具
+            if vr.props and #vr.props > 0 then
+                for _, pr in ipairs(vr.props) do
+                    SaveSystem.AddProp(pr.id, -pr.count)
+                end
+            end
             if row and row.btn then row.btn:SetDisabled(false) end
             print("[VersionReward] Claim failed: " .. tostring(reason))
         end,
@@ -146,7 +174,11 @@ function VersionRewardPanel.RefreshAll()
                     row.btn:SetText("已领取")
                 else
                     row.btn:SetDisabled(false)
-                    row.btn:SetText("领取 " .. Utils.FormatMoney(vr.coins))
+                    if vr.coins and vr.coins > 0 then
+                        row.btn:SetText("领取 " .. Utils.FormatMoney(vr.coins))
+                    else
+                        row.btn:SetText("领取")
+                    end
                 end
             end
         end
@@ -183,13 +215,15 @@ function VersionRewardPanel.CreateButton()
     end
 
     return UI.Panel {
-        height = sz(38),
-        backgroundColor = { 0, 0, 0, 120 },
-        borderRadius = 0,
-        paddingHorizontal = sz(14),
-        flexDirection = "row",
-        alignItems = "center",
+        paddingHorizontal = sz(10), paddingVertical = sz(4),
+        flexDirection = "column",
+        alignItems = "center", justifyContent = "center",
+        gap = sz(2),
         cursor = "pointer",
+        backgroundColor = { 20, 24, 38, 180 },
+        borderWidth = 1,
+        borderColor = { 70, 85, 130, 160 },
+        borderRadius = sz(6),
         onClick = function()
             Utils.PlayClick()
             popupVisible = not popupVisible
@@ -199,12 +233,18 @@ function VersionRewardPanel.CreateButton()
             end
         end,
         children = {
+            UI.Panel {
+                width = sz(26), height = sz(26),
+                backgroundImage = "image/nav_reward_20260515210532.png",
+                backgroundFit = "contain",
+                pointerEvents = "none",
+                children = { btnBadge },
+            },
             UI.Label {
                 text = "版本奖励",
-                fontSize = sz(15), fontColor = { 200, 205, 220, 220 },
+                fontSize = sz(11), fontColor = { 200, 205, 220, 200 },
                 pointerEvents = "none",
             },
-            btnBadge,
         },
     }
 end
@@ -243,10 +283,37 @@ function VersionRewardPanel.CreatePopup()
                             text = vr.label,
                             fontSize = 13, fontColor = C.textPrimary,
                         },
-                        UI.Panel {
-                            flexDirection = "row", alignItems = "center", gap = 8,
-                            children = {
-                                UI.Panel {
+                        -- 奖励内容：道具或金币
+                        (function()
+                            if vr.props and #vr.props > 0 then
+                                local propItems = {}
+                                for _, pr in ipairs(vr.props) do
+                                    local pInfo = Props.BY_ID[pr.id]
+                                    if pInfo then
+                                        table.insert(propItems, UI.Panel {
+                                            flexDirection = "row", alignItems = "center", gap = 3,
+                                            children = {
+                                                UI.Panel {
+                                                    width = 16, height = 16,
+                                                    backgroundImage = pInfo.iconImage or "",
+                                                    backgroundFit = "contain",
+                                                    flexShrink = 0,
+                                                },
+                                                UI.Label {
+                                                    text = pInfo.name .. "×" .. pr.count,
+                                                    fontSize = 11, fontColor = { 220, 225, 240, 255 },
+                                                },
+                                            },
+                                        })
+                                    end
+                                end
+                                return UI.Panel {
+                                    flexDirection = "row", flexWrap = "wrap", gap = 6,
+                                    children = propItems,
+                                }
+                            end
+                            if vr.coins and vr.coins > 0 then
+                                return UI.Panel {
                                     flexDirection = "row", alignItems = "center", gap = 4,
                                     children = {
                                         UI.Panel {
@@ -260,24 +327,10 @@ function VersionRewardPanel.CreatePopup()
                                             fontSize = 12, fontColor = { 255, 220, 100, 255 },
                                         },
                                     },
-                                },
-                                vr.charCoins and UI.Panel {
-                                    flexDirection = "row", alignItems = "center", gap = 3,
-                                    children = {
-                                        UI.Panel {
-                                            width = 14, height = 14,
-                                            backgroundImage = Config.CHARACTER_COIN_ICON,
-                                            backgroundFit = "contain",
-                                            flexShrink = 0,
-                                        },
-                                        UI.Label {
-                                            text = "+" .. vr.charCoins,
-                                            fontSize = 12, fontColor = { 150, 200, 255, 255 },
-                                        },
-                                    },
-                                } or nil,
-                            },
-                        },
+                                }
+                            end
+                            return nil
+                        end)(),
                     },
                 },
                 claimBtn,
@@ -294,7 +347,7 @@ function VersionRewardPanel.CreatePopup()
     end
 
     local popupContent = UI.Panel {
-        width = 300,
+        width = 380,
         backgroundColor = C.bgPanel,
         borderRadius = 0,
         padding = 20, gap = 10,

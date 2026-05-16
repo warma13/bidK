@@ -373,6 +373,51 @@ local function collectValueHintLow(publicInfos, skillInfos)
     return bestLow
 end
 
+--- 收集 quality_avg_value 信息：返回 { [rarityId] = avgValue } 映射，保留每品质最高均价
+--- 注意：rarityAvgValue 是仓库内该品质物品的实际均价，比池统计更精确
+local function collectRarityAvgValues(publicInfos, skillInfos)
+    local result = {}
+
+    local function check(info)
+        if info.type == "quality_avg_value" and info.rarityId and info.rarityAvgValue and info.rarityAvgValue > 0 then
+            if not result[info.rarityId] or info.rarityAvgValue > result[info.rarityId] then
+                result[info.rarityId] = info.rarityAvgValue
+            end
+        end
+    end
+
+    for _, info in ipairs(publicInfos) do check(info) end
+    for _, info in ipairs(skillInfos) do
+        check(info)
+        if info.extraInfos then
+            for _, extra in ipairs(info.extraInfos) do check(extra) end
+        end
+    end
+    return result
+end
+
+--- 收集 quality_total_cells 信息：返回 { [rarityId] = totalCells } 映射
+local function collectRarityTotalCells(publicInfos, skillInfos)
+    local result = {}
+
+    local function check(info)
+        if info.type == "quality_total_cells" and info.rarityId and info.rarityTotalCells and info.rarityTotalCells > 0 then
+            if not result[info.rarityId] or info.rarityTotalCells > result[info.rarityId] then
+                result[info.rarityId] = info.rarityTotalCells
+            end
+        end
+    end
+
+    for _, info in ipairs(publicInfos) do check(info) end
+    for _, info in ipairs(skillInfos) do
+        check(info)
+        if info.extraInfos then
+            for _, extra in ipairs(info.extraInfos) do check(extra) end
+        end
+    end
+    return result
+end
+
 --- 收集 total_cells / avg_cells_per_item 信息：返回 { totalCells, totalCount } 或 nil
 --- 优先选格子数最多的（信息最充分），多轮信息取 totalCells 最大值
 local function collectTotalCellsInfo(publicInfos, skillInfos)
@@ -520,12 +565,19 @@ function EstimateValue.Calculate(infoState, whTypeId)
     end
 
     -- 仓库质量信号：用于调整 L0/L1 未知物品估值
-    -- min 模式：仅在坏仓（ratio < 1）时向下收紧，好仓保持保守不动
+    -- min 模式：双向生效，好仓上调（保守折半），坏仓下调
     local qualityRatio = collectSampleQualityRatio(publicInfos, skillInfos, tables.poolGeoMean)
     local unknownMult = 1.0
-    if qualityRatio and qualityRatio < 1.0 then
-        -- 阻尼：取平方根，防止小样本极端偏低拖垮整体
-        unknownMult = math.sqrt(qualityRatio)
+    if qualityRatio then
+        local dm = math.sqrt(qualityRatio)  -- sqrt 阻尼
+        if qualityRatio < 1.0 then
+            -- 坏仓：完整应用下调（保守，越低越好）
+            unknownMult = dm
+        else
+            -- 好仓：折半应用上调（min 模式比 expected 模式更保守）
+            unknownMult = 1.0 + (dm - 1.0) * 0.5
+        end
+        unknownMult = math.max(0.3, math.min(4.0, unknownMult))
     end
 
     -- 处理未知物品（通过品质名额约束）
@@ -629,6 +681,126 @@ function EstimateValue.Calculate(infoState, whTypeId)
         local cellsFloor = cellsInfo.totalCells * tables.minValuePerCell
         if cellsFloor > totalMin then
             totalMin = cellsFloor
+        end
+    end
+
+    -- sampleAvgValue 直接下界约束：
+    -- 已知 N 件随机样品均价 = X → 整仓估价至少 totalCount × X × 0.4
+    -- 系数 0.4：min 模式保守（期望约为均价×totalCount，取 40% 作为下界）
+    -- 这是最直接利用均价信息的约束，防止高价值仓库被严重低估
+    do
+        local bestSampleAvg = nil
+        local bestTotalCount = nil
+        local function checkSample(info)
+            if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 then
+                if not bestSampleAvg or info.sampleAvgValue > bestSampleAvg then
+                    bestSampleAvg = info.sampleAvgValue
+                    bestTotalCount = info.totalCount
+                end
+            end
+        end
+        for _, info in ipairs(publicInfos) do checkSample(info) end
+        for _, info in ipairs(skillInfos) do
+            checkSample(info)
+            if info.extraInfos then
+                for _, extra in ipairs(info.extraInfos) do checkSample(extra) end
+            end
+        end
+        if bestSampleAvg then
+            local n = bestTotalCount or #items
+            local sampleFloor = n * bestSampleAvg * 0.4
+            if sampleFloor > totalMin then
+                print("[EstimateValue] sampleAvgValue 下界约束: "
+                    .. string.format("%.0f", totalMin) .. " -> " .. string.format("%.0f", sampleFloor)
+                    .. " (avgValue=" .. string.format("%.0f", bestSampleAvg)
+                    .. " n=" .. n .. " factor=0.4)")
+                totalMin = sampleFloor
+            end
+        end
+    end
+
+    -- quality_avg_value 下界约束：
+    -- 已知某品质仓库内实际均价 = V，件数 = N
+    -- → 那 N 件物品对 totalMin 的贡献至少为 N × V × 0.5（min 模式保守系数）
+    -- 注意：已揭示物品已有更精确估价，这里仅针对未揭示的件数补充下界
+    do
+        local rarityAvgValues = collectRarityAvgValues(publicInfos, skillInfos)
+        local rarityCounstForFloor = collectRarityCounts(publicInfos, skillInfos)
+        if next(rarityAvgValues) then
+            -- 计算已揭示物品中各品质的件数（L2/L3）
+            local revealedByRarity = {}
+            for _, item in ipairs(fullyRevealed) do
+                revealedByRarity[item.rarity] = (revealedByRarity[item.rarity] or 0) + 1
+            end
+            for _, item in ipairs(qualityRevealed) do
+                revealedByRarity[item.rarity] = (revealedByRarity[item.rarity] or 0) + 1
+            end
+
+            for rarId, avgV in pairs(rarityAvgValues) do
+                local totalKnownCount = rarityCounstForFloor[rarId] or 0
+                if totalKnownCount > 0 then
+                    -- 未揭示的该品质件数（仅对未揭示部分应用约束，避免重复计算）
+                    local revealedCount = revealedByRarity[rarId] or 0
+                    local unrevealed = math.max(0, totalKnownCount - revealedCount)
+                    -- 全品质下界：totalCount × avgV × 0.5（包含已揭示部分的贡献）
+                    -- 使用更简单的方法：直接用总件数 × 均价 × 0.5 作为该品质贡献的下界
+                    local rarFloor = totalKnownCount * avgV * 0.5
+
+                    -- 计算已揭示该品质物品的当前估价总和
+                    local revealedSum = 0
+                    for _, item in ipairs(fullyRevealed) do
+                        if item.rarity == rarId then
+                            revealedSum = revealedSum + (item.realValue or 0)
+                        end
+                    end
+                    for _, item in ipairs(qualityRevealed) do
+                        if item.rarity == rarId then
+                            revealedSum = revealedSum + getMinValue(tables, item.rarity, item.w, item.h)
+                        end
+                    end
+
+                    -- 未揭示该品质物品的当前估价（以 white 为底）
+                    local unrevealedCurrentSum = unrevealed > 0
+                        and (unrevealed * (tables.min.qualityMinValue["white"] or 0) * unknownMult)
+                        or 0
+
+                    local currentRarContrib = revealedSum + unrevealedCurrentSum
+                    if rarFloor > currentRarContrib then
+                        local boost = rarFloor - currentRarContrib
+                        totalMin = totalMin + boost
+                        print("[EstimateValue] rarityAvgValue 下界约束 [" .. rarId .. "]:"
+                            .. " 当前贡献=" .. string.format("%.0f", currentRarContrib)
+                            .. " 下界=" .. string.format("%.0f", rarFloor)
+                            .. " (avgV=" .. string.format("%.0f", avgV)
+                            .. " totalCount=" .. totalKnownCount
+                            .. " factor=0.5) +boost=" .. string.format("%.0f", boost))
+                    end
+                end
+            end
+        end
+    end
+
+    -- quality_total_cells 下界约束：
+    -- 已知某品质总格子数 = TC，该品质每格最低价密度 = D → 贡献至少 TC × D
+    -- 例："蓝色品质共占80格，蓝色最低格子密度=500/格 → 蓝色物品至少贡献40,000"
+    -- 安全：只在超过现有 totalMin 时才应用（max 逻辑）
+    do
+        local rarityTotalCellsMap = collectRarityTotalCells(publicInfos, skillInfos)
+        if next(rarityTotalCellsMap) then
+            for rarId, totalCells in pairs(rarityTotalCellsMap) do
+                local minDensity = tables.qualityMinValuePerCell[rarId] or tables.minValuePerCell
+                if minDensity and minDensity > 0 then
+                    local cellsFloor = totalCells * minDensity
+                    if cellsFloor > totalMin then
+                        print("[EstimateValue] rarityTotalCells 下界约束 [" .. rarId .. "]:"
+                            .. " totalMin=" .. string.format("%.0f", totalMin)
+                            .. " -> " .. string.format("%.0f", cellsFloor)
+                            .. " (cells=" .. totalCells
+                            .. " minDensity=" .. string.format("%.1f", minDensity) .. ")")
+                        totalMin = cellsFloor
+                    end
+                end
+            end
         end
     end
 

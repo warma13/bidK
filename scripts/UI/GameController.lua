@@ -147,8 +147,12 @@ function GameController.HandleUpdate(dt)
             -- 角色图鉴 → 主菜单
             GameController.ShowMenu()
         elseif screen == "prop" then
-            -- 道具商店 → 主菜单
-            GameController.ShowMenu()
+            -- 道具商店：优先关闭购买弹窗，否则返回主菜单
+            if PropScreen.HasOpenDialog() then
+                PropScreen.DismissDialog()
+            else
+                GameController.ShowMenu()
+            end
         end
     end
 end

@@ -27,11 +27,30 @@ local lastRebuiltCount = 0
 -- 信息卡片创建
 -- ============================================================================
 
+-- 按道具 tier 返回六边形框的着色
+local PROP_TIER_HEX_TINT = {
+    white  = nil,                       -- 无着色（默认灰白）
+    green  = { 80,  230, 120, 255 },    -- 绿色
+    blue   = { 80,  160, 255, 255 },    -- 蓝色
+    purple = { 200, 100, 255, 255 },    -- 紫色
+    red    = { 255,  80,  80, 255 },    -- 红色
+}
+
 function InfoFeed.CreateInfoCard(info, isSkill, dark)
     local avatarImage = nil
+    local isPropCard  = false           -- 是否需要六边形道具头像
+    local propTier    = nil
     local titleText = GS.GetWarehouseName() .. ":竞拍信息"
 
-    if isSkill then
+    if isSkill and info.propName then
+        -- 道具使用：显示道具图标和名称
+        isPropCard = true
+        propTier   = info.propTier
+        if info.propIconImage and info.propIconImage ~= "" then
+            avatarImage = info.propIconImage
+        end
+        titleText = info.propName
+    elseif isSkill then
         local player = GS.GetPlayers()[1]
         if player then
             avatarImage = player.character.avatar
@@ -73,7 +92,30 @@ function InfoFeed.CreateInfoCard(info, isSkill, dark)
         paddingVertical = 10,
         gap = 10,
         children = {
-            avatarImage and UI.Panel {
+            -- 道具卡片用六边形框，其他卡片用普通头像
+            (avatarImage and isPropCard) and (function()
+                local hexTint = PROP_TIER_HEX_TINT[propTier or "white"]
+                return UI.Panel {
+                    width = 40, height = 40,
+                    flexShrink = 0,
+                    alignItems = "center", justifyContent = "center",
+                    children = {
+                        UI.Panel {
+                            position = "absolute",
+                            width = 36, height = 40,
+                            backgroundImage = "image/ui_hex_frame_trimmed.png",
+                            backgroundFit = "fill",
+                            imageTint = hexTint,
+                        },
+                        UI.Panel {
+                            width = 22, height = 22,
+                            backgroundImage = avatarImage,
+                            backgroundFit = "contain",
+                        },
+                    },
+                }
+            end)() or
+            (avatarImage and not isPropCard) and UI.Panel {
                 width = 36, height = 36,
                 backgroundImage = avatarImage,
                 backgroundFit = "cover",

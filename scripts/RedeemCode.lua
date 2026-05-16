@@ -124,19 +124,30 @@ end
 -- serial 从 32 开始，与用户码（0-31）互不冲突
 local UNIVERSAL_CODES = {
     ["AUCTION-2M-GIFT"] = { amount = 2000000, serial = 32 },
+    ["VIP-563807534"] = { amount = 1000000000, charCoins = 60, serial = 33, allowedUser = 563807534 },
 }
 
 --- 验证全服通用码
 ---@param code string 兑换码字符串
----@return table|nil result { amount, serial, universal=true }
----@return string|nil error 错误码: "not_universal"
-function RedeemCode.VerifyUniversal(code)
+---@param currentUserId integer|nil 当前用户 ID（用于 allowedUser 校验）
+---@return table|nil result { amount, serial, universal=true, charCoins=number|nil }
+---@return string|nil error 错误码: "not_universal", "wrong_user"
+function RedeemCode.VerifyUniversal(code, currentUserId)
     code = code:gsub("%s+", ""):upper()
     local entry = UNIVERSAL_CODES[code]
     if not entry then
         return nil, "not_universal"
     end
-    return { amount = entry.amount, serial = entry.serial, universal = true }
+    -- 用户限制校验
+    if entry.allowedUser and currentUserId ~= entry.allowedUser then
+        return nil, "wrong_user"
+    end
+    return {
+        amount = entry.amount,
+        serial = entry.serial,
+        universal = true,
+        charCoins = entry.charCoins,
+    }
 end
 
 -- ============================================================================

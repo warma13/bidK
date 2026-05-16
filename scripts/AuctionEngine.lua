@@ -4,6 +4,7 @@
 
 local Config = require("Config")
 local SaveSystem = require("SaveSystem")
+local PropSystem = require("PropSystem")
 
 local AuctionEngine = {}
 
@@ -384,6 +385,9 @@ end
 function AuctionEngine.EnterInfoReveal(round)
     -- 重置本轮信息揭示计时器（防止跨轮/跨局累积导致立即触发15秒超时）
     engine._infoRevealElapsed = 0
+
+    -- 每轮开始重置道具使用限制
+    PropSystem.ResetRoundUsage()
 
     _GameState.StartInfoReveal(round)
     local infos = _InfoSystem.GetRoundInfos(round)

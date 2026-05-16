@@ -3,6 +3,7 @@
 -- ============================================================================
 
 local UI = require("urhox-libs/UI")
+require("UI.PopoverPatch")  -- 动态高度补丁
 local Config = require("Config")
 local Utils = require("UI.Utils")
 local StartScreen = require("UI.StartScreen")
