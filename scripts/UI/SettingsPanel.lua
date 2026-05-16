@@ -442,7 +442,10 @@ function SettingsPanel.CreatePopup()
         onChange = function(self, v)
             SetBgmVolume(v)
             bgmPctLabel:SetText(math.floor(v + 0.5) .. "%")
+        end,
+        onChangeEnd = function(self, v)
             SaveSettings()
+            Utils.PlayClick()
         end,
     }
 
@@ -453,8 +456,10 @@ function SettingsPanel.CreatePopup()
         onChange = function(self, v)
             SetSfxVolume(v)
             sfxPctLabel:SetText(math.floor(v + 0.5) .. "%")
+        end,
+        onChangeEnd = function(self, v)
             SaveSettings()
-            Utils.PlaySfx("ui_click")
+            Utils.PlayClick()
         end,
     }
 
@@ -557,6 +562,7 @@ function SettingsPanel.CreatePopup()
                     width = "100%",
                     flexShrink = 0,
                     onChange = function(self, v)
+                        Utils.PlayClick()
                         SaveSettings()
                     end,
                 }

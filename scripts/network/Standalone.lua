@@ -114,7 +114,13 @@ local function InitEngine()
     -- 全局去掉所有 UI 组件的默认圆角
     local Theme = UI.Theme
     local curTheme = Theme.GetTheme()
+    -- 主题色：黄绿色 #C3D728（取自竞拍视觉风格）
     local noRadius = Theme.ExtendTheme(curTheme, {
+        colors = {
+            primary        = { 195, 215, 40,  255 },
+            primaryHover   = { 215, 235, 60,  255 },
+            primaryPressed = { 165, 185, 20,  255 },
+        },
         components = {
             Button = { borderRadius = 0 },
             Panel = { borderRadius = 0 },

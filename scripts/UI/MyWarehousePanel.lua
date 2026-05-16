@@ -500,14 +500,17 @@ function Panel.Show(onBack)
 
     -- ── 顶部栏 ──────────────────────────────────────
     local backBtn = UI.Button {
-        text = "< 返回",
+        text = "返回",
         width = "100%", height = sz(26),
         flexShrink = 0,
         fontSize = sz(11),
-        backgroundColor = { 40, 44, 55, 220 },
-        fontColor = { 190, 195, 210, 255 },
-        borderWidth = 1,
-        borderColor = { 80, 85, 100, 160 },
+        fontColor = { 195, 215, 40, 230 },
+        fontWeight = "bold",
+        backgroundColor = { 195, 215, 40, 20 },
+        hoverBackgroundColor = { 195, 215, 40, 50 },
+        pressedBackgroundColor = { 195, 215, 40, 110 },
+        borderBottomWidth = 1,
+        borderColor = { 195, 215, 40, 160 },
         borderRadius = 0,
         onClick = function()
             Utils.PlayClick()
