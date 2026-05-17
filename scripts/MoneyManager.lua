@@ -14,7 +14,7 @@ local SaveFramework = require("SaveFramework")
 local MoneyManager = {}
 
 -- 注入的上下文（由 GameState.Init 调用 Setup 设置）
-local ctx = nil  -- { state, secureMoney, AntiCheat }
+local ctx = nil  -- { state }
 local onMoneyChanged = nil
 local isServerMode = false  -- 服务端模式：跳过 clientCloud 操作
 
@@ -164,7 +164,6 @@ SaveFramework.Register(MODULE_NAME, {
         end
 
         -- 初始化金币审计账本
-        require("MoneyLedger").Init(MoneyHUD.GetMoney())
     end,
 
     -- 往 BatchSet 的 batch 上追加金币数据
@@ -182,7 +181,6 @@ SaveFramework.Register(MODULE_NAME, {
         local Config = require("Config")
         local MoneyHUD = require("UI.MoneyHUD")
         MoneyHUD.SetMoney(Config.GAME.StartingMoney)
-        require("MoneyLedger").Init(MoneyHUD.GetMoney())
         print("[MoneyManager] Defaults applied, money=" .. Config.GAME.StartingMoney)
     end,
 })
@@ -211,67 +209,29 @@ function MoneyManager.NotifyMoneyChanged(playerIdx, value)
 end
 
 -- ============================================================================
--- 安全资金操作（AntiCheat 集成）
+-- 资金操作
 -- ============================================================================
 
-function MoneyManager.ValidateMoney(playerIdx)
-    local sv = ctx.secureMoney[playerIdx]
-    local player = ctx.state.players[playerIdx]
-    if sv and player then
-        local secureVal = sv.get()
-        if secureVal ~= player.money then
-            print("[AntiCheat] WARNING: Player " .. playerIdx .. " money tampered! "
-                .. player.money .. " -> restoring to " .. secureVal)
-            player.money = secureVal
-        end
-    end
-end
+--- 空操作：保留接口兼容性，不再执行任何校验
+function MoneyManager.ValidateMoney(playerIdx) end
 
---- 账本核算
-function MoneyManager.LedgerAudit()
-    if not ctx then return end
-    local player = ctx.state.players[1]
-    if not player or not player.isHuman then return end
+--- 空操作：账本审计已移除
+function MoneyManager.LedgerAudit() end
 
-    local MoneyLedger = require("MoneyLedger")
-    if not MoneyLedger.IsInitialized() then return end
-
-    local actualMoney = player.money
-    local ok, expectedBalance, msg = MoneyLedger.Verify(actualMoney)
-    if not ok then
-        print("[MoneyLedger] TAMPER DETECTED! Correcting " .. actualMoney .. " -> " .. expectedBalance)
-        player.money = expectedBalance
-        if ctx.secureMoney[1] then
-            ctx.secureMoney[1].set(expectedBalance)
-        end
-        if onMoneyChanged then onMoneyChanged(1, expectedBalance) end
-        MoneyManager.SaveCloudMoney()
-    end
-end
-
---- 安全修改资金
+--- 修改资金
 function MoneyManager.SecureSetMoney(playerIdx, newValue, source, context)
     local player = ctx.state.players[playerIdx]
     if not player then return end
     newValue = math.floor(newValue)
-
-    local oldValue = player.money
     player.money = newValue
-    if ctx.secureMoney[playerIdx] then
-        ctx.secureMoney[playerIdx].set(newValue)
-    end
     if playerIdx == 1 and player.isHuman then
-        local MoneyLedger = require("MoneyLedger")
-        MoneyLedger.Record(source or "unknown_set", newValue - oldValue, oldValue, newValue, context)
-
         if onMoneyChanged then onMoneyChanged(1, newValue) end
         MoneyManager.SaveCloudMoney()
     end
 end
 
---- 安全增减资金
+--- 增减资金
 function MoneyManager.SecureAddMoney(playerIdx, delta, source, context)
-    MoneyManager.ValidateMoney(playerIdx)
     local player = ctx.state.players[playerIdx]
     if not player then return end
     MoneyManager.SecureSetMoney(playerIdx, player.money + delta, source, context)
@@ -323,13 +283,9 @@ end
 function MoneyManager.AddMoneyFromMenu(delta, label, opts)
     opts = opts or {}
     local MoneyHUD = require("UI.MoneyHUD")
-    local MoneyLedger = require("MoneyLedger")
 
     local oldMoney = MoneyHUD.GetMoney()
     local newTotal = math.max(0, math.floor(oldMoney + delta))
-
-    -- 审计记账
-    MoneyLedger.Record(label or "menu_unknown", delta, oldMoney, newTotal)
 
     -- 乐观更新本地缓存
     MoneyHUD.SetMoney(newTotal)

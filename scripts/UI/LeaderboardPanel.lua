@@ -47,11 +47,11 @@ end
 
 -- fmt(rawScore) → 显示字符串（可选，不填则走通用 FormatValue）
 local CATEGORIES = {
-    { id = "money_rank",         label = "总竞拍利润",   key = "money_rank",         scale = 10000, unit = "" },
-    { id = "loss_rank",          label = "总竞拍亏损",   key = "loss_rank",          scale = 10000, unit = "", negative = true },
+    { id = "money_rank",         label = "总利润",       key = "money_rank",         scale = 10000, unit = "" },
+    { id = "loss_rank",          label = "总亏损",       key = "loss_rank",          scale = 10000, unit = "", negative = true },
     { id = "red_items_rank",     label = "红色藏品获取数", key = "red_items_rank",   scale = 1,     unit = "件" },
-    { id = "single_profit_rank", label = "单次竞拍利润", key = "single_profit_rank", scale = 10000, unit = "" },
-    { id = "single_loss_rank",   label = "单次竞拍亏损", key = "single_loss_rank",   scale = 10000, unit = "", negative = true },
+    { id = "single_profit_rank", label = "单次利润",     key = "single_profit_rank", scale = 10000, unit = "" },
+    { id = "single_loss_rank",   label = "单次亏损",     key = "single_loss_rank",   scale = 10000, unit = "", negative = true },
     {
         id    = "win_rate_rank",
         label = "竞拍成功率",

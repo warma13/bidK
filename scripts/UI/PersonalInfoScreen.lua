@@ -181,6 +181,8 @@ local function BuildInfoTab()
     local totalGames  = stats.totalGames   or 0
     local wins        = stats.wins         or 0
     local totalProfit = stats.totalProfit  or 0
+    local totalLoss   = stats.totalLoss    or 0
+    local netProfit   = totalProfit - totalLoss   -- 净利润（可能为负）
     local maxProfit   = stats.maxProfit    or 0
     local highestBid  = stats.highestBid   or 0
     local totalItems  = stats.totalItemsWon or 0
@@ -201,7 +203,10 @@ local function BuildInfoTab()
         { label = "总资产",      value = FormatNum(totalAssets),     color = { 220, 195, 100, 255 } },
     }
     local row2 = {
-        { label = "总盈利",      value = FormatNum(totalProfit),     color = totalProfit > 0 and { 100, 220, 140, 255 } or nil },
+        { label = "总盈利",      value = (netProfit >= 0 and "+" or "") .. FormatNum(netProfit),
+                               color = netProfit > 0 and { 100, 220, 140, 255 }
+                                    or netProfit < 0 and { 220, 100, 90,  255 }
+                                    or nil },
         { label = "单局最高利润",value = FormatNum(maxProfit),       color = maxProfit > 0  and { 100, 220, 140, 255 } or nil },
         { label = "最高出价",    value = FormatNum(highestBid),      color = nil },
         { label = "收藏品总数",  value = FormatNum(totalItems),      color = nil },
@@ -868,8 +873,9 @@ end
 
 local function BuildHistoryTab(onShowDetail, onBack)
     local sz = Utils.sz
-    local allHistory = SaveSystem.GetGameHistory()
-    local loadedCount = math.min(PAGE_SIZE, #allHistory)
+    -- 懒加载：初次打开历史 Tab 时才从云端拉取对局记录
+    local allHistory = {}
+    local loadedCount = 0
 
     ---@type any
     local vlist = nil
@@ -1148,7 +1154,14 @@ local function BuildHistoryTab(onShowDetail, onBack)
         text = "暂无对局记录，完成一场对局后将在此显示",
         fontSize = sz(13), fontColor = { 130, 135, 155, 180 },
         textAlign = "center", padding = sz(40),
-        visible = #allHistory == 0,
+        visible = false,
+    }
+
+    local loadingLabel = UI.Label {
+        text = "加载中...",
+        fontSize = sz(13), fontColor = { 130, 135, 155, 180 },
+        textAlign = "center", padding = sz(40),
+        visible = true,
     }
 
     -- VirtualList 初始化时 Yoga 布局未完成，需传 viewportHeight 让对象池预热正确
@@ -1157,16 +1170,16 @@ local function BuildHistoryTab(onShowDetail, onBack)
     vlist = UI.VirtualList {
         width = "100%", flexGrow = 1, flexShrink = 1,
         viewportHeight = screenH,
-        data = GetDisplayData(),
+        data = {},
         itemHeight = ROW_HEIGHT,
         itemGap = 1,
         createItem = createItem,
         bindItem = bindItem,
+        visible = false,
     }
 
-    local remaining = #allHistory - loadedCount
     loadMoreBtn = UI.Button {
-        text = "加载更多（" .. math.min(PAGE_SIZE, remaining) .. " 条）",
+        text = "加载更多",
         paddingHorizontal = sz(24), paddingVertical = sz(8),
         fontSize = sz(12), fontColor = { 180, 185, 200, 240 },
         backgroundColor = { 255, 255, 255, 8 },
@@ -1188,13 +1201,31 @@ local function BuildHistoryTab(onShowDetail, onBack)
     loadMorePanel = UI.Panel {
         width = "100%", alignItems = "center",
         paddingVertical = sz(10),
-        visible = remaining > 0,
+        visible = false,
         children = { loadMoreBtn },
     }
 
+    -- 懒加载：异步从云端拉取历史记录，完成后刷新 UI
+    SaveSystem.LoadHistory(function(records)
+        allHistory = records
+        loadedCount = math.min(PAGE_SIZE, #allHistory)
+        loadingLabel:SetVisible(false)
+        if #allHistory == 0 then
+            emptyLabel:SetVisible(true)
+        else
+            vlist:SetData(GetDisplayData())
+            vlist:SetVisible(true)
+            local remaining = #allHistory - loadedCount
+            if remaining > 0 then
+                loadMoreBtn.text = "加载更多（" .. math.min(PAGE_SIZE, remaining) .. " 条）"
+                loadMorePanel:SetVisible(true)
+            end
+        end
+    end)
+
     return UI.Panel {
         width = "100%", flexGrow = 1, flexShrink = 1, flexDirection = "column",
-        children = { emptyLabel, vlist, loadMorePanel },
+        children = { loadingLabel, emptyLabel, vlist, loadMorePanel },
     }
 end
 

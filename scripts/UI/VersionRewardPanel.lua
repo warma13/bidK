@@ -33,9 +33,11 @@ local VERSION_REWARDS = {
     },
 }
 
--- 自动填充：每种道具各 3 个
+-- 自动填充：只保留绿色（tier = "green"）道具，每种 3 个
 for _, p in ipairs(Props.LIST) do
-    table.insert(VERSION_REWARDS[1].props, { id = p.id, count = 3 })
+    if p.tier == "green" then
+        table.insert(VERSION_REWARDS[1].props, { id = p.id, count = 3 })
+    end
 end
 
 -- 云端键名前缀：ver_reward_1_0_7 = 1 表示已领取
