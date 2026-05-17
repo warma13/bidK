@@ -2,6 +2,8 @@
 -- UI/MenuScreen.lua - 主菜单屏幕
 -- ============================================================================
 
+---@diagnostic disable: undefined-global
+
 local UI = require("urhox-libs/UI")
 local Config = require("Config")
 local UIState = require("UI.UIState")
@@ -13,6 +15,7 @@ local SettingsPanel = require("UI.SettingsPanel")
 local AdCardPanel = require("UI.AdCardPanel")
 local OnlineRewardPanel = require("UI.OnlineRewardPanel")
 local StatsPanel = require("UI.StatsPanel")
+local PersonalInfoScreen = require("UI.PersonalInfoScreen")
 local VersionRewardPanel = require("UI.VersionRewardPanel")
 local TaskPanel = require("UI.TaskPanel")
 local TicketTooltip = require("UI.TicketTooltip")
@@ -333,26 +336,111 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                     },
                 },
             },
-            LeaderboardPanel.Create(),
             UI.Panel {
                 position = "absolute",
                 left = Utils.sz(8), top = Utils.sz(8),
-                flexDirection = "row",
-                alignItems = "center",
-                gap = Utils.sz(8),
+                flexDirection = "column",
+                alignItems = "flex-start",
+                gap = Utils.sz(5),
                 children = {
-                    SettingsPanel.CreateButton(),
-                    MoneyHUD.CreatePanel(),
-                    StatsPanel.CreateButton(),
-                    AdCardPanel.CreateButton(),
-                    OnlineRewardPanel.CreateButton(),
-                    announcementBtn,
-                    VersionRewardPanel.CreateButton(),
-                    TaskPanel.CreateButton(),
+                    -- 第一行：角色头像 + 玩家昵称/UID + 设置 + 金币
+                    (function()
+                        -- 角色头像（游戏角色）
+                        local charIdx    = UIState.selectedCharIdx or 1
+                        local chars      = Config.CHARACTERS or {}
+                        local selChar    = chars[charIdx] or chars[1] or {}
+                        local avatarPath = selChar.avatar or "Textures/characters/ye_lingxi.png"
+
+                        -- 玩家昵称 + UID（异步填充）
+                        local nickLbl = UI.Label {
+                            text = "—",
+                            fontSize = Utils.sz(13), fontWeight = "bold",
+                            fontColor = { 235, 210, 135, 255 },
+                            pointerEvents = "none",
+                        }
+                        local uidLbl = UI.Label {
+                            text = "",
+                            fontSize = Utils.sz(10),
+                            fontColor = { 170, 155, 110, 200 },
+                            pointerEvents = "none",
+                        }
+                        local myUserId = (lobby and lobby:GetMyUserId()) or 0
+                        if myUserId ~= 0 then
+                            uidLbl.text = "UID: " .. tostring(myUserId)
+                            GetUserNickname({
+                                userIds  = { myUserId },
+                                onSuccess = function(nicks)
+                                    if nicks and #nicks > 0 and nicks[1].nickname then
+                                        nickLbl.text = nicks[1].nickname
+                                    end
+                                end,
+                                onError = function() end,
+                            })
+                        else
+                            nickLbl.text = "游客"
+                        end
+
+                        local playerInfoPanel = UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = Utils.sz(8),
+                            cursor = "pointer",
+                            backgroundColor = { 18, 12, 6, 215 },
+                            borderWidth = 1,
+                            borderColor = { 110, 88, 45, 110 },
+                            borderRadius = Utils.sz(4),
+                            paddingRight = Utils.sz(10),
+                            overflow = "hidden",
+                            onClick = function()
+                                Utils.PlayClick()
+                                PersonalInfoScreen.Show()
+                            end,
+                            children = {
+                                -- 角色头像
+                                UI.Panel {
+                                    width = Utils.sz(38), height = Utils.sz(38),
+                                    borderRadius = 0,
+                                    overflow = "hidden",
+                                    flexShrink = 0,
+                                    backgroundImage = avatarPath,
+                                    backgroundFit = "cover",
+                                },
+                                -- 玩家昵称 + UID（纵向）
+                                UI.Panel {
+                                    flexDirection = "column",
+                                    gap = Utils.sz(2),
+                                    children = { nickLbl, uidLbl },
+                                },
+                            },
+                        }
+
+                        return UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = Utils.sz(8),
+                            children = {
+                                playerInfoPanel,
+                                SettingsPanel.CreateButton(),
+                                MoneyHUD.CreatePanel(),
+                            },
+                        }
+                    end)(),
+                    -- 第二行：银卡及之后的图标
+                    UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = Utils.sz(8),
+                        children = {
+                            AdCardPanel.CreateButton(),
+                            OnlineRewardPanel.CreateButton(),
+                            announcementBtn,
+                            VersionRewardPanel.CreateButton(),
+                            TaskPanel.CreateButton(),
+                        },
+                    },
                 },
             },
             SettingsPanel.CreatePopup(),
-            StatsPanel.CreatePopup(),
             MoneyHUD.CreatePopup(),
             AdCardPanel.CreatePopup(),
             OnlineRewardPanel.CreatePopup(),
@@ -360,6 +448,8 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
             VersionRewardPanel.CreatePopup(),
             TaskPanel.CreatePopup(),
             TicketTooltip.CreateOverlay(),
+            -- 排行榜全屏（置于最顶层，覆盖所有弹窗）
+            LeaderboardPanel.Create(),
         }
     }
     UI.SetRoot(UI.SafeAreaView {

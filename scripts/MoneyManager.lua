@@ -28,11 +28,104 @@ local INT32_MAX = 2147483647
 ---@diagnostic disable: undefined-global
 
 -- ============================================================================
+-- 统一排行榜上传（含条件过滤）
+-- ============================================================================
+
+--- 将一组统计数据写入 batch（对应指定 suffix）
+local function UploadStatsWithSuffix(batch, sfx, profit, loss, maxProfit, maxLoss, redItems, games, wins)
+    local winRatePct    = games > 0 and (wins / games * 100) or 0
+    local winRateBP     = math.max(0, math.min(10000, math.floor(winRatePct * 100 + 0.5)))
+    local winRateEncoded = winRateBP * 100000 + math.min(99999, games)
+
+    if profit > 0 then
+        batch:SetInt("money_rank"         .. sfx, MoneyManager.ToRankValue(profit))
+    end
+    if loss > 0 then
+        batch:SetInt("loss_rank"          .. sfx, MoneyManager.ToRankValue(loss))
+    end
+    if redItems > 0 then
+        batch:SetInt("red_items_rank"     .. sfx, redItems)
+    end
+    if maxProfit > 0 then
+        batch:SetInt("single_profit_rank" .. sfx, MoneyManager.ToRankValue(maxProfit))
+    end
+    if maxLoss > 0 then
+        batch:SetInt("single_loss_rank"   .. sfx, MoneyManager.ToRankValue(maxLoss))
+    end
+    if games > 0 then
+        batch:SetInt("win_rate_rank"      .. sfx, winRateEncoded)
+    end
+end
+
+local function UploadAllRanks(batch)
+    local SaveSystem = require("SaveSystem")
+    local stats = SaveSystem.GetStats()
+    if not stats then return end
+
+    local now = os.time()
+
+    -- 删除上一个周期的过期 key
+    local RANK_KEYS = {
+        "money_rank", "loss_rank", "red_items_rank",
+        "single_profit_rank", "single_loss_rank",
+        "win_rate_rank",
+    }
+    local prevSuffixes = {
+        "_d" .. os.date("%Y%m%d", now - 86400),
+        "_w" .. os.date("%Y%W",   now - 7 * 86400),
+        "_m" .. os.date("%Y%m",   now - 32 * 86400),
+    }
+    for _, sfx in ipairs(prevSuffixes) do
+        for _, rk in ipairs(RANK_KEYS) do
+            batch:Delete(rk .. sfx)
+        end
+    end
+
+    -- 总榜：用全量累计数据
+    UploadStatsWithSuffix(batch, "",
+        stats.totalProfit  or 0,
+        stats.totalLoss    or 0,
+        stats.maxProfit    or 0,
+        stats.maxLoss      or 0,
+        stats.redItemsWon  or 0,
+        stats.totalGames   or 0,
+        stats.wins         or 0)
+
+    -- 日/周/月榜：用各自周期的独立统计
+    local periods = {
+        { period = "day",   sfx = "_d" .. os.date("%Y%m%d", now) },
+        { period = "week",  sfx = "_w" .. os.date("%Y%W",   now) },
+        { period = "month", sfx = "_m" .. os.date("%Y%m",   now) },
+    }
+    for _, p in ipairs(periods) do
+        local ps = SaveSystem.GetPeriodStats(p.period)
+        if ps and ps.games > 0 then
+            UploadStatsWithSuffix(batch, p.sfx,
+                ps.profit    or 0,
+                ps.loss      or 0,
+                ps.maxProfit or 0,
+                ps.maxLoss   or 0,
+                ps.red       or 0,  -- 各时间段独立统计的红色藏品数
+                ps.games     or 0,
+                ps.wins      or 0)
+        end
+    end
+end
+
+-- ============================================================================
 -- SaveFramework 注册
 -- ============================================================================
 
 SaveFramework.Register(MODULE_NAME, {
-    cloudKeys = { "player_money", "money_rank", "money_cleanup_done" },
+    cloudKeys = {
+        -- 基础存储
+        "player_money", "money_cleanup_done",
+        -- 总榜（固定 key，load 时需要读取）
+        "money_rank", "loss_rank", "red_items_rank",
+        "single_profit_rank", "single_loss_rank",
+        "win_rate_rank",
+        -- 日/周/月榜使用动态日期 key（上传时动态生成，不在此预声明）
+    },
     speculativeKeys = {},
 
     -- 从 BatchGet 返回的 values/iscores 中恢复金币
@@ -79,7 +172,9 @@ SaveFramework.Register(MODULE_NAME, {
         local MoneyHUD = require("UI.MoneyHUD")
         local amount = MoneyHUD.GetMoney()
         batch:Set("player_money", amount)
-        batch:SetInt("money_rank", MoneyManager.ToRankValue(amount))
+
+        -- 上传所有榜单（含条件过滤）
+        UploadAllRanks(batch)
     end,
 
     -- 无云端数据时初始化默认值
@@ -242,7 +337,8 @@ function MoneyManager.AddMoneyFromMenu(delta, label, opts)
     -- 云端持久化：通过 SaveFramework.DirectSave
     SaveFramework.DirectSave(label or "menu_money", function(batch)
         batch:Set("player_money", newTotal)
-        batch:SetInt("money_rank", MoneyManager.ToRankValue(newTotal))
+        -- 上传所有榜单（含条件过滤）
+        UploadAllRanks(batch)
         -- 允许调用方追加额外字段
         if opts.batchSetup then
             opts.batchSetup(batch)
@@ -274,7 +370,8 @@ function MoneyManager.PersistMenuMoney(label, opts)
 
     SaveFramework.DirectSave(label or "persist_money", function(batch)
         batch:Set("player_money", amount)
-        batch:SetInt("money_rank", MoneyManager.ToRankValue(amount))
+        -- 上传所有榜单（含条件过滤）
+        UploadAllRanks(batch)
     end, {
         ok = function()
             print("[MoneyManager] PersistMenuMoney saved: " .. amount .. " (" .. label .. ")")

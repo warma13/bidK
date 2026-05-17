@@ -300,7 +300,25 @@ function SaveFramework.Init(onReady)
                     local ok, err = pcall(mod.load, values, iscores)
                     if not ok then
                         print("[SaveFramework] load ERROR [" .. name .. "]: " .. tostring(err))
-                        if mod.defaults then pcall(mod.defaults) end
+                        -- 安全判断：只有当云端确实没有该模块的任何数据时，才调用 defaults()
+                        -- 如果云端 cloudKeys 中任意一个 key 存在，说明有真实数据，不能用 defaults() 覆盖
+                        local hasCloudData = false
+                        for _, key in ipairs(mod.cloudKeys or {}) do
+                            if values[key] ~= nil then
+                                hasCloudData = true
+                                break
+                            end
+                        end
+                        if hasCloudData then
+                            -- 云端有数据但 load 崩溃了：安全地不调用 defaults()
+                            -- 各模块变量保持声明时的初始状态（空数据，saveConfirmed=false）
+                            -- 这样后续保存操作会被 saveConfirmed 门卫阻止，不会覆盖云端数据
+                            print("[SaveFramework] load ERROR [" .. name
+                                .. "] but cloud data exists — skipping defaults() to protect data")
+                        elseif mod.defaults then
+                            -- 真正的新玩家（云端无数据）才调用 defaults()
+                            pcall(mod.defaults)
+                        end
                     end
                 end
             end

@@ -38,11 +38,15 @@ local CHUNK_SIZE = 8000             -- 单 key 最大字节数（留余量）
 local MODULE_NAME = "save"          -- 在 SaveFramework 中的模块名
 
 -- 云端 key 名
-local KEY_HEAD  = "save_head"
-local KEY_CORE  = "save_core"
-local KEY_ITEMS = "save_items"
-local KEY_STATS = "save_stats"
+local KEY_HEAD    = "save_head"
+local KEY_CORE    = "save_core"
+local KEY_ITEMS   = "save_items"
+local KEY_STATS   = "save_stats"
 local KEY_SETTINGS = "save_settings"
+local KEY_HISTORY = "save_history"
+
+-- 历史记录最大条数
+local MAX_HISTORY = 100
 
 -- 本地文件名
 local LOCAL_FILE = "save_data.json"
@@ -68,9 +72,11 @@ local saveData = {
     stats = {
         totalGames = 0,
         wins = 0,
-        totalProfit = 0,
+        totalProfit = 0,   -- 累计正利润之和（仅 profit>0 的局）
+        totalLoss = 0,     -- 累计亏损之和（仅 profit<0 的局，存正数）
         totalItemsWon = 0,
-        maxProfit = 0,
+        maxProfit = 0,     -- 单局最高利润
+        maxLoss = 0,       -- 单局最大亏损（存正数）
         highestBid = 0,
         ticketGames = 0,   -- 使用指定门票参与的场次
         redItemsWon = 0,   -- 拍得的红色物品件数
@@ -83,6 +89,7 @@ local saveData = {
     characterCoins = 0,
     unlockedCharacters = {},
     propItems = {},
+    gameHistory = {},   -- 对局历史记录（最多 MAX_HISTORY 条，最新在前）
 }
 
 -- ============================================================================
@@ -185,6 +192,213 @@ local function decompressItem(c)
 end
 
 -- ============================================================================
+-- 历史记录压缩（节省云端存储空间，约节省 40% 体积）
+--
+-- 格式说明（新格式，标识：无 timestamp 字段，改用 ts）：
+--   记录级：ts/w/wn/cn/it/tv/b/pf/pl/rb/rp
+--   物品(it)：n/r/i/v/[w]/[h]   r=稀有度整数(0-5)，w=h=1时省略
+--   玩家(pl)：n/[h]/[cn]/[b]/[wn]  默认值省略
+--   roundBids(rb)：[[b1,b2,...], ...]  数组套数组替代嵌套字典
+--   roundProps(rp)：[[r,p,id], ...]   稀疏三元组，省略 prop.name（可推导）
+--   charAvatar 全部省略，运行时从 charName 反查 Config.Characters
+-- ============================================================================
+
+-- 稀有度字符串 ↔ 整数（0=white … 5=red）
+local RARITY_PACK   = { white=0, green=1, blue=2, purple=3, gold=4, red=5 }
+local RARITY_UNPACK = { [0]="white", [1]="green", [2]="blue", [3]="purple", [4]="gold", [5]="red" }
+
+-- 角色名 → avatar 路径（延迟初始化，从 Config.Characters 构建）
+local charAvatarByName = nil
+local function GetCharAvatarByName()
+    if not charAvatarByName then
+        charAvatarByName = {}
+        local ok, Chars = pcall(require, "Config.Characters")
+        if ok and Chars and Chars.CHARACTERS then
+            for _, c in ipairs(Chars.CHARACTERS) do
+                if c.name and c.avatar then
+                    charAvatarByName[c.name] = c.avatar
+                end
+            end
+        end
+    end
+    return charAvatarByName
+end
+
+-- prop id → name（延迟初始化）
+local propNameById = nil
+local function GetPropNameById()
+    if not propNameById then
+        propNameById = {}
+        local ok, Props = pcall(require, "Config.Props")
+        if ok and Props and Props.LIST then
+            for _, p in ipairs(Props.LIST) do
+                if p.id and p.name then propNameById[p.id] = p.name end
+            end
+        end
+    end
+    return propNameById
+end
+
+local function compressHistoryRecord(rec)
+    -- ── items ──────────────────────────────────────────────────────────────
+    local citems = {}
+    if rec.items then
+        for _, it in ipairs(rec.items) do
+            local ci = { n = it.name, r = RARITY_PACK[it.rarity] or 0 }
+            if it.image  and it.image  ~= "" then ci.i = it.image  end
+            if it.value  and it.value  ~= 0  then ci.v = it.value  end
+            if it.w      and it.w      ~= 1  then ci.w = it.w      end
+            if it.h      and it.h      ~= 1  then ci.h = it.h      end
+            citems[#citems + 1] = ci
+        end
+    end
+
+    -- ── players ────────────────────────────────────────────────────────────
+    -- charAvatar 省略，加载时从 charName 推导
+    local cplayers = {}
+    if rec.players then
+        for _, pl in ipairs(rec.players) do
+            local cp = { n = pl.name }
+            if pl.isHuman  then cp.h  = 1 end
+            if pl.isWinner then cp.wn = 1 end
+            if pl.charName and pl.charName ~= "" then cp.cn = pl.charName end
+            if pl.bid      and pl.bid      ~= 0  then cp.b  = pl.bid     end
+            cplayers[#cplayers + 1] = cp
+        end
+    end
+
+    -- ── roundBids：嵌套字典 → 数组套数组 ─────────────────────────────────
+    local numPlayers = rec.players and #rec.players or 0
+    local crb = nil
+    if rec.roundBids then
+        local maxRnd = 0
+        for k in pairs(rec.roundBids) do
+            local n = tonumber(k); if n and n > maxRnd then maxRnd = n end
+        end
+        if maxRnd > 0 then
+            crb = {}
+            for r = 1, maxRnd do
+                local row = rec.roundBids[r] or rec.roundBids[tostring(r)] or {}
+                local arr = {}
+                for p = 1, numPlayers do
+                    arr[p] = (row[p] or row[tostring(p)] or 0)
+                end
+                crb[r] = arr
+            end
+        end
+    end
+
+    -- ── roundProps：稀疏字典 → [r,p,id] 三元组列表 ─────────────────────────
+    local crp = nil
+    if rec.roundProps then
+        for rk, row in pairs(rec.roundProps) do
+            if type(row) == "table" then
+                for pk, pu in pairs(row) do
+                    if type(pu) == "table" and pu.id then
+                        crp = crp or {}
+                        crp[#crp + 1] = { tonumber(rk) or rk, tonumber(pk) or pk, pu.id }
+                    end
+                end
+            end
+        end
+    end
+
+    local out = {
+        ts = rec.timestamp,
+        w  = rec.isWin and 1 or 0,
+        wn = rec.warehouseName,
+        it = citems,
+        tv = rec.totalValue,
+        b  = rec.bid,
+        pf = rec.profit,
+        pl = cplayers,
+    }
+    if rec.charName and rec.charName ~= "" then out.cn = rec.charName end
+    if crb then out.rb = crb end
+    if crp then out.rp = crp end
+    return out
+end
+
+local function decompressHistoryRecord(rec)
+    -- 兼容旧格式：有 timestamp 字段则已是展开格式，直接返回
+    if rec.timestamp ~= nil then return rec end
+
+    local avatars   = GetCharAvatarByName()
+    local propNames = GetPropNameById()
+
+    -- ── items ──────────────────────────────────────────────────────────────
+    local items = {}
+    if rec.it then
+        for _, ci in ipairs(rec.it) do
+            items[#items + 1] = {
+                name   = ci.n,
+                rarity = RARITY_UNPACK[ci.r] or "white",
+                image  = ci.i or "",
+                value  = ci.v or 0,
+                w      = ci.w or 1,
+                h      = ci.h or 1,
+            }
+        end
+    end
+
+    -- ── players ────────────────────────────────────────────────────────────
+    local players = {}
+    if rec.pl then
+        for _, cp in ipairs(rec.pl) do
+            local cname = cp.cn or ""
+            players[#players + 1] = {
+                name       = cp.n,
+                isHuman    = cp.h  == 1,
+                isWinner   = cp.wn == 1,
+                charName   = cname,
+                charAvatar = avatars[cname] or "",
+                bid        = cp.b or 0,
+            }
+        end
+    end
+
+    -- ── roundBids：数组套数组 → 嵌套数字键 table ──────────────────────────
+    local roundBids = {}
+    if rec.rb then
+        for r, arr in ipairs(rec.rb) do
+            if type(arr) == "table" then
+                local row = {}
+                for p, b in ipairs(arr) do row[p] = b end
+                roundBids[r] = row
+            end
+        end
+    end
+
+    -- ── roundProps：三元组列表 → 嵌套 table ────────────────────────────────
+    local roundProps = {}
+    if rec.rp then
+        for _, triplet in ipairs(rec.rp) do
+            local r, p, pid = triplet[1], triplet[2], triplet[3]
+            if r and p and pid then
+                roundProps[r] = roundProps[r] or {}
+                roundProps[r][p] = { id = pid, name = propNames[pid] or pid }
+            end
+        end
+    end
+
+    local charName = rec.cn or ""
+    return {
+        timestamp     = rec.ts,
+        isWin         = rec.w == 1,
+        warehouseName = rec.wn,
+        charName      = charName,
+        charAvatar    = avatars[charName] or "",
+        items         = items,
+        totalValue    = rec.tv or 0,
+        bid           = rec.b  or 0,
+        profit        = rec.pf or 0,
+        players       = players,
+        roundBids     = roundBids,
+        roundProps    = roundProps,
+    }
+end
+
+-- ============================================================================
 -- 分组与分片
 -- ============================================================================
 
@@ -198,6 +412,7 @@ local function splitIntoGroups()
         characterCoins = saveData.characterCoins or 0,
         unlockedCharacters = saveData.unlockedCharacters or {},
         propItems = saveData.propItems or {},
+        propDailyBuy = saveData.propDailyBuy or {},
     }
 
     local compressedItems = {}
@@ -216,11 +431,19 @@ local function splitIntoGroups()
         settings[k] = v
     end
 
+    -- 历史记录：逐条压缩
+    local rawHistory = saveData.gameHistory or {}
+    local history = {}
+    for i, rec in ipairs(rawHistory) do
+        history[i] = compressHistoryRecord(rec)
+    end
+
     return {
         core = core,
         items = items,
         stats = stats,
         settings = settings,
+        history = history,
     }
 end
 
@@ -248,6 +471,7 @@ local function mergeGroups(groups)
         data.characterCoins = groups.core.characterCoins or 0
         data.unlockedCharacters = groups.core.unlockedCharacters or {}
         data.propItems = groups.core.propItems or {}
+        data.propDailyBuy = groups.core.propDailyBuy or {}
     end
 
     if groups.items and groups.items.list then
@@ -263,6 +487,8 @@ local function mergeGroups(groups)
     end
     -- 补齐新字段默认值（兼容旧存档）
     data.stats.maxProfit   = data.stats.maxProfit   or 0
+    data.stats.totalLoss   = data.stats.totalLoss   or 0
+    data.stats.maxLoss     = data.stats.maxLoss     or 0
     data.stats.highestBid  = data.stats.highestBid  or 0
     data.stats.ticketGames = data.stats.ticketGames or 0
     data.stats.redItemsWon = data.stats.redItemsWon or 0
@@ -274,6 +500,14 @@ local function mergeGroups(groups)
     if groups.settings then
         for k, v in pairs(groups.settings) do
             data.settings[k] = v
+        end
+    end
+
+    -- 历史记录：逐条解压（自动兼容旧格式/新格式）
+    data.gameHistory = {}
+    if groups.history and type(groups.history) == "table" then
+        for i, rec in ipairs(groups.history) do
+            data.gameHistory[i] = decompressHistoryRecord(rec)
         end
     end
 
@@ -350,6 +584,7 @@ local function loadLocal()
     saveData.characterCoins = saveData.characterCoins or 0
     saveData.unlockedCharacters = saveData.unlockedCharacters or {}
     saveData.propItems = saveData.propItems or {}
+    saveData.gameHistory = saveData.gameHistory or {}
     print("[SaveSystem] Local load OK (" .. #saveData.items .. " items)")
     return true
 end
@@ -437,20 +672,39 @@ end
 SaveFramework.Register(MODULE_NAME, {
     -- 必需的云端 key
     cloudKeys = {
-        KEY_HEAD, KEY_CORE, KEY_ITEMS, KEY_STATS, KEY_SETTINGS,
+        KEY_HEAD, KEY_CORE, KEY_ITEMS, KEY_STATS, KEY_SETTINGS, KEY_HISTORY,
     },
     -- 投机性预取：物品分片 key（玩家可能有 0-N 片）
     -- 10 片 × 8000 bytes ≈ 最多 ~700 件物品
+    -- history 分片：100 条记录约 50-100KB，最多 ~15 片
     speculativeKeys = {
         "save_items_0", "save_items_1", "save_items_2", "save_items_3", "save_items_4",
         "save_items_5", "save_items_6", "save_items_7", "save_items_8", "save_items_9",
+        "save_history_0", "save_history_1", "save_history_2", "save_history_3",
+        "save_history_4", "save_history_5", "save_history_6", "save_history_7",
+        "save_history_8", "save_history_9", "save_history_10", "save_history_11",
+        "save_history_12", "save_history_13", "save_history_14",
     },
 
     -- 从 BatchGet 返回的 values 中恢复存档数据
     load = function(values, iscores)
         local head = values[KEY_HEAD]
         if not head then
-            -- 云端无数据 = 新玩家，使用默认值
+            -- 云端无任何存档数据（head 不存在）：才能判定为新玩家
+            -- 额外检查其他 cloudKeys，防止 head 因某些原因丢失但其他数据仍存在
+            local hasAnyCloudKey = false
+            for _, k in ipairs({ KEY_CORE, KEY_ITEMS, KEY_STATS, KEY_SETTINGS, KEY_HISTORY }) do
+                if values[k] ~= nil then
+                    hasAnyCloudKey = true
+                    break
+                end
+            end
+            if hasAnyCloudKey then
+                -- head 丢了但其他 key 存在——数据损坏，拒绝加载，不设 saveConfirmed
+                print("[SaveSystem] head key missing but other keys exist — possible data corruption, aborting")
+                return
+            end
+            -- 确认是真正的新玩家
             print("[SaveSystem] No cloud save found (new player)")
             saveConfirmed = true
             saveLocal()
@@ -538,6 +792,7 @@ SaveFramework.Register(MODULE_NAME, {
         saveData.tickets = saveData.tickets or {}
         saveData.characterCoins = saveData.characterCoins or 0
         saveData.unlockedCharacters = saveData.unlockedCharacters or {}
+        saveData.gameHistory = saveData.gameHistory or {}
 
         -- 恢复累计游戏时长（从云端存档，不是从本次会话的 0 开始）
         playTime = saveData.playTime or 0
@@ -754,9 +1009,7 @@ function SaveSystem.AddWonItems(warehouseItems)
     for _, item in ipairs(warehouseItems) do
         if item.rarity == "red" then redCount = redCount + 1 end
     end
-    if redCount > 0 then
-        saveData.stats.redItemsWon = (saveData.stats.redItemsWon or 0) + redCount
-    end
+    -- 红色藏品总数由 RecordGameResult 在拍下仓库时统计，此处不重复计数
     print("[SaveSystem] Added " .. #warehouseItems .. " items. Total: " .. #saveData.items)
 end
 
@@ -784,24 +1037,120 @@ function SaveSystem.RemoveItems(itemsToRemove)
     print("[SaveSystem] Removed " .. removed .. " items. Remaining: " .. #saveData.items)
 end
 
+-- ============================================================================
+-- 周期统计辅助（日/周/月独立追踪，用于排行榜按时间段分榜）
+-- ============================================================================
+
+--- 获取指定周期的统计表，若周期 key 变化则自动重置
+local function GetOrResetPeriodStats(key, currentPeriodKey)
+    local s = saveData.stats[key]
+    if not s or s.periodKey ~= currentPeriodKey then
+        s = { periodKey=currentPeriodKey, profit=0, loss=0, maxProfit=0, maxLoss=0, red=0, wins=0, games=0 }
+        saveData.stats[key] = s
+    end
+    return s
+end
+
+--- 将一局结果累加到周期统计
+local function AccumulatePeriodStats(ps, isWin, profit)
+    ps.games = (ps.games or 0) + 1
+    if isWin then ps.wins = (ps.wins or 0) + 1 end
+    if profit > 0 then
+        ps.profit = (ps.profit or 0) + profit
+        if profit > (ps.maxProfit or 0) then ps.maxProfit = profit end
+    elseif profit < 0 then
+        local loss = -profit
+        ps.loss = (ps.loss or 0) + loss
+        if loss > (ps.maxLoss or 0) then ps.maxLoss = loss end
+    end
+end
+
+--- 获取指定时间段的统计数据（供 MoneyManager 上传排行榜用）
+--- @param period string  "day" | "week" | "month"
+--- @return table  { games, wins, profit, loss, maxProfit, maxLoss }
+function SaveSystem.GetPeriodStats(period)
+    local key, periodKey
+    if period == "day" then
+        key, periodKey = "dayStats",   os.date("%Y%m%d")
+    elseif period == "week" then
+        key, periodKey = "weekStats",  os.date("%Y%W")
+    elseif period == "month" then
+        key, periodKey = "monthStats", os.date("%Y%m")
+    else
+        return nil
+    end
+    -- 若当前周期 key 不符则返回空数据（今天还没有记录）
+    local s = saveData.stats[key]
+    if not s or s.periodKey ~= periodKey then
+        return { games=0, wins=0, profit=0, loss=0, maxProfit=0, maxLoss=0 }
+    end
+    return s
+end
+
 ---@param isWin boolean
 ---@param profit number
 ---@param myBid number|nil  本局玩家出价（赢局传实际付款额，输局传出价额）
-function SaveSystem.RecordGameResult(isWin, profit, myBid)
+---@param redCount number|nil  本局拍得的红色藏品数（赢局才有）
+function SaveSystem.RecordGameResult(isWin, profit, myBid, redCount)
     saveData.stats.totalGames = (saveData.stats.totalGames or 0) + 1
     if isWin then
         saveData.stats.wins = (saveData.stats.wins or 0) + 1
     end
-    saveData.stats.totalProfit = (saveData.stats.totalProfit or 0) + profit
-    if profit > (saveData.stats.maxProfit or 0) then
-        saveData.stats.maxProfit = profit
+    if profit > 0 then
+        saveData.stats.totalProfit = (saveData.stats.totalProfit or 0) + profit
+        if profit > (saveData.stats.maxProfit or 0) then
+            saveData.stats.maxProfit = profit
+        end
+    elseif profit < 0 then
+        local loss = -profit  -- 存正数
+        saveData.stats.totalLoss = (saveData.stats.totalLoss or 0) + loss
+        if loss > (saveData.stats.maxLoss or 0) then
+            saveData.stats.maxLoss = loss
+        end
     end
     if myBid and myBid > (saveData.stats.highestBid or 0) then
         saveData.stats.highestBid = myBid
     end
+    -- 周期统计（日/周/月独立数据，用于时间段排行榜）
+    local today    = os.date("%Y%m%d")
+    local thisWeek = os.date("%Y%W")
+    local thisMonth= os.date("%Y%m")
+    local ds = GetOrResetPeriodStats("dayStats",   today)
+    local ws = GetOrResetPeriodStats("weekStats",  thisWeek)
+    local ms = GetOrResetPeriodStats("monthStats", thisMonth)
+    AccumulatePeriodStats(ds, isWin, profit)
+    AccumulatePeriodStats(ws, isWin, profit)
+    AccumulatePeriodStats(ms, isWin, profit)
+    -- 红色藏品数：拍下仓库即计入，与后续是否放仓库/回收无关
+    if redCount and redCount > 0 then
+        saveData.stats.redItemsWon = (saveData.stats.redItemsWon or 0) + redCount
+        ds.red = (ds.red or 0) + redCount
+        ws.red = (ws.red or 0) + redCount
+        ms.red = (ms.red or 0) + redCount
+    end
     print("[SaveSystem] Game recorded. Total: " .. saveData.stats.totalGames
         .. ", Wins: " .. saveData.stats.wins
-        .. ", MaxProfit: " .. (saveData.stats.maxProfit or 0))
+        .. ", MaxProfit: " .. (saveData.stats.maxProfit or 0)
+        .. ", RedItems: " .. (saveData.stats.redItemsWon or 0))
+end
+
+--- 添加一条对局历史记录（最新在前，超过 MAX_HISTORY 时删除末尾）
+---@param record table  { timestamp, isWin, warehouseName, charName, charAvatar,
+---                        items, totalValue, bid, profit, players, roundBids }
+function SaveSystem.AddGameHistory(record)
+    if not saveData.gameHistory then saveData.gameHistory = {} end
+    table.insert(saveData.gameHistory, 1, record)
+    -- 超出上限时截断
+    while #saveData.gameHistory > MAX_HISTORY do
+        table.remove(saveData.gameHistory)
+    end
+    print("[SaveSystem] GameHistory added. Total: " .. #saveData.gameHistory)
+end
+
+--- 获取对局历史记录数组（最新在前）
+---@return table
+function SaveSystem.GetGameHistory()
+    return saveData.gameHistory or {}
 end
 
 ---@return table

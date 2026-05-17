@@ -303,15 +303,30 @@ function AIPlayer.DecideSealedBid(playerIdx, player, round)
             local minEst = _EstimateValue.Calculate(aiInfoState, whTypeId)
             infoFloor = minEst or 0
         end
+        -- 按轮次倍率缩放底价：赢家实际支付 bid × multiplier，
+        -- 因此"不亏本"的最低出价应为 infoFloor / multiplier，而非 infoFloor 本身。
+        -- 若直接用 infoFloor（未缩放），早轮高倍率下所有 AI 都会被强制拉到同一数值。
+        local roundMul = Config.GAME.Multipliers[round] or 1.0
+        if round >= Config.GAME.MaxRounds then roundMul = 1.01 end
+        local adjustedInfoFloor = infoFloor > 0 and (infoFloor / roundMul) or 0
+
         -- 方案B：AI 自身估值的 30%（保留作为兜底，防止 EstimateValue 异常）
         local estimateFloor = estimate > 0 and estimate * 0.30 or 0
-        local absoluteFloor = math.max(infoFloor, estimateFloor)
+        local absoluteFloor = math.max(adjustedInfoFloor, estimateFloor)
+
         if absoluteFloor > 0 and bidAmount < absoluteFloor then
+            -- 加入个性化浮动，避免所有 AI 在同一底价收敛到完全相同的数值。
+            -- 在 [absoluteFloor, absoluteFloor + extraRange×0.5] 区间内按角色出价倾向取位置。
+            local extraRange = math.max(estimate - absoluteFloor, absoluteFloor * 0.30)
+            local position = personality.bidLow + math.random() * (personality.bidHigh - personality.bidLow)
+            local newBid = absoluteFloor + extraRange * position * 0.5
             print("[AIPlayer] floor applied: bid " .. math.floor(bidAmount)
-                .. " -> " .. math.floor(absoluteFloor)
+                .. " -> " .. math.floor(newBid)
                 .. " (infoFloor=" .. math.floor(infoFloor)
-                .. " estimateFloor=" .. math.floor(estimateFloor) .. ")")
-            bidAmount = absoluteFloor
+                .. " adjustedFloor=" .. math.floor(adjustedInfoFloor)
+                .. " estimate=" .. math.floor(estimate)
+                .. " position=" .. string.format("%.2f", position) .. ")")
+            bidAmount = newBid
         end
     end
 

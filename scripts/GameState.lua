@@ -670,8 +670,84 @@ function GameState.SettleWarehouseValue()
         local b = roundBids[1] or 0
         if b > humanBid then humanBid = b end
     end
+    -- 构建完整历史记录（供个人信息页展示）
+    local function BuildHistoryRecord(isWin, p, bid, prof)
+        -- 汇总仓库物品（只保存展示用的简要信息）
+        local items = {}
+        for _, it in ipairs(state.warehouseItems) do
+            items[#items + 1] = {
+                name     = it.name,
+                rarity   = it.rarity,
+                image    = it.image or "",
+                value    = it.baseValue or it.value or 0,
+                w        = it.w or 1,
+                h        = it.h or 1,
+            }
+        end
+        -- 汇总所有玩家竞价（所有轮次最大出价）
+        local playerBids = {}
+        for pidx, pl in ipairs(state.players) do
+            local maxBid = 0
+            for _, rb in pairs(state.roundBids) do
+                local b = rb[pidx] or 0
+                if b > maxBid then maxBid = b end
+            end
+            if state.sealedBids[pidx] and state.sealedBids[pidx] > maxBid then
+                maxBid = state.sealedBids[pidx]
+            end
+            playerBids[#playerBids + 1] = {
+                name      = pl.name,
+                isHuman   = pl.isHuman,
+                charName  = pl.character and pl.character.name  or "",
+                charAvatar= pl.character and pl.character.avatar or "",
+                bid       = maxBid,
+                isWinner  = (pidx == state.winner),
+            }
+        end
+        -- 每轮出价快照（用于详情页）
+        local roundBidsSnap = {}
+        for rnd, rb in pairs(state.roundBids) do
+            local row = {}
+            for pidx = 1, #state.players do
+                row[pidx] = rb[pidx] or 0
+            end
+            roundBidsSnap[rnd] = row
+        end
+        -- 每轮道具使用快照 { [rnd] = { [pidx] = { id, name } } }
+        local roundPropsSnap = {}
+        for rnd, ru in pairs(state.roundPropUsage) do
+            local row = {}
+            for pidx = 1, #state.players do
+                if ru[pidx] then
+                    row[pidx] = { id = ru[pidx].id, name = ru[pidx].name }
+                end
+            end
+            roundPropsSnap[rnd] = row
+        end
+        return {
+            timestamp    = os.time(),
+            isWin        = isWin,
+            warehouseName= GameState.GetWarehouseName(),
+            charName     = p.character and p.character.name  or "",
+            charAvatar   = p.character and p.character.avatar or "",
+            items        = items,
+            totalValue   = totalValue,
+            bid          = bid,
+            profit       = prof,
+            players      = playerBids,
+            roundBids    = roundBidsSnap,
+            roundProps   = roundPropsSnap,
+        }
+    end
+
     if winnerPlayer and winnerPlayer.isHuman and SaveSystem.IsReady() then
-        SaveSystem.RecordGameResult(true, profit, humanBid)
+        -- 统计本局红色藏品数（拍下即算，与后续入库/回收无关）
+        local redWon = 0
+        for _, it in ipairs(state.warehouseItems) do
+            if it.rarity == "red" then redWon = redWon + 1 end
+        end
+        SaveSystem.RecordGameResult(true, profit, humanBid, redWon)
+        SaveSystem.AddGameHistory(BuildHistoryRecord(true, winnerPlayer, humanBid, profit))
         SaveSystem.MarkDirty()
 
         -- 兜底：立即将战利品保存到云端，防止玩家杀进程导致物品丢失
@@ -684,7 +760,11 @@ function GameState.SettleWarehouseValue()
         })
     elseif SaveSystem.IsReady() then
         -- 人类玩家输了，也记录战绩（传入本局最高出价）
+        local humanPlayer = state.players[1]
         SaveSystem.RecordGameResult(false, 0, humanBid)
+        if humanPlayer then
+            SaveSystem.AddGameHistory(BuildHistoryRecord(false, humanPlayer, humanBid, 0))
+        end
         SaveSystem.MarkDirty()
     end
 

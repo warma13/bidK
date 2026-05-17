@@ -299,6 +299,8 @@ end
 
 --- 创建左上角金币余额 HUD（独立于玩家列表，由 GameController 挂载）
 function PlayerListPanel.CreateMoneyHUD()
+    -- 重置 dirty cache，确保首次 Update() 强制刷新新创建的 label
+    lastMoney = nil
     refs.playerMoneyLabel = UI.Label {
         text = "0", fontSize = 14,
         fontColor = { 255, 220, 100, 255 },

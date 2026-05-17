@@ -647,18 +647,21 @@ function BidControlPanel.Create()
     local HEX_SZ   = sz(62)   -- 六边形背景框尺寸
     local ICON_SZ  = sz(36)   -- 道具图标尺寸
 
-    -- 品质层级颜色（与商店保持一致）
-    local function GetTierColors(price)
-        if price <= 2000 then
-            return { headerBg = { 75, 78, 88, 255 }, headerText = { 210, 212, 220, 255 },
-                     cardBg = { 28, 30, 42, 235 }, cardBorder = { 65, 68, 78, 180 }, hexTint = nil }
-        elseif price <= 5000 then
-            return { headerBg = { 30, 110, 65, 255 }, headerText = { 190, 255, 210, 255 },
-                     cardBg = { 20, 35, 28, 235 }, cardBorder = { 40, 100, 65, 200 }, hexTint = { 80, 230, 120, 255 } }
-        else
-            return { headerBg = { 85, 35, 130, 255 }, headerText = { 230, 200, 255, 255 },
-                     cardBg = { 26, 16, 40, 235 }, cardBorder = { 100, 50, 155, 200 }, hexTint = { 200, 100, 255, 255 } }
-        end
+    -- 品质层级颜色（与商店保持一致，按 def.tier 字段判断）
+    local TIER_COLORS_BID = {
+        white  = { headerBg = { 75, 78, 88, 255 },   headerText = { 210, 212, 220, 255 },
+                   cardBg   = { 28, 30, 42, 235 },   cardBorder = { 65, 68, 78, 180 },   hexTint = nil },
+        green  = { headerBg = { 30, 110, 65, 255 },  headerText = { 190, 255, 210, 255 },
+                   cardBg   = { 20, 35, 28, 235 },   cardBorder = { 40, 100, 65, 200 },  hexTint = { 80, 230, 120, 255 } },
+        blue   = { headerBg = { 25, 80, 155, 255 },  headerText = { 190, 220, 255, 255 },
+                   cardBg   = { 18, 30, 55, 235 },   cardBorder = { 40, 85, 170, 200 },  hexTint = { 80, 160, 255, 255 } },
+        purple = { headerBg = { 85, 35, 130, 255 },  headerText = { 230, 200, 255, 255 },
+                   cardBg   = { 26, 16, 40, 235 },   cardBorder = { 100, 50, 155, 200 }, hexTint = { 200, 100, 255, 255 } },
+        red    = { headerBg = { 130, 30, 30, 255 },  headerText = { 255, 200, 200, 255 },
+                   cardBg   = { 40, 16, 16, 235 },   cardBorder = { 160, 50, 50, 200 },  hexTint = { 255, 80, 80, 255 } },
+    }
+    local function GetTierColors(def)
+        return TIER_COLORS_BID[def.tier] or TIER_COLORS_BID.white
     end
 
     -- 构建所有道具卡片（静态结构，通过 UpdatePropPanel 刷新状态）
@@ -667,7 +670,7 @@ function BidControlPanel.Create()
 
     for i, d in ipairs(Props.LIST) do
         local propId = d.id
-        local tier   = GetTierColors(d.price)
+        local tier   = GetTierColors(d)
 
         -- 六边形背景框 + 道具图标（点击弹出描述 Popover）
         local iconPanel = UI.Popover {

@@ -18,6 +18,7 @@ local PropScreen = require("UI.PropScreen")
 local AppPhase = require("AppPhase")
 local GameSession = require("GameSession")
 local GameOverDialog = require("UI.GameOverDialog")
+local LeaderboardPanel = require("UI.LeaderboardPanel")
 
 local GameController = {}
 
@@ -127,6 +128,12 @@ function GameController.HandleUpdate(dt)
             return
         end
 
+        -- 排行榜全屏：优先关闭
+        if LeaderboardPanel.IsVisible() then
+            LeaderboardPanel.Hide()
+            return
+        end
+
         local screen = UIState.currentScreen
         if GameOverDialog.IsVisible() then
             -- 竞拍结算：确认返回
@@ -153,6 +160,14 @@ function GameController.HandleUpdate(dt)
             else
                 GameController.ShowMenu()
             end
+        elseif screen == "personal_info" then
+            -- 个人信息页 → 主菜单
+            local PersonalInfoScreen = require("UI.PersonalInfoScreen")
+            PersonalInfoScreen.GoBack()
+        elseif screen == "personal_info_detail" then
+            -- 对局详情 → 返回对局列表 tab
+            local PersonalInfoScreen = require("UI.PersonalInfoScreen")
+            PersonalInfoScreen.GoBackFromDetail()
         end
     end
 end
