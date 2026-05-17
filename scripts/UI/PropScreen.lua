@@ -135,10 +135,15 @@ function PropScreen.Show(onBackCallback)
     end
 
     -- 每日商店：使用 DailyShop 模块动态生成12个道具，已购买的排到最后
-    local dailyList = DailyShop.GetTodayItems()
+    -- dailyList 存储 {def, slotIdx} 对，以槽位为单位独立追踪购买状态
+    local rawDailyItems = DailyShop.GetTodayItems()
+    local dailyList = {}
+    for i, p in ipairs(rawDailyItems) do
+        dailyList[i] = { def = p, slotIdx = i }
+    end
     table.sort(dailyList, function(a, b)
-        local aBought = a.dailyLimit and (SaveSystem.GetPropDailyBought(a.id) >= a.dailyLimit) or false
-        local bBought = b.dailyLimit and (SaveSystem.GetPropDailyBought(b.id) >= b.dailyLimit) or false
+        local aBought = SaveSystem.GetDailySlotBought(a.slotIdx)
+        local bBought = SaveSystem.GetDailySlotBought(b.slotIdx)
         if aBought == bBought then return false end
         return not aBought  -- 未购买的排前面
     end)
@@ -171,14 +176,17 @@ function PropScreen.Show(onBackCallback)
     end
 
     -- ── 购买弹窗 ─────────────────────────────────────────────
-    local function OpenDialog(def)
+    -- slotIdx: 每日商店槽位索引（1..12），普通商店传 nil
+    local function OpenDialog(def, slotIdx)
         CloseDialog()
         if not def then return end
 
         local dMoney         = MoneyHUD.GetMoney()
         local dOwned         = PropSystem.GetCount(def.id)
-        local dDailyLimit    = def.dailyLimit
-        local dDailyBought   = dDailyLimit and SaveSystem.GetPropDailyBought(def.id) or 0
+        -- 每日商店：按槽位独立判断；普通商店：按 prop 级每日限额判断（通常为 nil）
+        local dDailyLimit    = slotIdx and 1 or def.dailyLimit
+        local dDailyBought   = slotIdx and (SaveSystem.GetDailySlotBought(slotIdx) and 1 or 0)
+                            or (dDailyLimit and SaveSystem.GetPropDailyBought(def.id) or 0)
         local dDailyReached  = dDailyLimit and (dDailyBought >= dDailyLimit)
         local dMaxBuyable    = dDailyReached and 0
                             or (dDailyLimit and math.min(def.maxStack - dOwned, dDailyLimit - dDailyBought))
@@ -434,9 +442,12 @@ function PropScreen.Show(onBackCallback)
                                                 SaveSystem.WriteToBatch(batch)
                                             end,
                                             ok = function()
-                                                if def.dailyLimit then
+                                                if slotIdx then
+                                                    -- 每日商店：按槽位记录购买，重建分区
+                                                    SaveSystem.RecordDailySlotBuy(slotIdx)
+                                                    if RebuildDailySection then RebuildDailySection() end
+                                                elseif def.dailyLimit then
                                                     SaveSystem.RecordPropDailyBuy(def.id, purchaseQty)
-                                                    -- 重建每日商店：刷新排序、遮罩、数量
                                                     if RebuildDailySection then RebuildDailySection() end
                                                 else
                                                     -- 普通道具只更新数量 label
@@ -492,16 +503,24 @@ function PropScreen.Show(onBackCallback)
     end
 
     -- ── 构建卡片网格 ──────────────────────────────────────────
-    -- labelKeySuffix：每日商店中同一道具可能多次出现，加 index 做唯一键
-    local function BuildCards(list, labelKeySuffix)
+    -- 每日商店时 list 元素为 {def, slotIdx}；普通商店时为 prop def
+    local function BuildCards(list, isDaily)
         local cards = {}
-        for i, p in ipairs(list) do
+        for i, entry in ipairs(list) do
+            local p, slotIdx
+            if isDaily then
+                p       = entry.def
+                slotIdx = entry.slotIdx
+            else
+                p       = entry
+                slotIdx = nil
+            end
             local count       = PropSystem.GetCount(p.id)
             local tier        = GetTierColors(p)
-            local labelKey    = labelKeySuffix and (p.id .. ":" .. i) or p.id
-            -- 是否今日已购
-            local isBought = p.dailyLimit
-                and (SaveSystem.GetPropDailyBought(p.id) >= p.dailyLimit)
+            local labelKey    = isDaily and (p.id .. ":" .. i) or p.id
+            -- 是否今日已购（每日商店按槽位独立判断）
+            local isBought = slotIdx
+                and SaveSystem.GetDailySlotBought(slotIdx)
                 or false
 
             local countLbl = UI.Label {
@@ -545,7 +564,7 @@ function PropScreen.Show(onBackCallback)
                 cursor = "pointer",
                 onClick = function()
                     Utils.PlayClick()
-                    OpenDialog(p)
+                    OpenDialog(p, slotIdx)
                 end,
                 children = {
                     -- 名称条
@@ -709,10 +728,10 @@ function PropScreen.Show(onBackCallback)
 
     -- 实现前向声明：购买每日道具后重建每日分区（排序+遮罩+数量全部刷新）
     RebuildDailySection = function()
-        -- 重新排序，已购买排末尾
+        -- 重新排序，已购买槽位排末尾（按槽位独立判断）
         table.sort(dailyList, function(a, b)
-            local aBought = a.dailyLimit and (SaveSystem.GetPropDailyBought(a.id) >= a.dailyLimit) or false
-            local bBought = b.dailyLimit and (SaveSystem.GetPropDailyBought(b.id) >= b.dailyLimit) or false
+            local aBought = SaveSystem.GetDailySlotBought(a.slotIdx)
+            local bBought = SaveSystem.GetDailySlotBought(b.slotIdx)
             if aBought == bBought then return false end
             return not aBought
         end)

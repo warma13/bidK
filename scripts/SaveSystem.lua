@@ -43,10 +43,13 @@ local KEY_CORE    = "save_core"
 local KEY_ITEMS   = "save_items"
 local KEY_STATS   = "save_stats"
 local KEY_SETTINGS = "save_settings"
-local KEY_HISTORY = "save_history"
 
--- 历史记录最大条数
-local MAX_HISTORY = 100
+-- 历史记录：环形缓冲区，10 个独立 slot + 1 个 head 指针 key
+-- save_hist_head: 最新记录所在 slot 索引（0-9），-1 表示无记录
+-- save_hist_0 .. save_hist_9: 每条压缩后的记录
+local KEY_HIST_HEAD = "save_hist_head"
+local HIST_SLOTS    = 10   -- 环形缓冲区大小（对局保留条数）
+local MAX_HISTORY   = HIST_SLOTS  -- 对外兼容别名
 
 -- 本地文件名
 local LOCAL_FILE = "save_data.json"
@@ -60,6 +63,15 @@ local saveConfirmed = false         -- 云端数据已成功加载
 local playTime = 0                  -- 累计游戏时长
 local playTimeAtLastDirty = 0       -- 上次因时长变化标脏时的 playTime
 local PLAY_TIME_DIRTY_INTERVAL = 60 -- 每累计 60 秒标一次脏
+
+-- 历史记录环形缓冲区运行时状态
+-- histHead: 最新记录的 slot 索引（0-9），-1 表示缓冲区为空（未加载或无记录）
+-- histSlots[i]: slot i 的已解压记录（懒加载后填入，nil 表示未加载）
+-- histLoaded: LoadHistory 是否已完成
+local histHead   = -1
+local histSlots  = {}   -- [0..9] → record or nil
+local histLoaded = false
+local histCount  = 0    -- 已写入记录总数（缓冲区中有效 slot 数，0-10）
 
 -- 运行时存档数据
 local saveData = {
@@ -431,19 +443,12 @@ local function splitIntoGroups()
         settings[k] = v
     end
 
-    -- 历史记录：逐条压缩
-    local rawHistory = saveData.gameHistory or {}
-    local history = {}
-    for i, rec in ipairs(rawHistory) do
-        history[i] = compressHistoryRecord(rec)
-    end
-
+    -- 历史记录不再包含在主存档 BatchSet 中（已改为环形缓冲区增量写入）
     return {
         core = core,
         items = items,
         stats = stats,
         settings = settings,
-        history = history,
     }
 end
 
@@ -503,13 +508,8 @@ local function mergeGroups(groups)
         end
     end
 
-    -- 历史记录：逐条解压（自动兼容旧格式/新格式）
+    -- 历史记录由懒加载（LoadHistory）独立拉取，此处不处理
     data.gameHistory = {}
-    if groups.history and type(groups.history) == "table" then
-        for i, rec in ipairs(groups.history) do
-            data.gameHistory[i] = decompressHistoryRecord(rec)
-        end
-    end
 
     return data
 end
@@ -671,19 +671,17 @@ end
 
 SaveFramework.Register(MODULE_NAME, {
     -- 必需的云端 key
+    -- KEY_HIST_HEAD 只是一个整数（最新 slot 索引），体积极小，随启动 BatchGet 一起拉取
+    -- 历史记录各 slot（save_hist_0..9）不在此列，由 LoadHistory 懒加载
     cloudKeys = {
-        KEY_HEAD, KEY_CORE, KEY_ITEMS, KEY_STATS, KEY_SETTINGS, KEY_HISTORY,
+        KEY_HEAD, KEY_CORE, KEY_ITEMS, KEY_STATS, KEY_SETTINGS, KEY_HIST_HEAD,
     },
     -- 投机性预取：物品分片 key（玩家可能有 0-N 片）
     -- 10 片 × 8000 bytes ≈ 最多 ~700 件物品
-    -- history 分片：100 条记录约 50-100KB，最多 ~15 片
+    -- 历史记录使用独立环形缓冲区，启动时不预取
     speculativeKeys = {
         "save_items_0", "save_items_1", "save_items_2", "save_items_3", "save_items_4",
         "save_items_5", "save_items_6", "save_items_7", "save_items_8", "save_items_9",
-        "save_history_0", "save_history_1", "save_history_2", "save_history_3",
-        "save_history_4", "save_history_5", "save_history_6", "save_history_7",
-        "save_history_8", "save_history_9", "save_history_10", "save_history_11",
-        "save_history_12", "save_history_13", "save_history_14",
     },
 
     -- 从 BatchGet 返回的 values 中恢复存档数据
@@ -723,10 +721,15 @@ SaveFramework.Register(MODULE_NAME, {
             return
         end
 
+        -- 可跳过的分组：加载失败只记警告，不影响整体存档
+        -- history: 已迁移至环形缓冲区（save_hist_*），旧 key 不再预取
+        local SKIP_ON_FAIL = { history = true }
+
         -- 解析各组
         local groups = {}
         for groupName, info in pairs(head.keys) do
-            local keyBase = "save_" .. groupName
+            local optional = SKIP_ON_FAIL[groupName] == true
+            local keyBase  = "save_" .. groupName
             local json
 
             if info.chunks and info.chunks > 1 then
@@ -744,16 +747,22 @@ SaveFramework.Register(MODULE_NAME, {
                     parts[#parts + 1] = part
                 end
                 if not allFound then
-                    -- 分片不完整，拒绝加载，让 Standalone 提示重试
-                    -- 不设 saveConfirmed，防止不完整数据覆盖云端存档
+                    if optional then
+                        print("[SaveSystem] Skipping optional group '" .. groupName .. "' (incomplete chunks)")
+                        goto continue_group
+                    end
                     print("[SaveSystem] Incomplete chunks for group '" .. groupName .. "', aborting load")
                     return
                 end
-                -- 逐片校验（多片组 cs 是 table）
+                -- 逐片校验
                 if type(info.cs) == "table" then
                     for i, part in ipairs(parts) do
                         local expected = info.cs[i]
                         if expected and CalcChecksum(part) ~= expected then
+                            if optional then
+                                print("[SaveSystem] Skipping optional group '" .. groupName .. "' (checksum mismatch chunk " .. (i-1) .. ")")
+                                goto continue_group
+                            end
                             print("[SaveSystem] Chunk checksum mismatch: " .. keyBase .. "_" .. (i-1) .. ", aborting load")
                             return
                         end
@@ -771,6 +780,10 @@ SaveFramework.Register(MODULE_NAME, {
                     -- 单片校验
                     if type(info.cs) == "number" then
                         if CalcChecksum(json) ~= info.cs then
+                            if optional then
+                                print("[SaveSystem] Skipping optional group '" .. groupName .. "' (checksum mismatch)")
+                                goto continue_group
+                            end
                             print("[SaveSystem] Checksum mismatch for group '" .. groupName .. "', aborting load")
                             return
                         end
@@ -779,12 +792,16 @@ SaveFramework.Register(MODULE_NAME, {
                     if ok3 then
                         groups[groupName] = parsed
                     else
-                        -- 关键分组解码失败时中止加载，防止用不完整数据（空物品等）覆盖云端
+                        if optional then
+                            print("[SaveSystem] Skipping optional group '" .. groupName .. "' (decode failed)")
+                            goto continue_group
+                        end
                         print("[SaveSystem] Decode failed for group '" .. groupName .. "', aborting load")
                         return
                     end
                 end
             end
+            ::continue_group::
         end
 
         -- 合并
@@ -792,7 +809,19 @@ SaveFramework.Register(MODULE_NAME, {
         saveData.tickets = saveData.tickets or {}
         saveData.characterCoins = saveData.characterCoins or 0
         saveData.unlockedCharacters = saveData.unlockedCharacters or {}
-        saveData.gameHistory = saveData.gameHistory or {}
+        saveData.gameHistory = {}  -- 历史记录由懒加载单独拉取
+
+        -- 读取历史记录环形缓冲区 head 指针（只是个整数，不是历史数据本身）
+        local rawHistHead = values[KEY_HIST_HEAD]
+        if rawHistHead ~= nil then
+            local n = tonumber(rawHistHead)
+            if n and n >= -1 and n < HIST_SLOTS then
+                histHead  = n
+                -- histCount：若 head >= 0 则缓冲区至少有 1 条，具体条数需拉取后才知道
+                -- 简单保守估计：head >= 0 就假定 HIST_SLOTS 条（懒加载后再修正）
+                histCount = (n >= 0) and HIST_SLOTS or 0
+            end
+        end
 
         -- 恢复累计游戏时长（从云端存档，不是从本次会话的 0 开始）
         playTime = saveData.playTime or 0
@@ -801,11 +830,17 @@ SaveFramework.Register(MODULE_NAME, {
         saveConfirmed = true
         saveLocal()
         print("[SaveSystem] Cloud load OK (" .. #saveData.items .. " items, Games: "
-            .. (saveData.stats.totalGames or 0) .. ")")
+            .. (saveData.stats.totalGames or 0) .. ", histHead=" .. histHead .. ")")
     end,
 
     -- 往 BatchSet 的 batch 上追加存档数据
     save = function(batch)
+        -- 双重保护：即便外部直接调用 SaveFramework.MarkDirty 绕过了 SaveSystem.MarkDirty，
+        -- 这里也确保未确认加载时不写入任何数据，防止空白覆盖云端真实存档
+        if not saveConfirmed then
+            print("[SaveSystem] save callback skipped: saveConfirmed=false (load not confirmed)")
+            return
+        end
         saveData.timestamp = os.time()
         saveData.playTime = playTime
 
@@ -912,6 +947,7 @@ end
 
 --- 标记脏数据 → 委托 SaveFramework
 function SaveSystem.MarkDirty()
+    if not saveConfirmed then return end
     SaveFramework.MarkDirty(MODULE_NAME)
 end
 
@@ -959,7 +995,7 @@ function SaveSystem.Update(dt)
     if not initialized then return end
     playTime = playTime + dt
     -- 每 60 秒标一次脏，确保游戏时长被自动保存持久化
-    if playTime - playTimeAtLastDirty >= PLAY_TIME_DIRTY_INTERVAL then
+    if saveConfirmed and playTime - playTimeAtLastDirty >= PLAY_TIME_DIRTY_INTERVAL then
         playTimeAtLastDirty = playTime
         SaveFramework.MarkDirty(MODULE_NAME)
     end
@@ -1134,23 +1170,128 @@ function SaveSystem.RecordGameResult(isWin, profit, myBid, redCount)
         .. ", RedItems: " .. (saveData.stats.redItemsWon or 0))
 end
 
---- 添加一条对局历史记录（最新在前，超过 MAX_HISTORY 时删除末尾）
+--- 添加一条对局历史记录（环形缓冲区增量写入，只写 1 个 slot key + head key）
 ---@param record table  { timestamp, isWin, warehouseName, charName, charAvatar,
 ---                        items, totalValue, bid, profit, players, roundBids }
 function SaveSystem.AddGameHistory(record)
-    if not saveData.gameHistory then saveData.gameHistory = {} end
-    table.insert(saveData.gameHistory, 1, record)
-    -- 超出上限时截断
-    while #saveData.gameHistory > MAX_HISTORY do
-        table.remove(saveData.gameHistory)
+    -- 推进 head 指针（环形）
+    local newHead = (histHead + 1) % HIST_SLOTS
+    histHead = newHead
+
+    -- 记录实际有效 slot 数（最多 HIST_SLOTS）
+    if histCount < HIST_SLOTS then
+        histCount = histCount + 1
     end
-    print("[SaveSystem] GameHistory added. Total: " .. #saveData.gameHistory)
+
+    -- 写入内存缓存
+    histSlots[newHead] = record
+
+    -- 同步到 saveData.gameHistory（供其他内部逻辑兼容读取）
+    saveData.gameHistory = SaveSystem.GetGameHistory()
+
+    -- 增量写入云端：只写这 1 条记录 + head 指针（2 个 key，合并为 1 次 DirectSave）
+    if saveConfirmed then
+        local compressed = compressHistoryRecord(record)
+        local ok, json = pcall(cjson.encode, compressed)
+        if ok then
+            local slotKey = "save_hist_" .. newHead
+            local headVal  = tostring(newHead)
+            SaveFramework.DirectSave("history_" .. newHead, function(batch)
+                batch:Set(slotKey, json)
+                batch:Set(KEY_HIST_HEAD, headVal)
+            end, { silent = true })
+            print("[SaveSystem] GameHistory slot=" .. newHead .. " written, histCount=" .. histCount)
+        else
+            print("[SaveSystem] GameHistory compress failed: " .. tostring(json))
+        end
+    end
 end
 
---- 获取对局历史记录数组（最新在前）
+--- 获取对局历史记录数组（最新在前，来自内存缓存）
+--- 注意：只有调用过 LoadHistory 后才能获取完整历史；
+---      本局刚写入的记录无需等 LoadHistory，直接可读。
 ---@return table
 function SaveSystem.GetGameHistory()
-    return saveData.gameHistory or {}
+    if histHead < 0 or histCount == 0 then
+        return {}
+    end
+    -- 按环形顺序从最新到最旧排列
+    local result = {}
+    for i = 0, histCount - 1 do
+        local slotIdx = (histHead - i + HIST_SLOTS) % HIST_SLOTS
+        local rec = histSlots[slotIdx]
+        if rec then
+            result[#result + 1] = rec
+        end
+    end
+    return result
+end
+
+--- 懒加载历史记录（从云端拉取全部 slot，解压后存入内存缓存）
+--- 只需调用一次；再次调用直接返回缓存。
+---@param callback function(records: table)|nil  加载完成后回调，传入历史数组
+function SaveSystem.LoadHistory(callback)
+    if histLoaded then
+        if callback then callback(SaveSystem.GetGameHistory()) end
+        return
+    end
+
+    if histHead < 0 then
+        -- 云端无历史记录
+        histLoaded = true
+        if callback then callback({}) end
+        return
+    end
+
+    print("[SaveSystem] LoadHistory: fetching " .. (HIST_SLOTS + 1) .. " keys ...")
+
+    local batch = clientCloud:BatchGet()
+    batch:Key(KEY_HIST_HEAD)
+    for i = 0, HIST_SLOTS - 1 do
+        batch:Key("save_hist_" .. i)
+    end
+
+    batch:Fetch({
+        ok = function(values)
+            -- 更新 head 指针（防止在懒加载期间又写了新记录）
+            local rawHead = values[KEY_HIST_HEAD]
+            if rawHead ~= nil then
+                local n = tonumber(rawHead)
+                if n and n >= -1 and n < HIST_SLOTS then
+                    histHead = n
+                end
+            end
+
+            -- 解压各 slot
+            local loadedCount = 0
+            for i = 0, HIST_SLOTS - 1 do
+                local json = values["save_hist_" .. i]
+                if json and type(json) == "string" and #json > 0 then
+                    local ok, parsed = pcall(cjson.decode, json)
+                    if ok and parsed then
+                        histSlots[i] = decompressHistoryRecord(parsed)
+                        loadedCount = loadedCount + 1
+                    end
+                elseif json and type(json) == "table" then
+                    histSlots[i] = decompressHistoryRecord(json)
+                    loadedCount = loadedCount + 1
+                end
+            end
+
+            histCount = loadedCount
+            histLoaded = true
+
+            local records = SaveSystem.GetGameHistory()
+            saveData.gameHistory = records
+            print("[SaveSystem] LoadHistory done. slots=" .. loadedCount .. ", records=" .. #records)
+            if callback then callback(records) end
+        end,
+        fail = function(err)
+            print("[SaveSystem] LoadHistory BatchGet failed: " .. tostring(err))
+            histLoaded = true  -- 标记已尝试，避免重复请求
+            if callback then callback(SaveSystem.GetGameHistory()) end
+        end,
+    })
 end
 
 ---@return table
@@ -1369,6 +1510,24 @@ function SaveSystem.RecordPropDailyBuy(propId, count)
         saveData.propDailyBuy = { date = today }
     end
     saveData.propDailyBuy[propId] = (saveData.propDailyBuy[propId] or 0) + (count or 1)
+    SaveFramework.MarkDirty(MODULE_NAME)
+end
+
+--- 获取今日某日商店槽位是否已购买（每槽独立，防止同类道具互相屏蔽）
+function SaveSystem.GetDailySlotBought(slotIdx)
+    local today = os.date("%Y-%m-%d")
+    local rec = saveData.propDailyBuy
+    if not rec or rec.date ~= today then return false end
+    return rec["slot_" .. slotIdx] == true
+end
+
+--- 记录今日某日商店槽位已购买
+function SaveSystem.RecordDailySlotBuy(slotIdx)
+    local today = os.date("%Y-%m-%d")
+    if not saveData.propDailyBuy or saveData.propDailyBuy.date ~= today then
+        saveData.propDailyBuy = { date = today }
+    end
+    saveData.propDailyBuy["slot_" .. slotIdx] = true
     SaveFramework.MarkDirty(MODULE_NAME)
 end
 

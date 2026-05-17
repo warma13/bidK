@@ -171,6 +171,12 @@ function AIPlayer._TryUseAIProp(playerIdx, player, round, gameState)
     end
     -- 后期轮次更积极使用道具
     if round >= 3 then useProb = math.min(useProb + 0.20, 0.95) end
+    -- 高价值仓库额外提高使用概率（treasure/jackpot 几乎必用）
+    local whData = gameState.GetWarehouseData and gameState.GetWarehouseData()
+    local whTier = whData and whData.tier or "normal"
+    local tierBoost = ({ trash=0, junk=0, poor=0.05, normal=0.10,
+                         good=0.15, treasure=0.25, jackpot=0.35 })[whTier] or 0
+    useProb = math.min(useProb + tierBoost, 0.97)
 
     if math.random() > useProb then return end
 

@@ -5,15 +5,10 @@
 ---@diagnostic disable: undefined-global
 local Config = require("Config")
 local WarehouseGenerator = require("WarehouseGenerator")
-local AntiCheat = require("AntiCheat")
 local MoneyManager = require("MoneyManager")
 local SkillSystem = require("SkillSystem")
 local SaveSystem = require("SaveSystem")
 local GameState = {}
-
--- 受保护的关键数值（SecureValue）
-local secureMoney = {}       -- { [playerIdx] = SecureValue }
-local secureTotalValue = nil  -- SecureValue
 
 -- 游戏阶段
 GameState.PHASE = {
@@ -90,10 +85,6 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
     state.winnerPaid = 0
     state.settled = false
 
-    -- 反作弊重置
-    AntiCheat.reset()
-    secureMoney = {}
-
     -- 生成仓库（使用 WarehouseGenerator，传入区域和难度）
     state.warehouseData = WarehouseGenerator.Generate(regionId, warehouseTypeId, diffIdx)
     state.warehouseName = state.warehouseData.warehouseName
@@ -111,9 +102,6 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
     state.entryFee = difficulty and difficulty.entryFee or 0
     state.diffLabel = difficulty and difficulty.label or ""
     state.assetRequirement = difficulty and difficulty.assetRequirement or 0
-
-    -- 保护仓库总价值
-    secureTotalValue = AntiCheat.SecureValue(state.warehouseTotalValue)
 
     -- 创建玩家
     state.players = {}
@@ -224,13 +212,8 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
         end
     end
 
-    -- 为所有玩家创建资金保护
-    for idx, player in ipairs(state.players) do
-        secureMoney[idx] = AntiCheat.SecureValue(player.money)
-    end
-
-    -- 初始化子模块（必须在 secureMoney 和 state 准备好之后）
-    MoneyManager.Setup({ state = state, secureMoney = secureMoney, AntiCheat = AntiCheat })
+    -- 初始化子模块
+    MoneyManager.Setup({ state = state })
     SkillSystem.Setup({ state = state, secureAddMoney = MoneyManager.SecureAddMoney, validateMoney = MoneyManager.ValidateMoney })
 
     -- 通知资金变动（人类玩家初始资金）
@@ -256,49 +239,93 @@ end
 ---@param diffIdx number 难度索引（1=简单, 2=普通, 3=困难...）
 function GameState._InitAIProps(diffIdx)
     local Props = require("Config.Props")
-    -- 按难度决定 AI 道具数量和可用品质档次
-    -- diffIdx 1: 低档道具(price<=1500)，0~1个
-    -- diffIdx 2: 低+中档(price<=2500)，1~2个
-    -- diffIdx 3+: 所有档次，2~3个
-    local d = diffIdx or 1
-    local maxCount, maxPrice
-    if d <= 1 then
-        maxCount = 1; maxPrice = 1500
-    elseif d == 2 then
-        maxCount = 2; maxPrice = 2500
-    else
-        maxCount = 3; maxPrice = 99999
-    end
 
-    -- 筛选可用道具
-    local availProps = {}
+    -- 仓库 tier 决定道具品质权重（高价值场偏向高品质道具）
+    local whTier = (state.warehouseData and state.warehouseData.tier) or "normal"
+
+    -- 仓库 tier → 各品质道具权重
+    -- white: 低端信息（格数/数量统计），green: 中端（均价/多件轮廓），blue: 高端（最高品质/大件轮廓/品类揭示）
+    local TIER_PROP_WEIGHTS = {
+        trash    = { white = 10, green = 0,  blue = 0  },
+        junk     = { white = 8,  green = 2,  blue = 0  },
+        poor     = { white = 6,  green = 4,  blue = 0  },
+        normal   = { white = 4,  green = 5,  blue = 1  },
+        good     = { white = 2,  green = 5,  blue = 3  },
+        treasure = { white = 1,  green = 3,  blue = 6  },
+        jackpot  = { white = 0,  green = 2,  blue = 8  },
+    }
+
+    -- 仓库 tier → AI 道具数量范围（高价值场 AI 携带更多道具）
+    local TIER_COUNT = {
+        trash    = { 0, 1 },
+        junk     = { 1, 1 },
+        poor     = { 1, 1 },
+        normal   = { 1, 2 },
+        good     = { 1, 2 },
+        treasure = { 2, 3 },
+        jackpot  = { 2, 3 },
+    }
+
+    local weights  = TIER_PROP_WEIGHTS[whTier] or TIER_PROP_WEIGHTS.normal
+    local cntRange = TIER_COUNT[whTier] or { 1, 2 }
+
+    -- diffIdx 高难度额外给 +1 上限
+    local d        = diffIdx or 1
+    local maxCount = math.min(cntRange[2] + (d >= 3 and 1 or 0), 3)
+    local minCount = cntRange[1]
+
+    -- 按 tier 分组所有道具（AI 可使用含 dailyShop 道具，品质权重由仓库决定）
+    local byTier = { white = {}, green = {}, blue = {} }
     for _, def in ipairs(Props.LIST) do
-        if def.price <= maxPrice then
-            availProps[#availProps + 1] = def
+        local t = def.tier or "white"
+        if byTier[t] then
+            byTier[t][#byTier[t] + 1] = def
         end
     end
-    if #availProps == 0 then return end
 
-    -- 为每个 AI 玩家分配道具
+    -- 构建加权候选池（每个 def 按对应品质权重重复入池）
+    local pool = {}
+    for tier, w in pairs(weights) do
+        if w > 0 and byTier[tier] then
+            for _, def in ipairs(byTier[tier]) do
+                for _ = 1, w do
+                    pool[#pool + 1] = def
+                end
+            end
+        end
+    end
+    if #pool == 0 then return end
+
+    -- 为每个 AI 玩家独立洗牌后按去重规则分配
     for idx, player in ipairs(state.players) do
         if not player.isHuman then
-            local count = math.random(0, maxCount)
-            local assigned = {}
-            -- 不重复地随机选道具
-            local pool = {}
-            for _, def in ipairs(availProps) do pool[#pool + 1] = def end
-            for i = #pool, 2, -1 do
-                local j = math.random(1, i)
-                pool[i], pool[j] = pool[j], pool[i]
-            end
-            for i = 1, math.min(count, #pool) do
-                assigned[#assigned + 1] = { id = pool[i].id, def = pool[i], used = false }
-            end
-            state.aiProps[idx] = assigned
-            if #assigned > 0 then
-                local names = {}
-                for _, ap in ipairs(assigned) do names[#names + 1] = ap.def.name end
-                print("[GameState] AI " .. idx .. " props: " .. table.concat(names, ", "))
+            local count = (minCount >= maxCount) and minCount
+                       or math.random(minCount, maxCount)
+            if count == 0 then
+                state.aiProps[idx] = {}
+            else
+                -- 每个 AI 独立洗牌，保证分配多样性
+                local shuffled = { table.unpack(pool) }
+                for i = #shuffled, 2, -1 do
+                    local j = math.random(1, i)
+                    shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+                end
+                local assigned, seen = {}, {}
+                for _, def in ipairs(shuffled) do
+                    if not seen[def.id] then
+                        seen[def.id] = true
+                        assigned[#assigned + 1] = { id = def.id, def = def, used = false }
+                        if #assigned >= count then break end
+                    end
+                end
+                state.aiProps[idx] = assigned
+                if #assigned > 0 then
+                    local names = {}
+                    for _, ap in ipairs(assigned) do
+                        names[#names + 1] = ap.def.name .. "(" .. ap.def.tier .. ")"
+                    end
+                    print("[GameState] AI" .. idx .. " [wh=" .. whTier .. "] props: " .. table.concat(names, ", "))
+                end
             end
         end
     end
@@ -824,14 +851,6 @@ function GameState.GetTimer()          return state.timer end
 function GameState.GetWarehouseName()  return state.warehouseName end
 function GameState.GetWarehouseItems() return state.warehouseItems end
 function GameState.GetWarehouseTotalValue()
-    -- 校验 secureTotalValue 一致性
-    if secureTotalValue then
-        local secureVal = secureTotalValue.get()
-        if secureVal ~= state.warehouseTotalValue then
-            print("[AntiCheat] WARNING: warehouseTotalValue tampered! Restoring.")
-            state.warehouseTotalValue = secureVal
-        end
-    end
     return state.warehouseTotalValue
 end
 function GameState.GetWarehouseData() return state.warehouseData end
@@ -857,31 +876,14 @@ function GameState.GetDiffLabel()          return state.diffLabel or "" end
 function GameState.GetRegionId()           return state.regionId or "" end
 
 -- ============================================================================
--- 安全资金操作（AntiCheat 集成）
+-- 资金操作
 -- ============================================================================
 
---- 校验玩家资金是否被篡改，被篡改则恢复
-GameState.ValidateMoney = function(playerIdx) MoneyManager.ValidateMoney(playerIdx) end
-
---- 安全修改资金（同时更新明文和 SecureValue，人类玩家自动云端保存 + 记账）
+GameState.ValidateMoney  = function(playerIdx) MoneyManager.ValidateMoney(playerIdx) end
 GameState.SecureSetMoney = function(playerIdx, newValue, source, context) MoneyManager.SecureSetMoney(playerIdx, newValue, source, context) end
-
---- 安全增减资金
 GameState.SecureAddMoney = function(playerIdx, delta, source, context) MoneyManager.SecureAddMoney(playerIdx, delta, source, context) end
-
---- 从云端加载资金（游戏初始化时调用，异步）
 GameState.LoadCloudMoney = function(callback) MoneyManager.LoadCloudMoney(callback) end
-
---- 保存人类玩家资金到云端
 GameState.SaveCloudMoney = function() MoneyManager.SaveCloudMoney() end
-
--- Debug helpers（反作弊保护：生产环境下为空操作）
-function GameState.SetTimer(val)
-    print("[AntiCheat] SetTimer blocked.")
-end
-function GameState.AddMoney(playerIdx, amount)
-    print("[AntiCheat] AddMoney blocked.")
-end
 
 function GameState.SetOnStateChange(fn) state.onStateChange = fn end
 function GameState.SetOnMoneyChanged(fn) MoneyManager.SetOnMoneyChanged(fn) end

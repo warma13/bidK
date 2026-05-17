@@ -666,13 +666,7 @@ function GameSession.HandleUpdate(dt)
 
     SafeCall("GameOverDialog.Update", GameOverDialog.Update, dt)
 
-    UIState.ledgerAuditTimer = (UIState.ledgerAuditTimer or 0) + dt
-    if UIState.ledgerAuditTimer >= 3.0 then
-        UIState.ledgerAuditTimer = 0
-        SafeCall("MoneyManager.LedgerAudit", MoneyManager.LedgerAudit)
-        local MoneyLedger = require("MoneyLedger")
-        SafeCall("MoneyLedger.TryPeriodicUpload", MoneyLedger.TryPeriodicUpload)
-    end
+
 end
 
 -- 暴露当前状态模块给其他 UI 模块

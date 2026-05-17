@@ -298,7 +298,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
         backgroundFit = "cover",
         children = {
             navBar,
-            -- 右下角：富豪榜 + 竞拍按钮组
+            -- 右下角：排行榜 + 竞拍按钮组
             UI.Panel {
                 position = "absolute",
                 right = "2%", bottom = "2%",
@@ -307,7 +307,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                 gap = Utils.sz(6),
                 children = {
                     UI.Button {
-                        text = "富豪榜",
+                        text = "排行榜",
                         width = Utils.sz(120), height = Utils.sz(36),
                         fontSize = Utils.sz(14),
                         backgroundColor = { 0, 0, 0, 100 },
