@@ -43,6 +43,10 @@ local _badgeBorderReward = nil  -- 奖励中心按钮（需要更新边框色）
 local _badgePass   = nil   -- 通行证红点 Panel
 --- @type any
 local _badgeBorderPass = nil    -- 通行证按钮（需要更新边框色）
+--- @type any
+local _badgeMail   = nil   -- 邮件红点 Panel
+--- @type any
+local _badgeBorderMail = nil    -- 邮件按钮（需要更新边框色）
 
 --- 当任何面板的 async 数据加载完成后调用此函数刷新红点可见性
 function MenuScreen.RefreshBadges()
@@ -50,6 +54,7 @@ function MenuScreen.RefreshBadges()
         or OnlineRewardPanel.HasClaimable()
         or VersionRewardPanel.HasClaimable()
     local hasPass = SeasonPassPanel.HasClaimable()
+    local hasMail = SaveSystem.GetUnclaimedMailCount() > 0
 
     if _badgeReward then
         _badgeReward:SetVisible(hasReward)
@@ -62,6 +67,12 @@ function MenuScreen.RefreshBadges()
     end
     if _badgeBorderPass then
         _badgeBorderPass:SetStyle({ borderColor = hasPass and { 220, 80, 80, 200 } or { 70, 85, 130, 160 } })
+    end
+    if _badgeMail then
+        _badgeMail:SetVisible(hasMail)
+    end
+    if _badgeBorderMail then
+        _badgeBorderMail:SetStyle({ borderColor = hasMail and { 220, 80, 80, 200 } or { 70, 85, 130, 160 } })
     end
 end
 
@@ -457,7 +468,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                                 -- 邮件按钮
                                 (function()
                                     local hasUnclaimed = SaveSystem.GetUnclaimedMailCount() > 0
-                                    local badge = UI.Panel {
+                                    _badgeMail = UI.Panel {
                                         position = "absolute", top = Utils.sz(2), right = Utils.sz(2),
                                         width = Utils.sz(8), height = Utils.sz(8),
                                         borderRadius = Utils.sz(4),
@@ -465,12 +476,12 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                                         visible = hasUnclaimed,
                                         pointerEvents = "none",
                                     }
-                                    return UI.Panel {
+                                    _badgeBorderMail = UI.Panel {
                                         width = Utils.sz(36), height = Utils.sz(36),
                                         borderRadius = Utils.sz(6),
                                         backgroundColor = { 20, 24, 38, 180 },
                                         borderWidth = 1,
-                                        borderColor = { 70, 85, 130, 160 },
+                                        borderColor = hasUnclaimed and { 220, 80, 80, 200 } or { 70, 85, 130, 160 },
                                         justifyContent = "center",
                                         alignItems = "center",
                                         cursor = "pointer",
@@ -486,9 +497,10 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                                                 backgroundImage = "image/nav_mail_20260520191948.png",
                                                 backgroundSize = "contain",
                                             },
-                                            badge,
+                                            _badgeMail,
                                         },
                                     }
+                                    return _badgeBorderMail
                                 end)(),
                                 MoneyHUD.CreatePanel(),
                                 MoneyHUD.CreateTicketPanel(),

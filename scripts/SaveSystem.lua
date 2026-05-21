@@ -1097,7 +1097,7 @@ function SaveSystem.GetUnclaimedMailCount()
     local mails = Cfg.MAILS or {}
     local count = 0
     for _, m in ipairs(mails) do
-        if m.reward and not saveData.mailClaimed[m.id] then
+        if m.rewards and not saveData.mailClaimed[m.id] then
             count = count + 1
         end
     end
