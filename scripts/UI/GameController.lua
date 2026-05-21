@@ -15,6 +15,7 @@ local MapSelectionScreen = require("UI.MapSelectionScreen")
 local MyWarehousePanel = require("UI.MyWarehousePanel")
 local CharacterScreen = require("UI.CharacterScreen")
 local PropScreen = require("UI.PropScreen")
+local BackpackScreen = require("UI.BackpackScreen")
 local AppPhase = require("AppPhase")
 local GameSession = require("GameSession")
 local GameOverDialog = require("UI.GameOverDialog")
@@ -42,7 +43,8 @@ function GameController.ShowMenu()
         function() GameController.ShowMap() end,
         function() GameController.ShowWarehouse() end,
         function() GameController.ShowCharacter() end,
-        function() GameController.ShowProp() end
+        function() GameController.ShowProp() end,
+        function() GameController.ShowBackpack() end
     )
 end
 
@@ -62,6 +64,13 @@ end
 function GameController.ShowProp()
     AppPhase.Set(AppPhase.MENUS)
     PropScreen.Show(function()
+        GameController.ShowMenu()
+    end)
+end
+
+function GameController.ShowBackpack()
+    AppPhase.Set(AppPhase.MENUS)
+    BackpackScreen.Show(function()
         GameController.ShowMenu()
     end)
 end
@@ -157,6 +166,13 @@ function GameController.HandleUpdate(dt)
             -- 道具商店：优先关闭购买弹窗，否则返回主菜单
             if PropScreen.HasOpenDialog() then
                 PropScreen.DismissDialog()
+            else
+                GameController.ShowMenu()
+            end
+        elseif screen == "backpack" then
+            -- 背包：优先关闭详情弹窗，否则返回主菜单
+            if BackpackScreen.HasOpenDialog() then
+                BackpackScreen.DismissDialog()
             else
                 GameController.ShowMenu()
             end

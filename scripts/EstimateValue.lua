@@ -273,14 +273,14 @@ end
 
 --- expected 模式：根据信息层级查询条件期望值
 --- @param tables table 查找表
---- @param level number 信息层级 0-3
+--- @param level number 信息层级 0-4
 --- @param item table 仓库物品 { category, rarity, w, h, realValue }
 --- @return number 条件期望值
 local function getExpectedValue(tables, level, item)
     local avg = tables.avg
 
-    if level >= 3 then
-        -- L3：精确值
+    if level >= 4 then
+        -- L4：精确值
         return item.realValue or 0
     end
 
@@ -293,8 +293,8 @@ local function getExpectedValue(tables, level, item)
     -- 几何均价 sqrt(poolAvg × poolMedian) 取两者均衡，更接近实际每件物品的期望贡献
     local fallback = tables.poolGeoMean
 
-    if level >= 2 then
-        -- L2：已知品质（通常也知道品类）
+    if level >= 3 then
+        -- L3/L2：已知品质（品质框或品质提示，品质信息相同）
         if cat then
             local key = cat .. ":" .. q
             if avg.categoryQualityAvg[key] then
@@ -302,6 +302,17 @@ local function getExpectedValue(tables, level, item)
             end
         end
         -- 无品类信息，回退到全池品质加权均价
+        return avg.qualityAvgWeighted[q] or fallback
+    end
+
+    if level == 2 then
+        -- L2：品质提示（1×1格），已知品质信息，估值与L3相同
+        if cat then
+            local key = cat .. ":" .. q
+            if avg.categoryQualityAvg[key] then
+                return avg.categoryQualityAvg[key]
+            end
+        end
         return avg.qualityAvgWeighted[q] or fallback
     end
 
@@ -508,7 +519,7 @@ end
 --- @param infoState table 信息状态 { publicInfos, skillInfos, itemRevealLevels }
 --- @param whTypeId string|nil 仓库类型ID（nil=使用 grocery）
 --- @return number estimatedMin 预估最低价
---- @return number knownCount 已揭晓物品数（level 2+3）
+--- @return number knownCount 已揭晓物品数（level 2+3+4）
 --- @return number totalCount 总物品数
 function EstimateValue.Calculate(infoState, whTypeId)
     local items = _GameState.GetWarehouseItems()
@@ -527,13 +538,13 @@ function EstimateValue.Calculate(infoState, whTypeId)
     local revealLevels = infoState.itemRevealLevels or {}
 
     -- 按揭示等级分三档
-    local fullyRevealed = {}     -- level 3：价值已知
-    local qualityRevealed = {}   -- level 2：品质+尺寸已知
+    local fullyRevealed = {}     -- level 4：价值已知
+    local qualityRevealed = {}   -- level 2/3：品质已知（提示或品质框）
     local unknownItems = {}      -- level 0-1：品质未知
 
     for _, item in ipairs(items) do
         local level = revealLevels[item.idx] or 0
-        if level >= 3 then
+        if level >= 4 then
             fullyRevealed[#fullyRevealed + 1] = item
         elseif level >= 2 then
             qualityRevealed[#qualityRevealed + 1] = item
@@ -838,7 +849,7 @@ function EstimateValue.CalculateExpected(infoState, whTypeId)
     local skillInfos  = infoState.skillInfos  or {}
 
     -- 仓库质量信号：好仓/坏仓调整 L0/L1 未知物品的期望估价
-    -- expected 模式双向生效（阻尼平方根），L2/L3 已有具体信息不受影响
+    -- expected 模式双向生效（阻尼平方根），L2/L3/L4 已有品质信息不受影响
     local qualityRatio = collectSampleQualityRatio(publicInfos, skillInfos, tables.poolGeoMean)
     local dampedMult = 1.0
     if qualityRatio then

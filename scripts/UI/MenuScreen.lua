@@ -17,24 +17,53 @@ local OnlineRewardPanel = require("UI.OnlineRewardPanel")
 local StatsPanel = require("UI.StatsPanel")
 local PersonalInfoScreen = require("UI.PersonalInfoScreen")
 local VersionRewardPanel = require("UI.VersionRewardPanel")
+local RewardScreen = require("UI.RewardScreen")
 local TaskPanel = require("UI.TaskPanel")
+local SeasonPassPanel = require("UI.SeasonPassPanel")
 local TicketTooltip = require("UI.TicketTooltip")
+local MailPanel = require("UI.MailPanel")
+local SaveSystem = require("SaveSystem")
 
 local MenuScreen = {}
 
 -- ============================================================================
--- 版本公告
+-- 版本公告（权威数据来自 VersionRewardPanel，此处直接引用避免重复维护）
 -- ============================================================================
-local ANNOUNCEMENTS = {
-    {
-        date  = "2026-05-16",
-        title = "v1.5 更新公告",
-        items = {
-            "新增道具系统，可在商店购买情报道具辅助竞拍",
-            "优化界面显示与操作体验",
-        },
-    },
-}
+local ANNOUNCEMENTS = VersionRewardPanel.ANNOUNCEMENTS
+
+-- ============================================================================
+-- 动态红点刷新（在 Show() 之后、async 数据到位时调用）
+-- ============================================================================
+
+--- @type any
+local _badgeReward = nil   -- 奖励中心红点 Panel
+--- @type any
+local _badgeBorderReward = nil  -- 奖励中心按钮（需要更新边框色）
+--- @type any
+local _badgePass   = nil   -- 通行证红点 Panel
+--- @type any
+local _badgeBorderPass = nil    -- 通行证按钮（需要更新边框色）
+
+--- 当任何面板的 async 数据加载完成后调用此函数刷新红点可见性
+function MenuScreen.RefreshBadges()
+    local hasReward = AdCardPanel.HasClaimable()
+        or OnlineRewardPanel.HasClaimable()
+        or VersionRewardPanel.HasClaimable()
+    local hasPass = SeasonPassPanel.HasClaimable()
+
+    if _badgeReward then
+        _badgeReward:SetVisible(hasReward)
+    end
+    if _badgeBorderReward then
+        _badgeBorderReward:SetStyle({ borderColor = hasReward and { 220, 80, 80, 200 } or { 70, 85, 130, 160 } })
+    end
+    if _badgePass then
+        _badgePass:SetVisible(hasPass)
+    end
+    if _badgeBorderPass then
+        _badgeBorderPass:SetStyle({ borderColor = hasPass and { 220, 80, 80, 200 } or { 70, 85, 130, 160 } })
+    end
+end
 
 local function CreateAnnouncementButton(announcementOverlay)
     local sz = Utils.sz
@@ -224,13 +253,10 @@ local function CreateAnnouncementPopup()
     return overlay
 end
 
-function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback)
+function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
     UIState.currentScreen = "menu"
     local C = Config.COLORS
     local sz = Utils.sz
-
-    local announcementPopup = CreateAnnouncementPopup()
-    local announcementBtn   = CreateAnnouncementButton(announcementPopup)
 
     -- 左下角导航按钮组（合并为一行，竖线分隔）
     local function MakeNavItem(label, sub, onClickFn)
@@ -287,7 +313,14 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                 backgroundColor = { 110, 88, 45, 150 },
                 flexShrink = 0,
             },
-            MakeNavItem("道具", "ITEMS", onPropCallback),
+            MakeNavItem("商店", "STORE", onPropCallback),
+            -- 竖线分隔
+            UI.Panel {
+                width = 1, height = "60%",
+                backgroundColor = { 110, 88, 45, 150 },
+                flexShrink = 0,
+            },
+            MakeNavItem("背包", "BAG", onBackpackCallback),
         },
     }
 
@@ -421,31 +454,154 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                             children = {
                                 playerInfoPanel,
                                 SettingsPanel.CreateButton(),
+                                -- 邮件按钮
+                                (function()
+                                    local hasUnclaimed = SaveSystem.GetUnclaimedMailCount() > 0
+                                    local badge = UI.Panel {
+                                        position = "absolute", top = Utils.sz(2), right = Utils.sz(2),
+                                        width = Utils.sz(8), height = Utils.sz(8),
+                                        borderRadius = Utils.sz(4),
+                                        backgroundColor = { 210, 50, 50, 240 },
+                                        visible = hasUnclaimed,
+                                        pointerEvents = "none",
+                                    }
+                                    return UI.Panel {
+                                        width = Utils.sz(36), height = Utils.sz(36),
+                                        borderRadius = Utils.sz(6),
+                                        backgroundColor = { 20, 24, 38, 180 },
+                                        borderWidth = 1,
+                                        borderColor = { 70, 85, 130, 160 },
+                                        justifyContent = "center",
+                                        alignItems = "center",
+                                        cursor = "pointer",
+                                        onClick = function()
+                                            Utils.PlayClick()
+                                            MailPanel.Show(function()
+                                                MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
+                                            end)
+                                        end,
+                                        children = {
+                                            UI.Panel {
+                                                width = Utils.sz(22), height = Utils.sz(22),
+                                                backgroundImage = "image/nav_mail_20260520191948.png",
+                                                backgroundSize = "contain",
+                                            },
+                                            badge,
+                                        },
+                                    }
+                                end)(),
                                 MoneyHUD.CreatePanel(),
+                                MoneyHUD.CreateTicketPanel(),
                             },
                         }
                     end)(),
-                    -- 第二行：银卡及之后的图标
+                    -- 第二行：奖励中心 + 公告 + 任务 + 通行证
                     UI.Panel {
                         flexDirection = "row",
                         alignItems = "center",
                         gap = Utils.sz(8),
                         children = {
-                            AdCardPanel.CreateButton(),
-                            OnlineRewardPanel.CreateButton(),
-                            announcementBtn,
-                            VersionRewardPanel.CreateButton(),
+                            -- 奖励中心（合并广告卡/在线奖励/版本奖励）
+                            (function()
+                                local hasReward = AdCardPanel.HasClaimable()
+                                    or OnlineRewardPanel.HasClaimable()
+                                    or VersionRewardPanel.HasClaimable()
+
+                                -- 红点：始终创建，通过 SetVisible 动态控制
+                                _badgeReward = UI.Panel {
+                                    position = "absolute", top = Utils.sz(2), right = Utils.sz(2),
+                                    width = Utils.sz(8), height = Utils.sz(8),
+                                    borderRadius = Utils.sz(4),
+                                    backgroundColor = { 230, 50, 50, 255 },
+                                    visible = hasReward,
+                                    pointerEvents = "none",
+                                }
+
+                                local btn = UI.Panel {
+                                    paddingHorizontal = Utils.sz(10), paddingVertical = Utils.sz(4),
+                                    flexDirection = "column", alignItems = "center",
+                                    justifyContent = "center", gap = Utils.sz(2),
+                                    cursor = "pointer",
+                                    backgroundColor = { 20, 24, 38, 180 },
+                                    borderWidth = 1, borderColor = hasReward and { 220, 80, 80, 200 } or { 70, 85, 130, 160 },
+                                    borderRadius = Utils.sz(6),
+                                    onClick = function()
+                                        Utils.PlayClick()
+                                        RewardScreen.Show(function()
+                                            MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
+                                        end)
+                                    end,
+                                    children = {
+                                        UI.Panel {
+                                            width = Utils.sz(26), height = Utils.sz(26),
+                                            backgroundImage = "image/nav_reward_20260515210532.png",
+                                            backgroundFit = "contain",
+                                            pointerEvents = "none",
+                                        },
+                                        UI.Label {
+                                            text = "奖励",
+                                            fontSize = Utils.sz(11), fontColor = { 200, 205, 220, 200 },
+                                            pointerEvents = "none",
+                                        },
+                                        _badgeReward,
+                                    },
+                                }
+                                _badgeBorderReward = btn
+                                return btn
+                            end)(),
                             TaskPanel.CreateButton(),
+                            -- 通行证入口按钮
+                            (function()
+                                local hasPass = SeasonPassPanel.HasClaimable()
+
+                                -- 红点：始终创建，通过 SetVisible 动态控制
+                                _badgePass = UI.Panel {
+                                    position = "absolute", top = Utils.sz(2), right = Utils.sz(2),
+                                    width = Utils.sz(8), height = Utils.sz(8),
+                                    borderRadius = Utils.sz(4),
+                                    backgroundColor = { 230, 50, 50, 255 },
+                                    visible = hasPass,
+                                    pointerEvents = "none",
+                                }
+
+                                local btn = UI.Panel {
+                                    paddingHorizontal = Utils.sz(10), paddingVertical = Utils.sz(4),
+                                    flexDirection = "column", alignItems = "center",
+                                    justifyContent = "center", gap = Utils.sz(2),
+                                    cursor = "pointer",
+                                    backgroundColor = { 20, 24, 38, 180 },
+                                    borderWidth = 1, borderColor = hasPass and { 220, 80, 80, 200 } or { 70, 85, 130, 160 },
+                                    borderRadius = Utils.sz(6),
+                                    onClick = function()
+                                        Utils.PlayClick()
+                                        SeasonPassPanel.Show(function()
+                                            MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
+                                        end)
+                                    end,
+                                    children = {
+                                        UI.Panel {
+                                            width = Utils.sz(26), height = Utils.sz(26),
+                                            backgroundImage = "image/season_pass_icon_white_20260518191343.png",
+                                            backgroundFit = "contain",
+                                            pointerEvents = "none",
+                                        },
+                                        UI.Label {
+                                            text = "通行证",
+                                            fontSize = Utils.sz(11), fontColor = { 200, 205, 220, 200 },
+                                            pointerEvents = "none",
+                                        },
+                                        _badgePass,
+                                    },
+                                }
+                                _badgeBorderPass = btn
+                                return btn
+                            end)(),
                         },
                     },
                 },
             },
             SettingsPanel.CreatePopup(),
             MoneyHUD.CreatePopup(),
-            AdCardPanel.CreatePopup(),
-            OnlineRewardPanel.CreatePopup(),
-            announcementPopup,
-            VersionRewardPanel.CreatePopup(),
             TaskPanel.CreatePopup(),
             TicketTooltip.CreateOverlay(),
             -- 排行榜全屏（置于最顶层，覆盖所有弹窗）

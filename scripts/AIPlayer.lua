@@ -15,14 +15,14 @@ local _GameState = nil
 local _AntiCheat = nil
 local _Strategies = nil
 local _InfoEstimation = nil
-local _EstimateValue = nil  -- 玩家端 EstimateValue（用于已知信息最低价保底）
+local _EstimateValue = nil  -- 保留参数槽兼容旧注入调用，内部不再使用（底价改用新算法）
 
 --- 注入依赖（必须在使用前调用）
 ---@param gameState table GameState 模块
 ---@param strategies table AI.Strategies 模块
 ---@param infoEstimation table AI.InfoEstimation 模块
 ---@param antiCheat table AntiCheat 模块
----@param estimateValue table EstimateValue 模块（玩家端，用于最低价保底）
+---@param estimateValue table EstimateValue 模块（保留兼容，暂不使用）
 function AIPlayer.InjectDeps(gameState, strategies, infoEstimation, antiCheat, estimateValue)
     _GameState = gameState
     _Strategies = strategies
@@ -299,26 +299,17 @@ function AIPlayer.DecideSealedBid(playerIdx, player, round)
     end
 
     -- 底价保护：必须在风格化之后执行，防止风格化将数字向下取整绕过保底
-    -- COMPETE 意图的出价不应低于已知信息的最低预估价
+    -- 仅对 COMPETE 意图生效，其他意图（BLUFF/PUMP/RESIGN）不受此约束
     if intent == INTENT.COMPETE then
-        -- 方案A：已知信息下界（与 UI 显示的"预估最低价"同源）
-        local infoFloor = 0
-        if _EstimateValue then
-            local whData = _GameState.GetWarehouseData()
-            local whTypeId = whData and whData.warehouseTypeId or nil
-            local minEst = _EstimateValue.Calculate(aiInfoState, whTypeId)
-            infoFloor = minEst or 0
-        end
-        -- 按轮次倍率缩放底价：赢家实际支付 bid × multiplier，
-        -- 因此"不亏本"的最低出价应为 infoFloor / multiplier，而非 infoFloor 本身。
-        -- 若直接用 infoFloor（未缩放），早轮高倍率下所有 AI 都会被强制拉到同一数值。
-        local roundMul = Config.GAME.Multipliers[round] or 1.0
-        if round >= Config.GAME.MaxRounds then roundMul = 1.01 end
-        local adjustedInfoFloor = infoFloor > 0 and (infoFloor / roundMul) or 0
-
-        -- 方案B：AI 自身估值的 30%（保留作为兜底，防止 EstimateValue 异常）
-        local estimateFloor = estimate > 0 and estimate * 0.30 or 0
-        local absoluteFloor = math.max(adjustedInfoFloor, estimateFloor)
+        -- 底价比例随信息完整度动态提升：
+        --   infoWeight=0（无信息）→ estimate × 0.15（弱保护，防止极端低出价）
+        --   infoWeight=1（全揭示）→ estimate × 0.40（强保护，信息充分时不应乱出价）
+        -- 使用新算法的 estimate（已融合 tier 先验 + 逐件信息），无需再调用旧 min 模式。
+        -- 注意：不除以 roundMul——底价是"出价本身"的下限，不是"获得的价值"的下限。
+        --       倍率只影响赢家最终支付额，不影响 AI 愿意出的价格下限。
+        local infoWeight = (aiInfoState and aiInfoState.infoWeight) or 0
+        local floorRatio = 0.15 + infoWeight * 0.25   -- [0.15, 0.40]
+        local absoluteFloor = estimate * floorRatio
 
         if absoluteFloor > 0 and bidAmount < absoluteFloor then
             -- 加入个性化浮动，避免所有 AI 在同一底价收敛到完全相同的数值。
@@ -328,8 +319,9 @@ function AIPlayer.DecideSealedBid(playerIdx, player, round)
             local newBid = absoluteFloor + extraRange * position * 0.5
             print("[AIPlayer] floor applied: bid " .. math.floor(bidAmount)
                 .. " -> " .. math.floor(newBid)
-                .. " (infoFloor=" .. math.floor(infoFloor)
-                .. " adjustedFloor=" .. math.floor(adjustedInfoFloor)
+                .. " (floor=" .. math.floor(absoluteFloor)
+                .. " floorRatio=" .. string.format("%.2f", floorRatio)
+                .. " infoWeight=" .. string.format("%.2f", infoWeight)
                 .. " estimate=" .. math.floor(estimate)
                 .. " position=" .. string.format("%.2f", position) .. ")")
             bidAmount = newBid

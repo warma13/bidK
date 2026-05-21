@@ -68,34 +68,42 @@ Config.TICKETS = {
     ticket_suburb = {
         name = "城郊仓库指定券",
         icon = "Textures/tickets/ticket_suburb.png",
+        ticketPrice = 5,
     },
     ticket_industrial = {
         name = "工业仓库指定券",
         icon = "Textures/tickets/ticket_industrial.png",
+        ticketPrice = 10,
     },
     ticket_commercial = {
         name = "商业仓库指定券",
         icon = "Textures/tickets/ticket_commercial.png",
+        ticketPrice = 15,
     },
     ticket_port = {
         name = "港口仓库指定券",
         icon = "Textures/tickets/ticket_port.png",
+        ticketPrice = 20,
     },
     ticket_techpark = {
         name = "科技仓库指定券",
         icon = "Textures/tickets/ticket_techpark.png",
+        ticketPrice = 25,
     },
     ticket_culture = {
         name = "文化仓库指定券",
         icon = "Textures/tickets/ticket_culture.png",
+        ticketPrice = 35,
     },
     ticket_deepsea = {
         name = "深海仓库指定券",
         icon = "Textures/tickets/ticket_deepsea.png",
+        ticketPrice = 40,
     },
     ticket_private = {
         name = "顶级私产指定券",
         icon = "Textures/tickets/ticket_private.png",
+        ticketPrice = 50,
     },
 }
 
@@ -158,6 +166,29 @@ Config.ONLINE_REWARD = Rewards.ONLINE_REWARD
 -- 工具函数
 -- ============================================================================
 
+-- 物品名称 → 静态属性 索引（懒加载，首次调用时构建）
+local _itemStaticIndex = nil
+
+function Config.GetItemByName(name)
+    if not _itemStaticIndex then
+        _itemStaticIndex = {}
+        local ItemPool = require("Config.Warehouses.ItemPool")
+        for _, cat in ipairs(ItemPool.categories) do
+            for _, item in ipairs(cat.items) do
+                _itemStaticIndex[item.name] = {
+                    rarity   = item.quality,
+                    w        = item.cols,
+                    h        = item.rows,
+                    category = cat.id,
+                    image    = item.image or "",
+                    desc     = item.desc or "",
+                }
+            end
+        end
+    end
+    return _itemStaticIndex[name]
+end
+
 function Config.GetRarity(rarityId)
     for _, r in ipairs(Config.RARITY) do
         if r.id == rarityId then return r end
@@ -202,5 +233,70 @@ function Config.CalcBidIncrement(currentBid, percent)
     inc = math.max(inc, Config.GAME.MinBidIncrement)
     return Config.RoundBidIncrement(inc)
 end
+
+-- ============================================================================
+-- 奖励类型注册表（图标/名称集中配置，供所有面板复用）
+-- ============================================================================
+-- 每种 type 对应：
+--   icon      string   资源路径（传给 backgroundImage）
+--   name      string   显示名称
+--   countFmt  fn(amount) → string  右下角数量文案
+-- ticket 类型图标通过 Config.TICKETS[ticketId].icon 动态取，此处不填 icon
+Config.REWARD_TYPES = {
+    coins = {
+        name     = "金币",
+        icon     = "Textures/icons/icon_coin.png",
+        countFmt = function(amount) return require("UI.Utils").FormatMoney(amount) end,
+    },
+    bp_exp = {
+        name     = "通行证经验",
+        icon     = "image/xp_gold_20260518121142.png",
+        countFmt = function(amount) return "×" .. amount end,
+    },
+    ticket = {
+        name     = "积分券",
+        icon     = nil,   -- 动态：Config.TICKETS[ticketId].icon
+        countFmt = function(amount) return "×" .. (amount or 1) end,
+    },
+}
+
+--- 获取奖励图标路径（coins 走 Utils.GetIcon，ticket 走 Config.TICKETS）
+function Config.GetRewardIcon(reward)
+    if not reward then return "" end
+    if reward.type == "coins" then
+        return require("UI.Utils").GetIcon("coin")
+    elseif reward.type == "ticket" and reward.ticketId then
+        local t = Config.TICKETS[reward.ticketId]
+        return t and t.icon or "image/point_ticket_icon_20260518210650.png"
+    else
+        local rt = Config.REWARD_TYPES[reward.type]
+        return rt and rt.icon or ""
+    end
+end
+
+--- 获取奖励数量文案
+function Config.GetRewardCount(reward)
+    if not reward then return "" end
+    local rt = Config.REWARD_TYPES[reward.type]
+    if rt and rt.countFmt then return rt.countFmt(reward.amount) end
+    return reward.amount and ("×" .. reward.amount) or ""
+end
+
+--- 获取奖励名称
+function Config.GetRewardName(reward)
+    if not reward then return "奖励" end
+    if reward.type == "ticket" and reward.ticketId then
+        local t = Config.TICKETS[reward.ticketId]
+        return t and t.name or "积分券"
+    end
+    local rt = Config.REWARD_TYPES[reward.type]
+    return rt and rt.name or "奖励"
+end
+
+-- ============================================================================
+-- 系统邮件（id 不可变更，用于标记已读/已领取）
+-- ============================================================================
+-- reward 字段格式：{ type="coins"|"bp_exp"|"ticket", amount=N, ticketId="..." }
+Config.MAILS = {}
 
 return Config

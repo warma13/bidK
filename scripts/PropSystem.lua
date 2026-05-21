@@ -157,6 +157,16 @@ function PropSystem.ComputeEffect(def, warehouseItems)
     elseif t == E.SHOW_TOP_RARITY_SILHOUETTE    then return FX.TopRaritySilhouette(p, warehouseItems)
     elseif t == E.SHOW_LARGEST_ITEM_SILHOUETTE  then return FX.LargestItemSilhouette(p, warehouseItems)
     elseif t == E.SHOW_CATEGORY_SILHOUETTE      then return FX.CategorySilhouette(p, warehouseItems)
+    -- 紫色高阶
+    elseif t == E.SHOW_TOTAL_ITEM_COUNT         then return FX.TotalItemCount(p, warehouseItems)
+    elseif t == E.SHOW_RANDOM_QUALITY_MULTI     then return FX.RandomQualityMulti(p, warehouseItems)
+    elseif t == E.SHOW_LARGEST_ITEM_INFO        then return FX.LargestItemInfo(p, warehouseItems)
+    elseif t == E.SHOW_TOP_RARITY_ITEM_VALUE    then return FX.TopRarityItemValue(p, warehouseItems)
+    -- 金色高阶
+    elseif t == E.SHOW_TOTAL_CELL_COUNT         then return FX.TotalCellCount(p, warehouseItems)
+    elseif t == E.SHOW_RED_ITEM_SILHOUETTE      then return FX.RedItemSilhouette(p, warehouseItems)
+    elseif t == E.SHOW_TOP_N_LARGEST_INFO       then return FX.TopNLargestInfo(p, warehouseItems)
+    elseif t == E.SHOW_TOP_RARITY_FULL_INFO     then return FX.TopRarityFullInfo(p, warehouseItems)
     end
 
     return nil

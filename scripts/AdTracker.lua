@@ -21,6 +21,7 @@ local todayCount = 0
 local totalCount = 0
 local lastDate   = ""
 
+-- 与 Utils.TodayStr() 保持相同格式；此模块不依赖 UI 层，故本地定义
 local function TodayStr()
     return os.date("%Y-%m-%d")
 end

@@ -7,6 +7,7 @@
 
 local UI = require("urhox-libs/UI")
 local Config = require("Config")
+local RewardSlot = require("UI.RewardSlot")
 local MoneyHUD = require("UI.MoneyHUD")
 local MoneyManager = require("MoneyManager")
 local Utils = require("UI.Utils")
@@ -60,7 +61,7 @@ SaveFramework.Register(MODULE_NAME, {
         onlineDate   = values[KEY_ONLINE_DATE] or ""
         local savedSecs = iscores[KEY_ONLINE_SECS] or 0
 
-        local today = os.date("%Y-%m-%d")
+        local today = Utils.TodayStr()
         if onlineDate ~= today then
             claimedBits  = 0
             onlineDate   = today
@@ -85,7 +86,7 @@ SaveFramework.Register(MODULE_NAME, {
 
     defaults = function()
         cloudLoaded = true
-        onlineDate  = os.date("%Y-%m-%d")
+        onlineDate  = Utils.TodayStr()
         print("[OnlineReward] Defaults applied")
     end,
 })
@@ -94,9 +95,7 @@ SaveFramework.Register(MODULE_NAME, {
 -- 工具函数
 -- ============================================================================
 
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local function TodayStr() return Utils.TodayStr() end
 
 --- 检查日期变更并重置
 local function CheckDailyReset()
@@ -231,38 +230,19 @@ local function ClaimMilestone(msIndex)
         SaveSystem.AddTickets(ms.ticket, ticketCount, true)  -- skipSave
     end
 
-    MoneyManager.AddMoneyFromMenu(ms.coins, "在线奖励" .. ms.label, {
-        batchSetup = function(batch)
-            batch:SetInt(KEY_CLAIMED_BITS, claimedBits)
-            batch:Set(KEY_ONLINE_DATE, onlineDate)
-            batch:SetInt(KEY_ONLINE_SECS, math.floor(onlineSeconds))
-            -- 门票数据合并写入同一次 batch
-            if ms.ticket then
-                SaveSystem.WriteToBatch(batch)
-            end
-        end,
-        ok = function()
-            OnlineRewardPanel.RefreshAll()
-            Utils.PlaySfx("bid_success")
-            local rewardMsg = ms.label .. "在线奖励: +" .. Utils.FormatMoney(ms.coins)
-            if ms.ticket then
-                local tc = Config.TICKETS[ms.ticket]
-                local tname = (tc and tc.name) or "指定券"
-                rewardMsg = rewardMsg .. " +" .. tname .. "×" .. ticketCount
-            end
-            FloatingMessage.Show(rewardMsg)
-            print("[OnlineReward] Milestone " .. ms.label .. " claimed!")
-        end,
-        error = function()
-            claimedBits = claimedBits & ~bit
-            -- 回滚门票
-            if ms.ticket then
-                SaveSystem.AddTickets(ms.ticket, -ticketCount, true)
-            end
-            OnlineRewardPanel.RefreshAll()
-            FloatingMessage.Show("领取失败，请重试")
-        end,
-    })
+    MoneyManager.AddMoneyFromMenu(ms.coins, "在线奖励" .. ms.label, { skipSave = true })
+    SaveFramework.MarkDirty(MODULE_NAME)
+
+    OnlineRewardPanel.RefreshAll()
+    Utils.PlaySfx("bid_success")
+    local rewardMsg = ms.label .. "在线奖励: +" .. Utils.FormatMoney(ms.coins)
+    if ms.ticket then
+        local tc = Config.TICKETS[ms.ticket]
+        local tname = (tc and tc.name) or "指定券"
+        rewardMsg = rewardMsg .. " +" .. tname .. "×" .. ticketCount
+    end
+    FloatingMessage.Show(rewardMsg)
+    print("[OnlineReward] Milestone " .. ms.label .. " claimed!")
 end
 
 -- ============================================================================
@@ -289,30 +269,17 @@ function OnlineRewardPanel.RefreshAll()
             local unlocked = mins >= ms.minutes
 
             local state = claimed and "claimed" or (unlocked and "unlocked" or "locked")
-
             if state ~= row.lastState then
                 row.lastState = state
                 if claimed then
                     row.btn:SetDisabled(true)
                     row.btn:SetText("已领取")
-                    row.btn:SetStyle({
-                        backgroundColor = { 60, 65, 80, 150 },
-                        fontColor = { 120, 130, 150, 200 },
-                    })
                 elseif unlocked then
                     row.btn:SetDisabled(false)
                     row.btn:SetText("领取")
-                    row.btn:SetStyle({
-                        backgroundColor = { 220, 170, 50, 230 },
-                        fontColor = { 30, 20, 0, 255 },
-                    })
                 else
                     row.btn:SetDisabled(true)
                     row.btn:SetText(ms.label)
-                    row.btn:SetStyle({
-                        backgroundColor = { 50, 55, 70, 180 },
-                        fontColor = { 120, 130, 150, 200 },
-                    })
                 end
             end
 
@@ -332,7 +299,10 @@ end
 
 function OnlineRewardPanel.CreateButton()
     local sz = Utils.sz
-    -- 重置弹窗状态，防止跨界面残留
+    -- 显式清空旧引用：UI.SetRoot() 销毁旧 UI 树后 C++ 对象失效，
+    -- 在新 Panel 赋值前将其置 nil，确保 Update() 不会访问悬空引用
+    btnBadge = nil
+    btnLabel = nil
     popupVisible = false
 
     btnBadge = UI.Panel {
@@ -633,6 +603,141 @@ function OnlineRewardPanel.CreatePopup()
 end
 
 -- ============================================================================
+-- 创建内嵌内容视图（供 RewardScreen 使用，不包含遮罩层）
+-- ============================================================================
+
+function OnlineRewardPanel.CreateContent()
+    local sz = Utils.sz
+    milestoneRows = {}
+
+    -- 奖励格子构建（使用共享 RewardSlot 组件）
+    local function BuildRewardSlots(ms)
+        local slots = {}
+        slots[#slots + 1] = RewardSlot.Make({
+            image = Utils.GetIcon("coin"),
+            count = Utils.FormatMoney(ms.coins),
+        }, sz)
+        if ms.ticket then
+            local tConf   = Config.TICKETS[ms.ticket]
+            local tCount  = ms.ticketCount or 1
+            local ticketId = ms.ticket
+            slots[#slots + 1] = RewardSlot.Make({
+                image      = tConf and tConf.icon or nil,
+                iconText   = (not (tConf and tConf.icon)) and "🎫" or nil,
+                iconFontSize = sz(14),
+                count      = "×" .. tCount,
+                onClick    = function()
+                    Utils.PlayClick()
+                    TicketTooltip.Show(ticketId)
+                end,
+            }, sz)
+        end
+        return RewardSlot.Row(slots, sz)
+    end
+
+    -- 任务行列表
+    local msChildren = {}
+    for i, ms in ipairs(OC.MILESTONES) do
+        local claimBtn = UI.Button {
+            text = ms.label,
+            width = sz(52), height = sz(26), fontSize = sz(10),
+            variant = "primary",
+            disabled = true,
+            onClick = function() Utils.PlayClick(); ClaimMilestone(i) end,
+        }
+
+        local msFill = UI.Panel {
+            width = "0%", height = "100%",
+            backgroundColor = { 80, 200, 120, 220 }, borderRadius = sz(2),
+        }
+
+        milestoneRows[i] = { btn = claimBtn, progressFill = msFill }
+
+        msChildren[#msChildren + 1] = UI.Panel {
+            width = "100%", flexShrink = 0,
+            flexDirection = "row", alignItems = "center", gap = sz(6),
+            paddingVertical = sz(10), paddingLeft = sz(14), paddingRight = sz(12),
+            backgroundImage = "image/task_row_bg_20260516173338.png",
+            backgroundFit = "cover",
+            marginBottom = sz(6), borderRadius = sz(6), overflow = "hidden",
+            children = {
+                UI.Panel {
+                    flex = 1, flexShrink = 1,
+                    flexDirection = "column", gap = sz(2),
+                    children = {
+                        UI.Label {
+                            text = ms.label,
+                            fontSize = sz(11), fontWeight = "bold", fontColor = C.textPrimary,
+                        },
+                        BuildRewardSlots(ms),
+                        UI.Panel {
+                            width = "100%", height = sz(3),
+                            backgroundColor = { 50, 55, 70, 200 }, borderRadius = sz(2),
+                            overflow = "hidden", children = { msFill },
+                        },
+                    },
+                },
+                claimBtn,
+            },
+        }
+    end
+
+    -- 在线时长标签
+    local durationLabel = UI.Label {
+        text = FormatDuration(onlineSeconds),
+        fontSize = sz(16), fontColor = { 100, 210, 255, 255 },
+        fontWeight = "bold",
+    }
+    OnlineRewardPanel._contentDurationLabel = durationLabel
+
+    local content = UI.Panel {
+        width = "100%", height = "100%",
+        flexDirection = "column", gap = sz(8),
+        children = {
+            -- 标题 + 时长
+            UI.Panel {
+                width = "100%", flexShrink = 0,
+                flexDirection = "row", alignItems = "center", justifyContent = "space-between",
+                paddingBottom = sz(8),
+                borderBottomWidth = 1, borderColor = { 50, 60, 100, 120 },
+                children = {
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = sz(6),
+                        children = {
+                            UI.Label {
+                                text = "在线时长奖励",
+                                fontSize = sz(16), fontColor = { 220, 225, 240, 255 }, fontWeight = "bold",
+                            },
+                        },
+                    },
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = sz(6),
+                        children = {
+                            UI.Label { text = "今日在线", fontSize = sz(12), fontColor = { 130, 140, 170, 200 } },
+                            durationLabel,
+                        },
+                    },
+                },
+            },
+            -- 任务行列表（可滚动）
+            UI.ScrollView {
+                width = "100%", flex = 1, flexShrink = 1,
+                scrollY = true, scrollbarInteractive = false,
+                children = {
+                    UI.Panel {
+                        width = "100%", flexDirection = "column",
+                        children = msChildren,
+                    },
+                },
+            },
+        },
+    }
+
+    if cloudLoaded then OnlineRewardPanel.RefreshAll() end
+    return content
+end
+
+-- ============================================================================
 -- 退出保存
 -- ============================================================================
 
@@ -652,16 +757,30 @@ end
 
 --- 弹窗打开时更新在线时长显示
 function OnlineRewardPanel.UpdatePopupDuration()
-    if not popupVisible or not popupOverlay then return end
-    -- 只更新时间文本，RefreshAll 由状态变化驱动（避免每帧 SetStyle 吞点击）
-    if popupOverlay._durationLabel then
+    -- 更新弹窗时长标签
+    if popupVisible and popupOverlay and popupOverlay._durationLabel then
         popupOverlay._durationLabel:SetText(FormatDuration(onlineSeconds))
     end
+    -- 更新内嵌内容时长标签（RewardScreen 使用）
+    -- pcall 防止 SetRoot() 后 C++ 引用失效
+    if OnlineRewardPanel._contentDurationLabel then
+        if not pcall(OnlineRewardPanel._contentDurationLabel.SetText,
+                     OnlineRewardPanel._contentDurationLabel,
+                     FormatDuration(onlineSeconds)) then
+            OnlineRewardPanel._contentDurationLabel = nil
+        end
+    end
     -- 弹窗打开时也检查状态变化（内部有脏检查，不会无意义重刷）
-    OnlineRewardPanel.RefreshAll()
+    if popupVisible or OnlineRewardPanel._contentActive then
+        OnlineRewardPanel.RefreshAll()
+    end
 end
 
 function OnlineRewardPanel.GetClaimedBits()   return claimedBits end
 function OnlineRewardPanel.GetOnlineDate()    return onlineDate end
+
+function OnlineRewardPanel.HasClaimable()
+    return HasUnclaimedMilestones()
+end
 
 return OnlineRewardPanel

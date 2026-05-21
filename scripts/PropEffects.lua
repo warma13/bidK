@@ -108,6 +108,7 @@ function PropEffects.SizeAvgValue(params, warehouseItems)
         icon = "",
         type = "random_avg_value",
         sampleAvgValue = avgValue,
+        sampleCellCount = targetCells,   -- 用于 AI 对比同尺寸池均价，而非全池均价
     }
 end
 
@@ -123,7 +124,7 @@ function PropEffects.RandomItemInfo(params, warehouseItems)
 
     local reveals = {}
     if item.idx then
-        reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 3 }
+        reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 4 }
     end
 
     local text = "看透：" .. item.name .. "（" .. (rar and rar.name or item.rarity) .. "，" .. formatVal(val) .. "）"
@@ -147,7 +148,7 @@ function PropEffects.RandomItemInfoMulti(params, warehouseItems)
         local val = item.realValue or Config.GetItemRealValue(item)
         lines[#lines + 1] = item.name .. "（" .. (rar and rar.name or item.rarity) .. "，" .. formatVal(val) .. "）"
         if item.idx then
-            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 3 }
+            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 4 }
         end
     end
 
@@ -188,6 +189,7 @@ function PropEffects.RarityAvgValue(params, warehouseItems)
         text = text, icon = "",
         type = "random_avg_value",
         sampleAvgValue = avgValue,
+        sampleRarity = rarity,           -- 用于 AI 对比同品质池均价，而非全池均价
     }
 end
 
@@ -317,6 +319,191 @@ function PropEffects.CategorySilhouette(params, warehouseItems)
     local name = chosenName or chosen
     local text = name .. "品类共 " .. #catItems .. " 件，已显示轮廓"
     return { text = text, icon = "", reveals = reveals }
+end
+
+-- ── 紫色高阶效果 ──────────────────────────────────────────────────────────────
+
+--- 显示仓库中所有物品的总数量
+function PropEffects.TotalItemCount(params, warehouseItems)
+    local count = #warehouseItems
+    return { text = "仓库共有 " .. count .. " 件物品", icon = "" }
+end
+
+--- 随机显示N件物品的品质（L2_hint：只知品质，不暴露轮廓）
+function PropEffects.RandomQualityMulti(params, warehouseItems)
+    local n = params.count or 8
+    if #warehouseItems == 0 then
+        return { text = "仓库中没有物品", icon = "" }
+    end
+
+    local candidates = shuffle({ table.unpack(warehouseItems) })
+    local reveals = {}
+    local picked = math.min(n, #candidates)
+
+    for i = 1, picked do
+        local item = candidates[i]
+        if item.idx then
+            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 2 }
+        end
+    end
+
+    return { text = "感知了 " .. picked .. " 件物品的品质", icon = "", reveals = reveals }
+end
+
+--- 随机显示一件最高品质物品的价值（纯文字）
+function PropEffects.TopRarityItemValue(params, warehouseItems)
+    if #warehouseItems == 0 then
+        return { text = "仓库中没有物品", icon = "" }
+    end
+
+    -- 找出最高品质等级
+    local topRank = 0
+    for _, item in ipairs(warehouseItems) do
+        local rank = RARITY_RANK[item.rarity] or 0
+        if rank > topRank then topRank = rank end
+    end
+
+    -- 收集所有最高品质物品，随机选一件
+    local topItems = {}
+    for _, item in ipairs(warehouseItems) do
+        if (RARITY_RANK[item.rarity] or 0) == topRank then
+            topItems[#topItems + 1] = item
+        end
+    end
+
+    local item = topItems[math.random(1, #topItems)]
+    local rar = Config.GetRarity(item.rarity)
+    local rarName = rar and rar.name or item.rarity
+    local val = item.realValue or Config.GetItemRealValue(item)
+
+    return { text = rarName .. "品质物品价值 " .. formatVal(val) .. "（共 " .. #topItems .. " 件）", icon = "" }
+end
+
+--- 显示占格最多的物品的完整信息（L4）
+function PropEffects.LargestItemInfo(params, warehouseItems)
+    if #warehouseItems == 0 then
+        return { text = "仓库中没有物品", icon = "" }
+    end
+
+    local maxCells = 0
+    for _, item in ipairs(warehouseItems) do
+        local cells = (item.w or 1) * (item.h or 1)
+        if cells > maxCells then maxCells = cells end
+    end
+
+    -- 收集所有最大件，随机选一件揭示完整信息
+    local largeItems = {}
+    for _, item in ipairs(warehouseItems) do
+        if (item.w or 1) * (item.h or 1) == maxCells then
+            largeItems[#largeItems + 1] = item
+        end
+    end
+
+    local item = largeItems[math.random(1, #largeItems)]
+    local rar = Config.GetRarity(item.rarity)
+    local val = item.realValue or Config.GetItemRealValue(item)
+
+    local reveals = {}
+    if item.idx then
+        reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 4 }
+    end
+
+    local text = "重器：" .. item.name .. "（" .. (rar and rar.name or item.rarity) .. "，占" .. maxCells .. "格，" .. formatVal(val) .. "）"
+    return { text = text, icon = "", reveals = reveals, revealedItem = item }
+end
+
+-- ── 金色高阶效果 ──────────────────────────────────────────────────────────────
+
+--- 显示仓库中所有物品的总格数
+function PropEffects.TotalCellCount(params, warehouseItems)
+    local total = 0
+    for _, item in ipairs(warehouseItems) do
+        total = total + (item.w or 1) * (item.h or 1)
+    end
+    return { text = "仓库 " .. #warehouseItems .. " 件物品共占 " .. total .. " 格", icon = "" }
+end
+
+--- 显示仓库中所有红色物品的轮廓（L1）
+function PropEffects.RedItemSilhouette(params, warehouseItems)
+    local reveals = {}
+    for _, item in ipairs(warehouseItems) do
+        if item.rarity == "red" and item.idx then
+            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 1 }
+        end
+    end
+
+    if #reveals == 0 then
+        return { text = "仓库中暂无红色品质物品", icon = "" }
+    end
+
+    return { text = "红色品质共 " .. #reveals .. " 件，已显示全部轮廓", icon = "", reveals = reveals }
+end
+
+--- 显示占格最多的前N件物品的完整信息（L4）
+function PropEffects.TopNLargestInfo(params, warehouseItems)
+    local n = (params and params.topN) or 3
+    if #warehouseItems == 0 then
+        return { text = "仓库中没有物品", icon = "" }
+    end
+
+    -- 按格数降序排列
+    local sorted = { table.unpack(warehouseItems) }
+    table.sort(sorted, function(a, b)
+        return (a.w or 1) * (a.h or 1) > (b.w or 1) * (b.h or 1)
+    end)
+
+    local reveals, lines = {}, {}
+    local picked = math.min(n, #sorted)
+    for i = 1, picked do
+        local item = sorted[i]
+        local rar = Config.GetRarity(item.rarity)
+        local val = item.realValue or Config.GetItemRealValue(item)
+        local cells = (item.w or 1) * (item.h or 1)
+        lines[#lines + 1] = item.name .. "（" .. (rar and rar.name or item.rarity) .. "，" .. cells .. "格，" .. formatVal(val) .. "）"
+        if item.idx then
+            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 4 }
+        end
+    end
+
+    return {
+        text = "前" .. picked .. "大件：" .. table.concat(lines, "；"),
+        icon = "", reveals = reveals,
+    }
+end
+
+--- 随机显示一件最高品质物品的完整信息（L4）
+function PropEffects.TopRarityFullInfo(params, warehouseItems)
+    if #warehouseItems == 0 then
+        return { text = "仓库中没有物品", icon = "" }
+    end
+
+    -- 找出最高品质等级
+    local topRank = 0
+    for _, item in ipairs(warehouseItems) do
+        local rank = RARITY_RANK[item.rarity] or 0
+        if rank > topRank then topRank = rank end
+    end
+
+    -- 收集所有最高品质物品，随机选一件
+    local topItems = {}
+    for _, item in ipairs(warehouseItems) do
+        if (RARITY_RANK[item.rarity] or 0) == topRank then
+            topItems[#topItems + 1] = item
+        end
+    end
+
+    local item = topItems[math.random(1, #topItems)]
+    local rar = Config.GetRarity(item.rarity)
+    local val = item.realValue or Config.GetItemRealValue(item)
+
+    local reveals = {}
+    if item.idx then
+        reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 4 }
+    end
+
+    local rarName = rar and rar.name or item.rarity
+    local text = "极品鉴定：" .. item.name .. "（" .. rarName .. "，" .. formatVal(val) .. "）[共 " .. #topItems .. " 件极品]"
+    return { text = text, icon = "", reveals = reveals, revealedItem = item }
 end
 
 return PropEffects

@@ -19,6 +19,7 @@ local UI = require("urhox-libs/UI")
 local Config = require("Config")
 local Utils = require("UI.Utils")
 local ImageCache = require("urhox-libs/UI/Core/ImageCache")
+local FormatMoney = Utils.FormatMoney
 
 local ItemDetailPanel = {}
 ItemDetailPanel.__index = ItemDetailPanel
@@ -90,10 +91,29 @@ function ItemDetailPanel.New(opts)
         fontColor = { 120, 125, 135, 200 },
     }
 
-    -- 5×5 占格缩略图
-    self._gridThumbObj = Utils.CreateGridThumb(5, 5, 6, 1, {
-        position = "absolute", right = 1, bottom = 1,
-    })
+    -- 右下角数量标签（替代格子缩略图）
+    self._countLabel = UI.Label {
+        position = "absolute", right = 6, bottom = 6,
+        text = "",
+        fontSize = 13, fontWeight = "bold",
+        fontColor = { 255, 228, 100, 255 },
+        pointerEvents = "none",
+    }
+    self._gridThumbObj = nil
+
+    -- 图片左上角：价格 | 品类 标签
+    self._priceBarLabel = UI.Label {
+        text = "", fontSize = 10,
+        fontColor = { 230, 228, 210, 255 },
+        fontWeight = "bold",
+    }
+    local priceBar = UI.Panel {
+        position = "absolute", left = 4, top = 4,
+        flexDirection = "row", alignItems = "center",
+        pointerEvents = "none",
+        children = { self._priceBarLabel },
+    }
+    self._priceBar = priceBar
 
     -- 图片区域
     self._imageContainer = UI.Panel {
@@ -103,7 +123,7 @@ function ItemDetailPanel.New(opts)
         justifyContent = "center",
         alignItems = "center",
         overflow = "hidden",
-        children = { self._gridThumbObj.widget },
+        children = { self._countLabel, priceBar },
     }
     -- 自定义 Render：contain 居中图片
     local imgContainer = self._imageContainer
@@ -155,13 +175,6 @@ function ItemDetailPanel.New(opts)
         padding = { 8, 10 },
         gap = 6,
         children = {
-            UI.Panel {
-                width = "100%",
-                flexDirection = "row",
-                alignItems = "center",
-                gap = 4,
-                children = { coinIcon, self._valueLabel, self._categoryLabel },
-            },
             self._imageContainer,
         },
     }
@@ -223,27 +236,34 @@ function ItemDetailPanel:Show(item)
     self._currentItem = item
 
     local rar = Config.GetRarity(item.rarity)
-    local cat = Config.GetCategory(item.category)
 
     self._titleDiamond:SetStyle({ fontColor = rar.color })
     self._titleLabel:SetText(item.name)
 
-    if item.subtitle then
-        self._coinIcon:SetVisible(false)
-        self._valueLabel:SetText(item.subtitle)
-        self._categoryLabel:SetText("")
-    else
-        self._coinIcon:SetVisible(true)
-        local val = item.realValue or 0
-        self._valueLabel:SetText(Utils.FormatMoney(val))
-        self._categoryLabel:SetText("| " .. (cat and cat.name or ""))
+    -- 右下角数量显示
+    if self._countLabel then
+        local countText = item.subtitle or ""
+        self._countLabel:SetText(countText)
+        self._countLabel:SetVisible(countText ~= "")
     end
 
     self._imageContainer._imagePath = item.image or nil
     self._descLabel:SetText(item.desc or "")
 
-    if self._gridThumbObj then
-        self._gridThumbObj.update(item.w or 1, item.h or 1)
+    -- 图片左上角：价格 | 品类（支持 priceBarText 直接覆盖）
+    local barText
+    if item.priceBarText then
+        barText = item.priceBarText
+    else
+        local priceVal = item.realValue or item.baseValue or item.value or 0
+        local catId    = item.category or ""
+        local catObj   = Config.GetCategory(catId)
+        local catName  = (catObj and catObj.name ~= catId) and catObj.name or catId
+        local priceStr = FormatMoney(priceVal)
+        barText = priceStr .. "  |  " .. catName
+    end
+    if self._priceBarLabel then
+        self._priceBarLabel:SetText(barText)
     end
 
     self._panel:SetVisible(true)

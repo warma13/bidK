@@ -233,9 +233,10 @@ function InfoEstimation.ComputeEstimate(playerIdx, round, infoSystem, infoStates
     if itemCount > 0 then
         for _, item in ipairs(items) do
             local level = revealLevels[item.idx] or 0
-            if level >= 3 then
+            if level >= 4 then
                 infoWeight = infoWeight + 1.0
             elseif level >= 2 then
+                -- L2 (品质暗示) 和 L3 (品质框) 都已知稀有度
                 infoWeight = infoWeight + 0.7
             elseif level >= 1 then
                 infoWeight = infoWeight + 0.3

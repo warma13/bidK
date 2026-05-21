@@ -134,11 +134,13 @@ end
 -- ============================================================================
 
 local ICON_MAP = {
-    coin = "金币.png",
+    coin  = "金币.png",
+    chest = "image/chest_luxury_20260517200416.png",
+    gift  = "image/giftbox_luxury_20260517200306.png",
 }
 
 --- 获取图标资源路径
----@param name string 图标名称（如 "coin"）
+---@param name string 图标名称（"coin" | "chest" | "gift"）
 ---@return string
 function Utils.GetIcon(name)
     return ICON_MAP[name] or ""
@@ -165,6 +167,11 @@ end
 ---@return number
 function Utils.sz(base)
     return math.floor(base * Utils.GetScale())
+end
+
+--- 返回今日日期字符串，格式 YYYY-MM-DD
+function Utils.TodayStr()
+    return os.date("%Y-%m-%d")
 end
 
 -- ============================================================================

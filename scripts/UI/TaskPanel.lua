@@ -7,12 +7,15 @@
 
 local UI = require("urhox-libs/UI")
 local Config = require("Config")
+local RewardSlot = require("UI.RewardSlot")
 local Utils = require("UI.Utils")
 local MoneyManager = require("MoneyManager")
 local MoneyHUD = require("UI.MoneyHUD")
 local SaveSystem = require("SaveSystem")
 local SaveFramework = require("SaveFramework")
 local FloatingMessage = require("UI.FloatingMessage")
+
+local SeasonPass = require("SeasonPass")
 
 local TaskPanel = {}
 
@@ -83,7 +86,7 @@ local DAILY_TASKS = {
         id    = 1,
         title = "今日上线",
         desc  = "今日登录游戏",
-        reward = { coins = 50000, tickets = 0 },
+        reward = { coins = 10000, tickets = 0, xp = 100 },
         -- 每日重置时 snap.hasLogin = false；进入游戏后置 true
         checkFn = function(snap) return (snap.hasLogin and 1 or 0) end,
         target = 1,
@@ -93,7 +96,7 @@ local DAILY_TASKS = {
         id    = 2,
         title = "初试身手",
         desc  = "今日参与 1 场拍卖",
-        reward = { coins = 50000, tickets = 0 },
+        reward = { coins = 10000, tickets = 0, xp = 100 },
         checkFn = function(snap) return (SaveSystem.GetStats().totalGames or 0) - (snap.totalGames or 0) end,
         target = 1,
     },
@@ -101,7 +104,7 @@ local DAILY_TASKS = {
         id    = 3,
         title = "竞价达人",
         desc  = "今日参与 3 场拍卖",
-        reward = { coins = 100000, tickets = 0 },
+        reward = { coins = 20000, tickets = 0, xp = 200 },
         checkFn = function(snap) return (SaveSystem.GetStats().totalGames or 0) - (snap.totalGames or 0) end,
         target = 3,
     },
@@ -109,7 +112,7 @@ local DAILY_TASKS = {
         id    = 4,
         title = "拍场老手",
         desc  = "今日参与 9 场拍卖",
-        reward = { coins = 200000, tickets = 0 },
+        reward = { coins = 40000, tickets = 0, xp = 400 },
         checkFn = function(snap) return (SaveSystem.GetStats().totalGames or 0) - (snap.totalGames or 0) end,
         target = 9,
     },
@@ -118,7 +121,7 @@ local DAILY_TASKS = {
         id    = 5,
         title = "得意满载",
         desc  = "今日成功竞拍 1 场",
-        reward = { coins = 50000, tickets = 0 },
+        reward = { coins = 10000, tickets = 0, xp = 100 },
         checkFn = function(snap) return (SaveSystem.GetStats().wins or 0) - (snap.wins or 0) end,
         target = 1,
     },
@@ -126,7 +129,7 @@ local DAILY_TASKS = {
         id    = 6,
         title = "收藏新星",
         desc  = "今日成功竞拍 3 场",
-        reward = { coins = 100000, tickets = 0 },
+        reward = { coins = 20000, tickets = 0, xp = 200 },
         checkFn = function(snap) return (SaveSystem.GetStats().wins or 0) - (snap.wins or 0) end,
         target = 3,
     },
@@ -134,7 +137,7 @@ local DAILY_TASKS = {
         id    = 7,
         title = "拍宝大师",
         desc  = "今日成功竞拍 9 场",
-        reward = { coins = 200000, tickets = 0 },
+        reward = { coins = 40000, tickets = 0, xp = 400 },
         checkFn = function(snap) return (SaveSystem.GetStats().wins or 0) - (snap.wins or 0) end,
         target = 9,
     },
@@ -143,7 +146,7 @@ local DAILY_TASKS = {
         id    = 8,
         title = "小试牛刀",
         desc  = "今日竞拍收益达 10 万",
-        reward = { coins = 50000, tickets = 0 },
+        reward = { coins = 10000, tickets = 0, xp = 200 },
         checkFn = function(snap) return (SaveSystem.GetStats().totalProfit or 0) - (snap.totalProfit or 0) end,
         target = 100000,
     },
@@ -151,7 +154,7 @@ local DAILY_TASKS = {
         id    = 9,
         title = "财富涌现",
         desc  = "今日竞拍收益达 100 万",
-        reward = { coins = 100000, tickets = 0 },
+        reward = { coins = 20000, tickets = 0, xp = 400 },
         checkFn = function(snap) return (SaveSystem.GetStats().totalProfit or 0) - (snap.totalProfit or 0) end,
         target = 1000000,
     },
@@ -159,7 +162,7 @@ local DAILY_TASKS = {
         id    = 10,
         title = "富甲一方",
         desc  = "今日竞拍收益达 300 万",
-        reward = { coins = 200000, tickets = 0 },
+        reward = { coins = 40000, tickets = 0, xp = 600 },
         checkFn = function(snap) return (SaveSystem.GetStats().totalProfit or 0) - (snap.totalProfit or 0) end,
         target = 3000000,
     },
@@ -171,7 +174,7 @@ local WEEKLY_TASKS = {
         id    = 1,
         title = "拍场常客",
         desc  = "本周使用指定门票参与 10 场",
-        reward = { coins = 500000, tickets = 0 },
+        reward = { coins = 500000, tickets = 0, xp = 500 },
         checkFn = function(snap) return (SaveSystem.GetStats().ticketGames or 0) - (snap.ticketGames or 0) end,
         target = 10,
     },
@@ -179,7 +182,7 @@ local WEEKLY_TASKS = {
         id    = 2,
         title = "券场达人",
         desc  = "本周使用指定门票参与 30 场",
-        reward = { coins = 1000000, tickets = 0 },
+        reward = { coins = 1000000, tickets = 0, xp = 1000 },
         checkFn = function(snap) return (SaveSystem.GetStats().ticketGames or 0) - (snap.ticketGames or 0) end,
         target = 30,
     },
@@ -187,7 +190,7 @@ local WEEKLY_TASKS = {
         id    = 3,
         title = "拍场宗师",
         desc  = "本周使用指定门票参与 60 场",
-        reward = { coins = 2500000, tickets = 0 },
+        reward = { coins = 2500000, tickets = 0, xp = 2000 },
         checkFn = function(snap) return (SaveSystem.GetStats().ticketGames or 0) - (snap.ticketGames or 0) end,
         target = 60,
     },
@@ -195,33 +198,33 @@ local WEEKLY_TASKS = {
     {
         id    = 4,
         title = "红色猎手",
-        desc  = "本周累积拍下红色物品 10 件",
-        reward = { coins = 500000, tickets = 0 },
+        desc  = "本周累积拍下红色物品 100 件",
+        reward = { coins = 500000, tickets = 0, xp = 500 },
         checkFn = function(snap) return (SaveSystem.GetStats().redItemsWon or 0) - (snap.redItemsWon or 0) end,
-        target = 10,
+        target = 100,
     },
     {
         id    = 5,
         title = "珍品收藏",
-        desc  = "本周累积拍下红色物品 30 件",
-        reward = { coins = 1000000, tickets = 0 },
+        desc  = "本周累积拍下红色物品 300 件",
+        reward = { coins = 1000000, tickets = 0, xp = 1000 },
         checkFn = function(snap) return (SaveSystem.GetStats().redItemsWon or 0) - (snap.redItemsWon or 0) end,
-        target = 30,
+        target = 300,
     },
     {
         id    = 6,
         title = "顶级藏家",
-        desc  = "本周累积拍下红色物品 60 件",
-        reward = { coins = 2500000, tickets = 0 },
+        desc  = "本周累积拍下红色物品 600 件",
+        reward = { coins = 2500000, tickets = 0, xp = 2000 },
         checkFn = function(snap) return (SaveSystem.GetStats().redItemsWon or 0) - (snap.redItemsWon or 0) end,
-        target = 60,
+        target = 600,
     },
     -- ── 累积在线时长 ──────────────────────────────────────────────────────────
     {
         id    = 7,
         title = "初心玩家",
         desc  = "本周累积在线 3 小时",
-        reward = { coins = 500000, tickets = 0 },
+        reward = { coins = 500000, tickets = 0, xp = 500 },
         -- checkFn 返回小时数（整数）
         checkFn = function(snap) return math.floor((SaveSystem.GetPlayTime() - (snap.playTime or 0)) / 3600) end,
         target = 3,
@@ -231,7 +234,7 @@ local WEEKLY_TASKS = {
         id    = 8,
         title = "忠实玩家",
         desc  = "本周累积在线 9 小时",
-        reward = { coins = 1000000, tickets = 0 },
+        reward = { coins = 1000000, tickets = 0, xp = 1000 },
         checkFn = function(snap) return math.floor((SaveSystem.GetPlayTime() - (snap.playTime or 0)) / 3600) end,
         target = 9,
         unit = "h",
@@ -240,7 +243,7 @@ local WEEKLY_TASKS = {
         id    = 9,
         title = "骨灰玩家",
         desc  = "本周累积在线 18 小时",
-        reward = { coins = 2500000, tickets = 0 },
+        reward = { coins = 2500000, tickets = 0, xp = 2000 },
         checkFn = function(snap) return math.floor((SaveSystem.GetPlayTime() - (snap.playTime or 0)) / 3600) end,
         target = 18,
         unit = "h",
@@ -364,13 +367,16 @@ SaveFramework.Register(MODULE_NAME, {
         batch:Set("task_daily_snap",  cjson.encode(dailySnap))
         batch:Set("task_weekly_snap", cjson.encode(weeklySnap))
     end,
-    defaults = function(batch)
-        batch:SetInt(KEY_DAILY_CLAIMED,  0)
-        batch:SetInt(KEY_WEEKLY_CLAIMED, 0)
-        batch:Set(KEY_DAILY_DATE,  "")
-        batch:Set(KEY_WEEKLY_WEEK, "")
-        batch:Set("task_daily_snap",  "{}")
-        batch:Set("task_weekly_snap", "{}")
+    defaults = function()
+        -- SaveFramework 调用 defaults() 时不传参数，此处只初始化本地变量
+        dailyClaimedBits  = 0
+        weeklyClaimedBits = 0
+        dailyDate  = ""
+        weeklyWeek = ""
+        dailySnap  = {}
+        weeklySnap = {}
+        cloudLoaded = true
+        print("[TaskPanel] Defaults applied")
     end,
 })
 
@@ -426,7 +432,7 @@ end
 -- ============================================================================
 -- 领取逻辑
 -- ============================================================================
-local function DoClaimTask(isWeekly, taskId, onDone)
+local function DoClaimTask(isWeekly, taskId, onDone, silent)
     local tasks       = isWeekly and WEEKLY_TASKS or DAILY_TASKS
     local snap        = isWeekly and weeklySnap   or dailySnap
     local claimedBits = isWeekly and weeklyClaimedBits or dailyClaimedBits
@@ -446,8 +452,14 @@ local function DoClaimTask(isWeekly, taskId, onDone)
     end
 
     if task.reward.coins > 0 then
-        MoneyManager.AddMoneyFromMenu(task.reward.coins, "任务奖励", { silent = true })
+        MoneyManager.AddMoneyFromMenu(task.reward.coins, "任务奖励", { skipSave = true })
         FloatingMessage.Show("+" .. task.reward.coins .. " 金币", C.accent)
+    end
+
+    if task.reward.xp and task.reward.xp > 0 then
+        local taskLabel = (isWeekly and "weekly" or "daily") .. "_" .. taskId
+        pcall(function() SeasonPass.AddTaskXP(task.reward.xp, taskLabel) end)
+        FloatingMessage.Show("+" .. task.reward.xp .. " 通行证XP", { 130, 220, 255, 255 })
     end
 
     SaveFramework.MarkDirty(MODULE_NAME)
@@ -472,143 +484,175 @@ local function FormatReward(coins)
     return tostring(coins)
 end
 
-local function RewardIcon(coins, tickets)
-    local children = {}
-    if coins > 0 then
-        children[#children + 1] = UI.Panel {
-            flexDirection = "row", alignItems = "center", gap = sz(3),
-            children = {
-                UI.Panel {
-                    width = sz(18), height = sz(18),
-                    backgroundImage = Utils.GetIcon("coin"),
-                    backgroundFit = "contain",
-                    pointerEvents = "none",
-                },
-                UI.Label { text = FormatReward(coins), fontSize = sz(11),
-                    fontColor = C.accent, pointerEvents = "none" },
-            },
-        }
-    end
-    if tickets > 0 then
-        children[#children + 1] = UI.Panel {
-            flexDirection = "row", alignItems = "center", gap = sz(3),
-            children = {
-                UI.Panel {
-                    width = sz(14), height = sz(14),
-                    borderRadius = sz(7),
-                    backgroundColor = { 80, 60, 200, 200 },
-                    alignItems = "center", justifyContent = "center",
-                    children = {
-                        UI.Label { text = "★", fontSize = sz(8),
-                            fontColor = { 180, 160, 255, 255 }, pointerEvents = "none" },
-                    },
-                },
-                UI.Label { text = "x" .. tickets, fontSize = sz(11),
-                    fontColor = { 200, 185, 255, 255 }, pointerEvents = "none" },
-            },
-        }
-    end
-    return UI.Panel {
-        flexDirection = "row", alignItems = "center", gap = sz(6),
-        children = children,
-    }
-end
-
--- 单个任务行（预建三态，原地 SetVisible 切换）
+-- 单个任务行（新样式：上行任务名+进度，下行奖励格子，右侧领取按钮）
 local function TaskRow(task, claimedBits, snap, isWeekly)
     local isClaimed  = IsBitSet(claimedBits, task.id)
     local isComplete = IsTaskComplete(task, snap)
     local progress   = GetTaskProgress(task, snap)
     local u = task.unit or ""
-    local progText   = FormatReward(math.min(progress, task.target)) .. u .. "/" .. FormatReward(task.target) .. u
 
-    -- 三个状态元素，初始可见性由当前状态决定
-    local claimedLbl = UI.Label {
-        text = "已领取", fontSize = sz(11),
-        fontColor = { 120, 135, 160, 200 },
-        paddingHorizontal = sz(10), paddingVertical = sz(4),
+    -- 前置声明（闭包引用）
+    ---@type table
+    local titleLabel = nil
+    ---@type table
+    local claimBtn   = nil
+    ---@type table
+    local claimedLbl = nil
+    ---@type table
+    local pendingLbl = nil
+
+    local function MakeTitleText(prog)
+        local p = FormatReward(math.min(prog, task.target)) .. u
+        local t = FormatReward(task.target) .. u
+        return task.title .. "(" .. p .. "/" .. t .. ")"
+    end
+
+    -- 奖励格子列表
+    local slots = {}
+    if task.reward.coins and task.reward.coins > 0 then
+        slots[#slots + 1] = RewardSlot.Make({
+            size        = 52,
+            image       = Utils.GetIcon("coin"),
+            count       = FormatReward(task.reward.coins),
+            bgColor     = { 20, 48, 28, 230 },
+            borderColor = { 55, 130, 70, 180 },
+        }, sz)
+    end
+    if task.reward.xp and task.reward.xp > 0 then
+        slots[#slots + 1] = RewardSlot.Make({
+            size          = 52,
+            image         = "image/xp_gold_20260518121142.png",
+            count         = tostring(task.reward.xp),
+            borderColor   = { 50, 105, 175, 180 },
+        }, sz)
+    end
+
+    -- 状态：已领取标签
+    claimedLbl = UI.Panel {
+        width = sz(72), height = sz(40),
+        borderRadius = sz(6),
+        backgroundColor = { 38, 44, 60, 200 },
+        borderWidth = 1, borderColor = { 70, 78, 100, 160 },
+        alignItems = "center", justifyContent = "center",
         visible = isClaimed,
         pointerEvents = "none",
+        children = {
+            UI.Label {
+                text = "已领取", fontSize = sz(12),
+                fontColor = { 120, 135, 160, 200 },
+                pointerEvents = "none",
+            },
+        },
     }
-    local progressLbl = UI.Label {
-        text = progText, fontSize = sz(11),
-        fontColor = CC.btnPendingText,
-        paddingHorizontal = sz(6), paddingVertical = sz(4),
+
+    -- 状态：未完成标签
+    pendingLbl = UI.Panel {
+        width = sz(72), height = sz(40),
+        borderRadius = sz(6),
+        backgroundColor = CC.btnPending,
+        borderWidth = 1, borderColor = { 60, 68, 95, 150 },
+        alignItems = "center", justifyContent = "center",
         visible = not isComplete and not isClaimed,
         pointerEvents = "none",
+        children = {
+            UI.Label {
+                text = "未完成", fontSize = sz(12),
+                fontColor = CC.btnPendingText,
+                pointerEvents = "none",
+            },
+        },
     }
-    local claimBtn = UI.Button {
-        text = "领取", fontSize = sz(12),
+
+    -- 状态：领取按钮
+    claimBtn = UI.Button {
+        text = "领取",
+        width = sz(72), height = sz(40),
+        fontSize = sz(15), fontWeight = "bold",
         backgroundColor = CC.btnClaim,
         fontColor = CC.btnClaimText,
-        paddingHorizontal = sz(12), paddingVertical = sz(5),
-        borderRadius = sz(5),
+        borderRadius = sz(6),
         visible = isComplete and not isClaimed,
         onClick = function(self)
             DoClaimTask(isWeekly, task.id, function()
                 self:SetVisible(false)
                 claimedLbl:SetVisible(true)
-                progressLbl:SetVisible(false)
+                pendingLbl:SetVisible(false)
                 UpdateBadge()
             end)
         end,
     }
 
-    -- 注册刷新函数（供全部领取后批量更新）
+    -- 任务标题（带进度）
+    titleLabel = UI.Label {
+        text = MakeTitleText(progress),
+        fontSize = sz(13), fontColor = C.textPrimary,
+        marginBottom = sz(6),
+        pointerEvents = "none",
+    }
+
+    -- 注册刷新函数
     local rowKey = (isWeekly and "w_" or "d_") .. task.id
     rowUpdateFns[rowKey] = function()
-        local bits    = isWeekly and weeklyClaimedBits or dailyClaimedBits
-        local curSnap = isWeekly and weeklySnap or dailySnap
+        local bits     = isWeekly and weeklyClaimedBits or dailyClaimedBits
+        local curSnap  = isWeekly and weeklySnap or dailySnap
         local claimed  = IsBitSet(bits, task.id)
         local complete = IsTaskComplete(task, curSnap)
         local prog     = GetTaskProgress(task, curSnap)
-        local u2 = task.unit or ""
         claimBtn:SetVisible(complete and not claimed)
         claimedLbl:SetVisible(claimed)
-        progressLbl:SetVisible(not complete and not claimed)
-        progressLbl.props.text = FormatReward(math.min(prog, task.target)) .. u2 .. "/" .. FormatReward(task.target) .. u2
+        pendingLbl:SetVisible(not complete and not claimed)
+        titleLabel.props.text = MakeTitleText(prog)
+    end
+
+    -- 拼装格子行 children（避免 table.unpack 非末尾问题）
+    local slotRowChildren = {}
+    for _, s in ipairs(slots) do
+        slotRowChildren[#slotRowChildren + 1] = s
     end
 
     return UI.Panel {
         width = "100%",
         flexDirection = "row",
         alignItems = "center",
-        paddingVertical = sz(16), paddingHorizontal = sz(14),
+        paddingVertical = sz(12), paddingLeft = sz(14), paddingRight = sz(12),
         backgroundImage = "image/task_row_bg_20260516173338.png",
         backgroundFit = "cover",
-        imageTint = { 255, 255, 255, 255 },
         marginBottom = sz(10),
         borderRadius = sz(6),
         overflow = "hidden",
         children = {
-            -- 灰色左竖线
+            -- 左侧竖线装饰
             UI.Panel {
                 width = sz(3), alignSelf = "stretch",
                 flexShrink = 0,
                 backgroundColor = { 90, 95, 110, 160 },
-                marginRight = sz(10),
+                marginRight = sz(12),
+                borderRadius = sz(2),
                 pointerEvents = "none",
             },
-            -- 左侧：奖励图标
+            -- 中间：任务名（上）+ 奖励格子（下）
             UI.Panel {
-                width = sz(80),
-                alignItems = "flex-start",
-                pointerEvents = "none",
-                children = { RewardIcon(task.reward.coins, task.reward.tickets) },
-            },
-            -- 中间：标题+描述
-            UI.Panel {
-                flex = 1, flexDirection = "column", gap = sz(2),
+                flex = 1,
+                flexDirection = "column",
+                justifyContent = "center",
                 pointerEvents = "none",
                 children = {
-                    UI.Label { text = task.title, fontSize = sz(13), fontColor = C.textPrimary },
-                    UI.Label { text = task.desc,  fontSize = sz(11), fontColor = C.textMuted   },
+                    titleLabel,
+                    UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = sz(8),
+                        pointerEvents = "none",
+                        children = slotRowChildren,
+                    },
                 },
             },
-            -- 右侧：三态状态区
+            -- 右侧：三态按钮
             UI.Panel {
-                width = sz(70), alignItems = "flex-end",
-                children = { claimedLbl, claimBtn, progressLbl },
+                marginLeft = sz(10),
+                flexShrink = 0,
+                alignItems = "center", justifyContent = "center",
+                children = { claimBtn, claimedLbl, pendingLbl },
             },
         },
     }
@@ -695,11 +739,15 @@ local function BuildDailyContent()
             -- 全部领取
             (function()
                 local panel, btn = ClaimAllBar(false, function()
+                    local claimed = false
                     for _, task in ipairs(DAILY_TASKS) do
                         if not IsBitSet(dailyClaimedBits, task.id) and IsTaskComplete(task, dailySnap) then
-                            DoClaimTask(false, task.id, nil)
+                            DoClaimTask(false, task.id, nil, true)
+                            claimed = true
                         end
                     end
+                    -- 循环结束后标脏，延迟5秒保存
+                    if claimed then SaveFramework.MarkDirty(MODULE_NAME) end
                     for _, task in ipairs(DAILY_TASKS) do
                         local fn = rowUpdateFns["d_" .. task.id]
                         if fn then fn() end
@@ -758,11 +806,15 @@ local function BuildWeeklyContent()
             },
             (function()
                 local panel, btn = ClaimAllBar(true, function()
+                    local claimed = false
                     for _, task in ipairs(WEEKLY_TASKS) do
                         if not IsBitSet(weeklyClaimedBits, task.id) and IsTaskComplete(task, weeklySnap) then
-                            DoClaimTask(true, task.id, nil)
+                            DoClaimTask(true, task.id, nil, true)
+                            claimed = true
                         end
                     end
+                    -- 循环结束后标脏，延迟5秒保存
+                    if claimed then SaveFramework.MarkDirty(MODULE_NAME) end
                     for _, task in ipairs(WEEKLY_TASKS) do
                         local fn = rowUpdateFns["w_" .. task.id]
                         if fn then fn() end
@@ -987,7 +1039,7 @@ function TaskPanel.CreatePopup()
     popupOverlay = UI.Panel {
         position = "absolute",
         left = 0, top = 0, right = 0, bottom = 0,
-        backgroundImage = "image/task_bg.png",
+        backgroundImage = "image/task_bg.jpg",
         backgroundFit = "cover",
         flexDirection = "column",
         visible = false,

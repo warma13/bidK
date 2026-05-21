@@ -38,13 +38,13 @@ M.AD_CARD = {
 
 M.ONLINE_REWARD = {
     MILESTONES = {
-        { minutes = 1,   coins = 100000,  label = "1分钟"  },
-        { minutes = 3,   coins = 200000,  label = "3分钟"  },
-        { minutes = 10,  coins = 300000,  label = "10分钟" },
-        { minutes = 30,  coins = 500000,  label = "30分钟", ticket = "ticket_suburb",      ticketCount = 10 },
-        { minutes = 60,  coins = 1000000, label = "1小时",  ticket = "ticket_industrial",  ticketCount = 10 },
-        { minutes = 120, coins = 3000000, label = "2小时",  ticket = "ticket_port",        ticketCount = 10 },
-        { minutes = 180, coins = 5000000, label = "3小时",  ticket = "ticket_techpark",    ticketCount = 10 },
+        { minutes = 1,   coins = 20000,  label = "1分钟"  },
+        { minutes = 3,   coins = 40000,  label = "3分钟"  },
+        { minutes = 10,  coins = 60000,  label = "10分钟" },
+        { minutes = 30,  coins = 100000, label = "30分钟", ticket = "ticket_suburb",      ticketCount = 2 },
+        { minutes = 60,  coins = 200000, label = "1小时",  ticket = "ticket_industrial",  ticketCount = 2 },
+        { minutes = 120, coins = 600000, label = "2小时",  ticket = "ticket_port",        ticketCount = 2 },
+        { minutes = 180, coins = 1000000,label = "3小时",  ticket = "ticket_techpark",    ticketCount = 2 },
     },
 }
 

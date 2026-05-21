@@ -290,6 +290,12 @@ function MoneyManager.AddMoneyFromMenu(delta, label, opts)
     -- 乐观更新本地缓存
     MoneyHUD.SetMoney(newTotal)
 
+    -- skipSave=true：只标脏，由框架延迟合并保存（5秒后）
+    if opts.skipSave then
+        SaveFramework.MarkDirty(MODULE_NAME)
+        return
+    end
+
     -- 云端持久化：通过 SaveFramework.DirectSave
     SaveFramework.DirectSave(label or "menu_money", function(batch)
         batch:Set("player_money", newTotal)

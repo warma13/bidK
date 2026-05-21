@@ -33,6 +33,10 @@ local hitAreasDirty = true      -- 图片点击区域是否需要刷新
 local level1Items = {}          -- 预计算的 level-1 物品列表（供 Render 使用）
 local lastSlotLevels = {}       -- 增量更新：上次每个格子的揭示等级缓存
 
+-- L2 品质提示：每件物品固定一个随机格子 { [itemIdx] = {dr, dc} }
+-- dr/dc 为相对于物品左上角的偏移（0-based），首次到 L2 时确定，之后不变
+local qualityHintSlots = {}
+
 -- 图片位置布局缓存：物品 idx → {x, y, w, h}（仅在布局变化时更新）
 local imgLayoutCache = {}
 -- 上次 gridContainer 布局快照，用于检测 resize
@@ -133,8 +137,11 @@ function LootPanel.Create()
             onClick = function()
                 Utils.PlayClick()
                 local item = imageToItem[idx]
-                if item then
-                    -- 关闭物品列表面板（如果开着的话）
+                if not item then return end
+                -- 图片面板只在 L4 时显示，直接走 L4 逻辑（展示详情）
+                -- 与 _OnSlotClick 的 level >= 4 分支保持一致
+                local level = UIState.itemRevealLevels[item.idx] or 0
+                if level >= 4 then
                     WarehouseItemListPanel.Hide()
                     local idp = getItemDetail()
                     if idp and idp:IsVisible()
@@ -144,6 +151,11 @@ function LootPanel.Create()
                     elseif idp then
                         idp:Show(item)
                     end
+                else
+                    -- L2/L3：走槽点击逻辑（按品质+尺寸筛选）
+                    local cols_ = Config.GAME.LootColumns
+                    local slotIdx_ = (item.gridRow - 1) * cols_ + item.gridCol
+                    LootPanel._OnSlotClick(slotIdx_)
                 end
             end,
         }
@@ -306,10 +318,27 @@ function LootPanel.Create()
             local iw = item.w or 1
             local ih = item.h or 1
 
-            local originSlotIdx = (item.gridRow - 1) * cols + item.gridCol
-            local endSlotIdx = (item.gridRow + ih - 2) * cols + (item.gridCol + iw - 1)
-            local originSlot = refs.lootSlots[originSlotIdx]
-            local endSlot = refs.lootSlots[endSlotIdx]
+            -- L2：流光只绕 hint 格（1×1），不绕整个物品
+            local glowOriginSlotIdx, glowEndSlotIdx
+            if level == 2 then
+                local hint = qualityHintSlots[itemIdx]
+                if not hint then
+                    -- 物品可能不在可见格子范围内，在此补充创建
+                    hint = { dr = math.random(0, ih - 1), dc = math.random(0, iw - 1) }
+                    qualityHintSlots[itemIdx] = hint
+                end
+                local hr = (item.gridRow - 1) + hint.dr + 1  -- 1-based
+                local hc = (item.gridCol - 1) + hint.dc + 1  -- 1-based
+                local hintSlotIdx = (hr - 1) * cols + hc
+                glowOriginSlotIdx = hintSlotIdx
+                glowEndSlotIdx    = hintSlotIdx
+            else
+                glowOriginSlotIdx = (item.gridRow - 1) * cols + item.gridCol
+                glowEndSlotIdx    = (item.gridRow + ih - 2) * cols + (item.gridCol + iw - 1)
+            end
+
+            local originSlot = refs.lootSlots[glowOriginSlotIdx]
+            local endSlot = refs.lootSlots[glowEndSlotIdx]
             if not originSlot or not endSlot then goto nextGlowItem end
 
             local oLayout = originSlot:GetAbsoluteLayout()
@@ -323,7 +352,7 @@ function LootPanel.Create()
             local perimeter = 2 * (bw + bh)
             if perimeter <= 0 then goto nextGlowItem end
 
-            -- 颜色
+            -- 颜色（L2+ 显示品质色，L1 显示灰蓝色）
             local rc, gc_, bc_
             if level >= 2 then
                 local rar = Config.GetRarity(item.rarity)
@@ -507,16 +536,37 @@ function LootPanel.Update()
                     local bBottom = (r == gr + ih - 1) and 1 or 0
                     local bLeft = (c == gc_) and 1 or 0
                     local bRight = (c == gc_ + iw - 1) and 1 or 0
-                    if level >= 2 then
+                    if level >= 3 then
+                        -- L3/L4: 粗品质色轮廓
                         outerBorder = { top = bTop * 2, right = bRight * 2, bottom = bBottom * 2, left = bLeft * 2 }
+                    elseif level == 2 then
+                        -- L2: 细灰色轮廓（只有品质提示格有品质色，其余灰色）
+                        outerBorder = { top = bTop, right = bRight, bottom = bBottom, left = bLeft }
                     else
                         outerBorder = { top = bTop, right = bRight, bottom = bBottom, left = bLeft }
                     end
                 end
             end
 
-            if level >= 3 then
-                -- Level 3: 图片 + 品质边框
+            -- L2 品质提示：确定/读取随机格子偏移
+            local isQualityHintCell = false
+            if level == 2 and item then
+                local hint = qualityHintSlots[item.idx]
+                if not hint then
+                    -- 首次升到 L2 时随机固定一个格子
+                    local iw = item.w or 1
+                    local ih = item.h or 1
+                    hint = { dr = math.random(0, ih - 1), dc = math.random(0, iw - 1) }
+                    qualityHintSlots[item.idx] = hint
+                end
+                -- 判断当前格子是否是提示格
+                local targetR = (item.gridRow - 1) + hint.dr
+                local targetC = (item.gridCol - 1) + hint.dc
+                isQualityHintCell = (r - 1 == targetR) and (c - 1 == targetC)
+            end
+
+            if level >= 4 then
+                -- Level 4: 图片 + 品质边框（原 L3）
                 local rar = Config.GetRarity(item.rarity)
                 if isOrigin and item.image and gridLayout then
                     imgIdx = imgIdx + 1
@@ -529,7 +579,6 @@ function LootPanel.Update()
                             refs.itemImages[imgIdx]._imagePath = item.image
                             refs.itemImages[imgIdx]._originSlot = originSlot
                             refs.itemImages[imgIdx]._endSlot = endSlot
-                            -- 使用布局缓存，仅在 levelChanged 或 gridLayoutChanged 时重算
                             local cached = imgLayoutCache[item.idx]
                             if not cached or levelChanged or gridLayoutChanged then
                                 local oLayout = originSlot:GetAbsoluteLayout()
@@ -561,15 +610,38 @@ function LootPanel.Update()
                     })
                 end
 
-            elseif level == 2 then
-                -- Level 2: 品质已知 → 品质色边框
+            elseif level == 3 then
+                -- Level 3: 品质框（品质色覆盖整个 W×H）
+                -- 从 L2 升上来时 levelChanged=true，所有格子都重绘，1×1 hint 自动被覆盖
                 if levelChanged then
+                    -- L2 的 hint 缓存已无用，释放
+                    if isOrigin then qualityHintSlots[item.idx] = nil end
                     local rar = Config.GetRarity(item.rarity)
                     refs.lootSlots[slotIdx]:SetStyle({
                         borderColor = rar.color,
                         borderWidth = outerBorder or 2,
                         backgroundColor = { rar.color[1], rar.color[2], rar.color[3], 30 },
                     })
+                end
+
+            elseif level == 2 then
+                -- Level 2: 品质提示 → 仅随机 1×1 格子显示品质色，其余格子与 L0 相同（不暴露轮廓）
+                if levelChanged then
+                    if isQualityHintCell then
+                        local rar = Config.GetRarity(item.rarity)
+                        refs.lootSlots[slotIdx]:SetStyle({
+                            borderColor = rar.color,
+                            borderWidth = 2,
+                            backgroundColor = { rar.color[1], rar.color[2], rar.color[3], 50 },
+                        })
+                    else
+                        -- 非 hint 格：完全恢复 L0 默认外观，不暴露物品形状
+                        refs.lootSlots[slotIdx]:SetStyle({
+                            borderColor = { 80, 130, 170, 60 },
+                            borderWidth = { right = 1, bottom = 1 },
+                            backgroundColor = { 0, 0, 0, 0 },
+                        })
+                    end
                 end
 
             elseif level == 1 then
@@ -708,6 +780,7 @@ function LootPanel.ResetCache()
     lastActiveImageCount = 0
     level1Items = {}
     imageToItem = {}
+    qualityHintSlots = {}
 end
 
 -- ============================================================================
@@ -771,11 +844,15 @@ function LootPanel._OnSlotClick(slotIdx)
         if idp then idp:Hide() end
         WarehouseItemListPanel.Toggle(nil, sizeKey)
     elseif level == 2 then
-        -- Level 2（品质色，品质已知）：按品质+尺寸筛选展示物品（再次点击关闭）
+        -- Level 2（品质提示，1×1格子显示品质色）：只按品质筛选（轮廓未知，不传尺寸）
+        if idp then idp:Hide() end
+        WarehouseItemListPanel.Toggle(item.rarity, nil)
+    elseif level == 3 then
+        -- Level 3（品质框，W×H全覆盖品质色）：按品质+尺寸筛选展示物品
         if idp then idp:Hide() end
         WarehouseItemListPanel.Toggle(item.rarity, sizeKey)
-    elseif level >= 3 then
-        -- Level 3：展示物品详情
+    elseif level >= 4 then
+        -- Level 4：展示物品详情
         WarehouseItemListPanel.Hide()
         if idp and idp:IsVisible()
            and idp:GetCurrentItem()

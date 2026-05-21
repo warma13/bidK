@@ -422,8 +422,8 @@ local function OnInfoRevealed(round, publicInfos, skillInfos)
             local itemIdx = skillInfo.revealedItem.idx
             if itemIdx then
                 local cur = UIState.itemRevealLevels[itemIdx] or 0
-                if 3 > cur then
-                    UIState.itemRevealLevels[itemIdx] = 3
+                if 4 > cur then
+                    UIState.itemRevealLevels[itemIdx] = 4
                 end
             end
         end
@@ -441,8 +441,8 @@ local function OnInfoRevealed(round, publicInfos, skillInfos)
             for _, extraInfo in ipairs(skillInfo.extraInfos) do
                 if extraInfo.revealedItem and extraInfo.revealedItem.idx then
                     local cur = UIState.itemRevealLevels[extraInfo.revealedItem.idx] or 0
-                    if 3 > cur then
-                        UIState.itemRevealLevels[extraInfo.revealedItem.idx] = 3
+                    if 4 > cur then
+                        UIState.itemRevealLevels[extraInfo.revealedItem.idx] = 4
                     end
                 end
                 if extraInfo.reveals then
@@ -475,7 +475,7 @@ local function OnJudgeResult(result)
 end
 
 local function OnItemRevealed(itemIndex, item)
-    UIState.itemRevealLevels[item.idx] = 3
+    UIState.itemRevealLevels[item.idx] = 4
     Utils.PlaySfx("bid_place")
     LootPanel.Update()
     GameOverDialog.OnItemRevealed(item)
@@ -509,7 +509,7 @@ end
 local function OnGameOver()
     local items = GS.GetWarehouseItems()
     for i = 1, #items do
-        UIState.itemRevealLevels[items[i].idx] = 3
+        UIState.itemRevealLevels[items[i].idx] = 4
     end
     Utils.PlaySfx("game_over")
     UpdateAllUI()

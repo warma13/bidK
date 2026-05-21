@@ -8,6 +8,7 @@ local WarehouseGenerator = require("WarehouseGenerator")
 local MoneyManager = require("MoneyManager")
 local SkillSystem = require("SkillSystem")
 local SaveSystem = require("SaveSystem")
+local SeasonPass = require("SeasonPass")
 local GameState = {}
 
 -- 游戏阶段
@@ -691,7 +692,8 @@ function GameState.SettleWarehouseValue()
     -- 记录战绩（战利品不再自动入库，由 GameOverDialog 的回收/返回流程处理）
     local winnerPlayer = state.players[winner]
     -- 玩家本局出价（人类玩家是 index 1）
-    local humanBid = state.sealedBids[1] or state.roundBids[state.currentRound] and state.roundBids[state.currentRound][1] or 0
+    -- 加括号消除 and/or 运算符优先级歧义（and 比 or 优先级高，括号使意图明确）
+    local humanBid = state.sealedBids[1] or (state.roundBids[state.currentRound] and state.roundBids[state.currentRound][1]) or 0
     -- 取所有轮次中玩家出价最高值
     for _, roundBids in pairs(state.roundBids) do
         local b = roundBids[1] or 0
@@ -777,6 +779,11 @@ function GameState.SettleWarehouseValue()
         SaveSystem.AddGameHistory(BuildHistoryRecord(true, winnerPlayer, humanBid, profit))
         SaveSystem.MarkDirty()
 
+        -- 通行证 XP（赢局：入场费 + 花费 + 利润）
+        if SeasonPass.IsReady() then
+            SeasonPass.AddGameXP(state.entryFee or 0, humanBid or 0, profit or 0)
+        end
+
         -- 兜底：立即将战利品保存到云端，防止玩家杀进程导致物品丢失
         local PendingSettlement = require("PendingSettlement")
         PendingSettlement.Save(state.warehouseItems, {
@@ -791,6 +798,11 @@ function GameState.SettleWarehouseValue()
         SaveSystem.RecordGameResult(false, 0, humanBid)
         if humanPlayer then
             SaveSystem.AddGameHistory(BuildHistoryRecord(false, humanPlayer, humanBid, 0))
+        end
+
+        -- 通行证 XP（输局：入场费 + 出价，无利润加成）
+        if SeasonPass.IsReady() then
+            SeasonPass.AddGameXP(state.entryFee or 0, humanBid or 0, 0)
         end
         SaveSystem.MarkDirty()
     end

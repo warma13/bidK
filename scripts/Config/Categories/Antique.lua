@@ -100,6 +100,9 @@ Antique.items = {
     -- 红
     { name = "唐人写经卷",       rows = 1, cols = 3, quality = "red",  value = 2400000,  weight = 2, tags = {"manuscript"}, desc = "唐代敦煌写经残卷，有题记纪年，出土有据，装裱未开",     image = IMG .. "古董/唐人写经卷.png" },
     { name = "宋徽宗瘦金体手卷", rows = 1, cols = 4, quality = "red",  value = 12000000, weight = 1, tags = {"manuscript"}, desc = "据传宋徽宗亲笔瘦金体题跋残卷，附民国鉴定录及旧藏印",   image = IMG .. "古董/宋徽宗瘦金体手卷.png" },
+
+    -- ===== 限定红（exclusive = true，礼盒极稀有池专用）=====
+    { name = "乾隆御制珐琅彩瓶", rows = 3, cols = 2, quality = "red", value = 25000000, weight = 1, exclusive = true, desc = "清宫旧藏乾隆珐琅彩题诗花卉纹胆瓶，底书'乾隆年制'款",     image = IMG .. "古董/乾隆御制珐琅彩瓶.png" },
 }
 
 return Antique

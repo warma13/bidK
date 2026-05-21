@@ -294,6 +294,10 @@ end
 -- ============================================================================
 
 function Panel.Create()
+    -- 面板高度 = 屏幕逻辑高度 84%，减去 headerBar(~46px)、分隔线(1px)、边框(4px)
+    local logH = graphics:GetHeight() / graphics:GetDPR()
+    local vlistH = math.floor(logH * 0.84 - 51)
+
     -- ── 标题栏 ──────────────────────────────────────
 
     titleLabel = UI.Label {
@@ -517,7 +521,7 @@ function Panel.Create()
 
     virtualList = UI.VirtualList {
         width = "100%",
-        height = "100%",
+        height = vlistH,
         data = {},
         itemHeight = CARD_ROW_HEIGHT,
         itemGap = 6,
