@@ -16,7 +16,7 @@ local Config = {}
 
 Config.GAME = {
     Title = "拍卖之王",
-    Version = "1.1.28",
+    Version = "1.1.29",
     MaxPlayers = 4,
     WarehouseColumns = 30,      -- 玩家仓库格子列数
     WarehouseMaxRows = 21,      -- 玩家仓库格子最大行数（满级 5+4*4=21）
@@ -325,16 +325,20 @@ Config.MAILS = {
             { type = "point_tickets", amount = 50 },
         },
     },
-    -- 在此追加新版本公告，例如：
-    -- {
-    --     id     = "v1_1_29_update",
-    --     title  = "1.1.29 版本更新公告",
-    --     sender = "系统",
-    --     date   = "2026-xx-xx",
-    --     expiry = "",
-    --     body   = "...",
-    --     rewards = { ... },
-    -- },
+    {
+        id     = "v1_1_29_update",
+        title  = "1.1.29 版本更新公告",
+        sender = "系统",
+        date   = "2026-05-21",
+        expiry = "",
+        body   = "感谢各位拍友的持续支持！本次更新内容：\n\n"
+              .. "【优化】生成算法优化\n改进了仓库物品的生成算法，物品分布更加合理，游戏体验更佳。\n\n"
+              .. "【加强】部分角色技能加强\n对部分角色的技能进行了数值调整和效果加强，让每位角色都更具竞争力。\n\n"
+              .. "感谢大家的反馈，祝游戏愉快！",
+        rewards = {
+            { type = "coins", amount = 2000000 },
+        },
+    },
 }
 
 return Config

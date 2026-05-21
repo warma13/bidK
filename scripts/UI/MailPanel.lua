@@ -120,11 +120,12 @@ function MailPanel.Show(onBackCallback)
         end
         -- 系统邮件（按 date 字段排序，较新的在前）
         local sysMails = Config.MAILS or {}
-        for _, m in ipairs(sysMails) do
+        for i, m in ipairs(sysMails) do
             -- 附加排序时间戳（用 date 字符串比较，格式 YYYY-MM-DD 字典序即时序）
             local entry = {}
             for k, v in pairs(m) do entry[k] = v end
             entry._sortTime = m.date or ""
+            entry._sortIdx  = i  -- 数组序号，越大越新
             result[#result + 1] = entry
         end
         -- 按时间降序（溢出邮件 _sortTime 是数字，系统邮件是字符串，分开比较：溢出在前）
@@ -133,8 +134,10 @@ function MailPanel.Show(onBackCallback)
             local aIsOvf = a.isOverflow and 1 or 0
             local bIsOvf = b.isOverflow and 1 or 0
             if aIsOvf ~= bIsOvf then return aIsOvf > bIsOvf end
-            -- 同类型按 _sortTime 降序（新→旧）
-            return tostring(a._sortTime) > tostring(b._sortTime)
+            -- 同类型按 _sortTime 降序（新→旧），同日期按数组序号降序
+            local ta, tb = tostring(a._sortTime), tostring(b._sortTime)
+            if ta ~= tb then return ta > tb end
+            return (a._sortIdx or 0) > (b._sortIdx or 0)
         end)
         -- 超出上限：截断最旧的
         if #result > MAIL_CAP then
