@@ -258,6 +258,10 @@ end
 -- 内部：将存档写入 batch（save callback 和 WriteToBatch 共用）
 -- ============================================================================
 
+-- core 分组中变化频繁但不影响"真实数据"的字段，排除在 dirty 检测之外
+-- （这些字段仍然会写入云端，只是不触发 core 的 dirty 判断）
+local CORE_VOLATILE_FIELDS = { timestamp = true, playTime = true }
+
 local function writeBatch(batch)
     saveData.timestamp = os.time()
     saveData.playTime  = playTime
@@ -276,9 +280,22 @@ local function writeBatch(batch)
         local csStr   = checksumStr(checksums)
         local keyBase = "save_" .. groupName
 
-        pendingChecksums[groupName] = csStr
+        -- core 分组：用去除 volatile 字段后的稳定数据来判断是否需要写云端
+        -- （pendingChecksums 也存稳定值，确保 commitChecksums 后下次比较仍能命中）
+        local dirtyCheckStr = csStr
+        if groupName == "core" then
+            local stableCore = {}
+            for k, v in pairs(groupData) do
+                if not CORE_VOLATILE_FIELDS[k] then stableCore[k] = v end
+            end
+            local stableSanitized = Codec.SanitizeTable(stableCore, "core_stable")
+            local _, stableCs = Codec.EncodeAndChunk(stableSanitized)
+            dirtyCheckStr = checksumStr(stableCs)
+        end
 
-        if csStr ~= lastSavedChecksums[groupName] then
+        pendingChecksums[groupName] = dirtyCheckStr
+
+        if dirtyCheckStr ~= lastSavedChecksums[groupName] then
             -- 内容有变化，写入云端
             changedCount = changedCount + 1
             if #chunks == 1 then
