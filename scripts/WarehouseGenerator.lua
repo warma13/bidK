@@ -489,39 +489,86 @@ local function calcValueBounds(whTypeId, targetCells)
     return minVal, maxVal
 end
 
---- 生成本局的目标价值和格子占比
+--- 根据目标平均格子数，混合"理想尺寸权重"与仓库本身风格权重
+--- @param avgCells number 目标平均每件格子数
+--- @param baseWeights table 仓库基础 sizeWeights（5个组）
+--- @return table 混合后的 sizeWeights
+local function blendedSizeWeights(avgCells, baseWeights)
+    -- 5组尺寸的大致中位格子数：1, 2, 4, 6, 9
+    -- 根据 avgCells 确定"理想"权重
+    local ideal
+    if avgCells <= 1.3 then
+        ideal = { 100,  0,  0,  0,  0 }
+    elseif avgCells <= 1.8 then
+        ideal = {  70, 30,  0,  0,  0 }
+    elseif avgCells <= 2.5 then
+        ideal = {  35, 55, 10,  0,  0 }
+    elseif avgCells <= 3.5 then
+        ideal = {  15, 40, 35, 10,  0 }
+    elseif avgCells <= 5.0 then
+        ideal = {   8, 22, 40, 25,  5 }
+    elseif avgCells <= 6.5 then
+        ideal = {   5, 12, 28, 40, 15 }
+    else
+        ideal = {   3,  8, 20, 35, 34 }
+    end
+    -- 70% 理想权重 + 30% 仓库风格，保留仓库特色
+    local blended = {}
+    for i = 1, 5 do
+        blended[i] = ideal[i] * 0.7 + (baseWeights[i] or 0) * 0.3
+    end
+    return blended
+end
+
+--- 生成本局的目标参数（价值 + 格子数 + 件数 + 分层）
 --- 使用分层系统：先掷骰决定 tier，再在 tier 区间内均匀采样
 --- warehouseValue 是"高点"（约 80-87 分位），大多数仓库低于此值
 --- @param whType table 仓库类型配置（需含 warehouseValue 字段）
 --- @param whTypeId string 仓库类型ID
 --- @return number targetValue 本局目标价值
 --- @return number targetCells 本局目标占用格子数
+--- @return number targetItemCount 本局目标物品件数
 --- @return table tier 选中的分层配置
 local function sampleSessionParams(whType, whTypeId)
     -- warehouseValue 是高点（ceiling），不是期望值
     local baseValue = whType.warehouseValue
 
+    -- 0. 提前获取物品池，读取池内最低单价
+    local pool = getPool(whTypeId)
+    local poolMinValue = pool.poolMinValue  -- 池内最便宜的物品单价（e.g. 105）
+
     -- 1. 掷骰决定仓库分层
     local tier = rollTier()
 
-    -- 2. 采样格子占比：中位数 50%，标准差 ~12%
-    local fillRate = 0.50 + randNormal() * 0.12
-    fillRate = math.max(0.15, math.min(0.85, fillRate))
-    local targetCells = math.floor(MAX_CELLS * fillRate)
-    targetCells = math.max(10, math.min(MAX_CELLS - 10, targetCells))
-
-    -- 3. 计算该占比下的理论价值边界
-    local boundMin, boundMax = calcValueBounds(whTypeId, targetCells)
-
-    -- 4. 在 tier 倍率区间内均匀采样目标价值
+    -- 2. 在 tier 倍率区间内采样目标价值（先算价值，再推件数）
     local mult = tier.multMin + math.random() * (tier.multMax - tier.multMin)
     local targetValue = baseValue * mult
-    -- 裁剪到物品池可达范围
-    targetValue = math.max(boundMin, math.min(boundMax, targetValue))
-    -- 绝对保底：不低于 warehouseValue 的 2%（对应 trash 仓底部）
+    -- 绝对保底：不低于 warehouseValue 的 2%
     targetValue = math.max(baseValue * 0.02, targetValue)
 
-    return targetValue, targetCells, tier
+    -- 3. 采样理想件数（基准 40 件，正态分布）
+    local baseCount = math.floor(40 + randNormal() * 6 + 0.5)
+    baseCount = math.max(10, math.min(MAX_CELLS, baseCount))
+
+    -- 4. 根据预算反推「最多买得起多少件」
+    --    即使全选最廉价物品也不能超过 targetValue
+    --    这解决了廉价仓库（1万场 trash）被迫生成几百万价值的根本问题
+    local maxAffordableCount = math.floor(targetValue / poolMinValue)
+    local targetItemCount = math.min(baseCount, math.max(3, maxAffordableCount))
+
+    -- 5. 采样格子占比：与件数耦合，件数少则格子也少
+    local fillRate = 0.50 + randNormal() * 0.12
+    fillRate = math.max(0.20, math.min(0.80, fillRate))
+    local targetCells = math.floor(MAX_CELLS * fillRate)
+    -- 格子数上限：件数 × 5（平均每件最多 5 格，避免稀疏件数填满整仓）
+    targetCells = math.min(targetCells, targetItemCount * 5)
+    targetCells = math.max(targetItemCount, math.min(MAX_CELLS - 10, targetCells))
+
+    -- 6. 用上界裁剪（不强制下界，让 tier 倍率完全控制价值）
+    local _, boundMax = calcValueBounds(whTypeId, targetCells)
+    targetValue = math.min(boundMax, targetValue)
+
+    return targetValue, targetCells, targetItemCount, tier
 end
 
 -- ============================================================================
@@ -574,130 +621,149 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
         sizeWeights = whType.sizeWeights,
     }
 
-    -- 5. 采样本局参数（目标价值 + 格子占比 + 分层）
-    local targetValue, targetCells, tier = sampleSessionParams(mergedWhType, whTypeId)
+    -- 5. 采样本局参数（目标价值 + 格子数 + 件数 + 分层）
+    local targetValue, targetCells, targetItemCount, tier = sampleSessionParams(mergedWhType, whTypeId)
 
     -- ================================================================
-    -- 三阶段选品
-    -- 阶段1：填充物（纯品类权重，不限单件价格，用总预算软上限控制）
-    -- 阶段2：高价物品（剩余格子，预算制驱动）
-    -- 阶段3：最小密度保障（确保至少 20% 格子有物品，无预算约束）
+    -- 两阶段选品：预算先显式分割，再各阶段独立硬约束
+    --
+    -- 核心保证：totalValue ≤ targetValue（数学严格成立）
+    -- 原理：fillerBudget + premiumBudget = targetValue
+    --       每阶段 itemCap = min(remainBudget, perItemTarget × K)
+    --       → 每件不超过 remainBudget → 每阶段总价 ≤ 阶段预算
+    --
+    -- 阶段1（filler）：多件廉价品，填充视觉密度
+    --   件数 = floor(targetItemCount × fillerRatio)
+    --   预算 = targetValue × fillerRatio² × 0.5（平方确保占比小）
+    --   单件上限 = min(fillerBudgetRemain, perItemTarget × 2)
+    --
+    -- 阶段2（premium）：少件高价品，构成价值主体
+    --   件数 = targetItemCount - fillerCount
+    --   预算 = targetValue - fillerBudget（剩余全部）
+    --   单件上限 = min(premiumBudgetRemain, perItemTarget × 2.5)
+    --   用 budgetWeight 精准命中目标均价
     -- ================================================================
+    local poolMinPrice = getPool(whTypeId).poolMinValue
+
+    local fillerCount  = math.max(1, math.floor(targetItemCount * tier.fillerRatio))
+    local premiumCount = math.max(0, targetItemCount - fillerCount)
+    local fillerCells  = math.floor(targetCells * tier.fillerRatio)
+
+    -- 显式分割预算：filler 拿小头，premium 拿大头
+    -- fillerRatio² × 0.5：trash(0.95²×0.5=0.45) → filler最多45%价值
+    --                      jackpot(0.35²×0.5=0.06) → filler最多6%价值
+    local fillerValueFrac = tier.fillerRatio * tier.fillerRatio * 0.5
+    local fillerBudget    = math.max(fillerCount * poolMinPrice,
+                                     math.floor(targetValue * fillerValueFrac))
+    -- 确保 filler 预算不超过总预算（极端情况保护）
+    fillerBudget = math.min(fillerBudget, targetValue - premiumCount * poolMinPrice)
+    fillerBudget = math.max(fillerCount * poolMinPrice, fillerBudget)
+    local premiumBudget = targetValue - fillerBudget
+
     local usedNames = {}
-    local selected = {}  -- { entry, ... }
+    local selected = {}
     local totalSelectedCells = 0
-    local totalSelectedValue = 0
 
-    -- 阶段1：填充物（品类权重选取，带池感知单件价格上限）
-    -- 总预算软上限：fillerRatio × targetValue × 3
-    -- 单件上限：max(targetValue × 0.4, poolMinValue × 8)
-    --   目的：防止 suburb_hardware（poolMinValue≈50）选到50万的工业机器，
-    --          同时允许 cult_jewelry（poolMinValue≈500）选到中等价位饰品
-    local poolData = getPool(whTypeId)
-    local poolMinValue = poolData.poolMinValue
-    local phase1ItemCap = math.max(targetValue * 0.4, poolMinValue * 8)
-    local fillerBudgetCap = targetValue * tier.fillerRatio * 3
-    local fillCells = math.floor(targetCells * tier.fillerRatio)
+    -- ── 阶段1：filler（多件廉价品）──
+    -- 目标：塞满 fillerCount 件便宜物品，总价 ≤ fillerBudget
+    local fillerBudgetRemain = fillerBudget
     local failCount = 0
-    while totalSelectedCells < fillCells and failCount < 10 do
-        local entry = pickFromPool(whTypeId, whType, usedNames, nil, phase1ItemCap)
+    while #selected < fillerCount and failCount < 15 do
+        if totalSelectedCells >= fillerCells then break end
+        if fillerBudgetRemain <= 0 then break end
+
+        local fillerRemain     = fillerCount - #selected
+        local remainFillerCells = math.max(1, fillerCells - totalSelectedCells)
+        local avgCells         = remainFillerCells / fillerRemain
+
+        -- 偏向小物品，保证件数
+        local dynWeights = blendedSizeWeights(avgCells, whType.sizeWeights)
+        local dynWhType  = { sizeWeights = dynWeights }
+
+        -- 单件硬上限：不超过剩余预算，且不超过均价 × 2
+        local perItemTarget = fillerBudgetRemain / fillerRemain
+        local itemCap = math.min(fillerBudgetRemain, math.max(poolMinPrice, perItemTarget * 2.0))
+
+        local entry = pickFromPool(whTypeId, dynWhType, usedNames, nil, itemCap)
         local itemCells = entry.w * entry.h
-        if totalSelectedCells + itemCells > fillCells + 5 then
-            -- 超格子数限制，尝试换更小的
+
+        -- 格子溢出重试
+        if totalSelectedCells + itemCells > fillerCells + 3 then
             local found = false
             for _ = 1, 8 do
-                entry = pickFromPool(whTypeId, whType, usedNames, nil, phase1ItemCap)
+                entry = pickFromPool(whTypeId, dynWhType, usedNames, nil, itemCap)
                 itemCells = entry.w * entry.h
-                if totalSelectedCells + itemCells <= fillCells + 5 then
-                    found = true
-                    break
+                if totalSelectedCells + itemCells <= fillerCells + 3 then
+                    found = true; break
                 end
             end
-            if not found then
-                failCount = failCount + 1
-                goto continuePhase1
-            end
+            if not found then failCount = failCount + 1; goto continuePhase1 end
         end
-        -- 软预算上限：超出后停止阶段1（让剩余格子交给阶段2的预算制）
-        if totalSelectedValue + entry.item.value > fillerBudgetCap and totalSelectedCells > 0 then
-            break
+
+        -- 价格溢出跳过（理论上不会发生，但做保护）
+        if entry.item.value > fillerBudgetRemain then
+            failCount = failCount + 1; goto continuePhase1
         end
+
         failCount = 0
         usedNames[entry.item.name] = true
         selected[#selected + 1] = entry
         totalSelectedCells = totalSelectedCells + itemCells
-        totalSelectedValue = totalSelectedValue + entry.item.value
+        fillerBudgetRemain = fillerBudgetRemain - entry.item.value
         ::continuePhase1::
     end
 
-    -- 阶段2：高价物品（剩余格子，预算制驱动，集中度由 tier.budgetK 控制）
-    local remainBudget = math.max(0, targetValue - totalSelectedValue)
+    -- ── 阶段2：premium（少件高价品）──
+    -- 目标：选 premiumCount 件，总价 ≤ premiumBudget
+    local premiumBudgetRemain = premiumBudget
     failCount = 0
-    while totalSelectedCells < targetCells and failCount < 10 do
-        local remainCells = targetCells - totalSelectedCells
-        local estRemainItems = math.max(1, math.ceil(remainCells / 2.5))
-        local targetPerPick = remainBudget / estRemainItems
-        if targetPerPick <= 0 then targetPerPick = 1 end
+    while #selected < targetItemCount and failCount < 15 do
+        if totalSelectedCells >= targetCells then break end
+        if premiumBudgetRemain <= 0 then break end
 
-        local entry = pickFromPool(whTypeId, whType, usedNames, targetPerPick, nil, tier.budgetK)
+        local premiumRemain = targetItemCount - #selected
+        local remainCells   = math.max(1, targetCells - totalSelectedCells)
+        local avgCells      = remainCells / premiumRemain
+
+        -- 允许大尺寸物品，保留仓库风格
+        local dynWeights = blendedSizeWeights(avgCells, whType.sizeWeights)
+        local dynWhType  = { sizeWeights = dynWeights }
+
+        -- 预算均价引导（budgetWeight 核心参数）
+        local targetPerPick = math.max(1, premiumBudgetRemain / premiumRemain)
+
+        -- 单件硬上限：不超过剩余预算，且不超过均价 × 2.5
+        -- × 2.5 允许少量贵物品存在，但剩余预算是绝对天花板
+        local itemCap = math.min(premiumBudgetRemain,
+                                 math.max(poolMinPrice, targetPerPick * 2.5))
+
+        local entry = pickFromPool(whTypeId, dynWhType, usedNames, targetPerPick, itemCap, tier.budgetK)
         local itemCells = entry.w * entry.h
-        if totalSelectedCells + itemCells > targetCells + 5 then
+
+        -- 格子溢出重试（此时放弃预算约束，优先保证格子合法）
+        if totalSelectedCells + itemCells > targetCells + 3 then
             local found = false
             for _ = 1, 8 do
-                entry = pickFromPool(whTypeId, whType, usedNames, targetPerPick, nil, tier.budgetK)
+                entry = pickFromPool(whTypeId, dynWhType, usedNames, targetPerPick, itemCap, tier.budgetK)
                 itemCells = entry.w * entry.h
-                if totalSelectedCells + itemCells <= targetCells + 5 then
-                    found = true
-                    break
+                if totalSelectedCells + itemCells <= targetCells + 3 then
+                    found = true; break
                 end
             end
-            if not found then
-                failCount = failCount + 1
-                goto continuePhase2
-            end
+            if not found then failCount = failCount + 1; goto continuePhase2 end
         end
+
+        -- 价格溢出跳过（严格保护，不允许超 premiumBudgetRemain）
+        if entry.item.value > premiumBudgetRemain then
+            failCount = failCount + 1; goto continuePhase2
+        end
+
         failCount = 0
         usedNames[entry.item.name] = true
         selected[#selected + 1] = entry
         totalSelectedCells = totalSelectedCells + itemCells
-        totalSelectedValue = totalSelectedValue + entry.item.value
-        remainBudget = remainBudget - entry.item.value
+        premiumBudgetRemain = premiumBudgetRemain - entry.item.value
         ::continuePhase2::
-    end
-
-    -- 阶段3：最小密度保障（确保至少 20% 格子有物品，严格单件价格上限）
-    -- 单件上限：poolMinValue × 15，确保只选池内"低档"物品来填充视觉密度
-    --   suburb_hardware（poolMinValue≈50）: 上限≈750 → 只能是螺丝钉/小零件
-    --   cult_jewelry（poolMinValue≈500）: 上限≈7,500 → 只能是廉价时尚饰品
-    local phase3ItemCap = poolMinValue * 15
-    local MIN_FILL_CELLS = math.floor(MAX_CELLS * 0.20)
-    if totalSelectedCells < MIN_FILL_CELLS then
-        failCount = 0
-        while totalSelectedCells < MIN_FILL_CELLS and failCount < 15 do
-            local entry = pickFromPool(whTypeId, whType, usedNames, nil, phase3ItemCap)
-            local itemCells = entry.w * entry.h
-            if totalSelectedCells + itemCells > MIN_FILL_CELLS + 10 then
-                local found = false
-                for _ = 1, 5 do
-                    entry = pickFromPool(whTypeId, whType, usedNames, nil, phase3ItemCap)
-                    itemCells = entry.w * entry.h
-                    if totalSelectedCells + itemCells <= MIN_FILL_CELLS + 10 then
-                        found = true
-                        break
-                    end
-                end
-                if not found then
-                    failCount = failCount + 1
-                    goto continuePhase3
-                end
-            end
-            failCount = 0
-            usedNames[entry.item.name] = true
-            selected[#selected + 1] = entry
-            totalSelectedCells = totalSelectedCells + itemCells
-            totalSelectedValue = totalSelectedValue + entry.item.value
-            ::continuePhase3::
-        end
     end
 
     -- ================================================================
@@ -767,6 +833,7 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
         grid = grid,
         totalCells = occupiedCells,
         targetCells = targetCells,
+        targetItemCount = targetItemCount,
         targetValue = math.floor(targetValue),
         totalValue = totalValue,
         usedRows = usedRows,
@@ -778,8 +845,9 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
     print("[WarehouseGenerator] Generated: " .. warehouseName .. " [TIER: " .. tier.id .. "]")
     print("  Region: " .. region.name .. ", Type: " .. whType.name .. ", Difficulty: " .. (difficulty.label or "?"))
     print("  Tier: " .. tier.id .. " (mult range: " .. tier.multMin .. "x ~ " .. tier.multMax .. "x"
-        .. ", fillerRatio=" .. tier.fillerRatio .. ", budgetK=" .. tier.budgetK .. ")")
-    print("  Target: value=" .. math.floor(targetValue) .. ", cells=" .. targetCells .. "/" .. MAX_CELLS
+        .. ", budgetK=" .. tier.budgetK .. ")")
+    print("  Target: items=" .. targetItemCount .. ", value=" .. math.floor(targetValue)
+        .. ", cells=" .. targetCells .. "/" .. MAX_CELLS
         .. " (" .. math.floor(targetCells/MAX_CELLS*100) .. "%)")
     print("  Actual: items=" .. #items .. ", cells=" .. occupiedCells .. ", value=" .. totalValue)
     print("  Rows used: " .. usedRows .. "/" .. MAX_ROWS)

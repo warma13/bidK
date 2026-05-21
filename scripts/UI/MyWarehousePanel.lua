@@ -409,6 +409,21 @@ function Panel.Show(onBack)
             nvgRect(nvg, x, y, w, h)
             nvgFillPaint(nvg, paint)
             nvgFill(nvg)
+
+            -- 左上角绘制物品名字
+            local itemForName = ctx.imageToItem[idx]
+            if itemForName and itemForName.name then
+                local fontSize = math.max(7, math.min(9, fullW * 0.13))
+                nvgFontFace(nvg, "sans")
+                nvgFontSize(nvg, fontSize)
+                nvgTextAlign(nvg, 1 | 8)  -- NVG_ALIGN_LEFT | NVG_ALIGN_TOP
+                -- 阴影增强可读性
+                nvgFillColor(nvg, nvgRGBA(0, 0, 0, 200))
+                nvgText(nvg, fullX + 3, fullY + 3, itemForName.name)
+                -- 正文（白色微透明）
+                nvgFillColor(nvg, nvgRGBA(240, 245, 255, 210))
+                nvgText(nvg, fullX + 2, fullY + 2, itemForName.name)
+            end
         end
 
         ctx.itemImages[i] = imgPanel
@@ -877,6 +892,25 @@ function Panel.Show(onBack)
     }
 
     -- ── 内容区域 ───────────────────────────────────
+    local gridScrollView = UI.ScrollView {
+        width = "100%",
+        flexGrow = 1,
+        flexBasis = 0,
+        scrollY = true,
+        scrollbarInteractive = false,
+        children = { ctx.gridContainer },
+    }
+
+    -- 出售模式下，手指按在物品上时（已触发 StartDragSelect）不触发滚动
+    -- onPointerDown 先于 OnPanStart 执行，因此此时 isDragSelecting 已为 true
+    local origOnPanStart = gridScrollView.OnPanStart
+    gridScrollView.OnPanStart = function(self, event)
+        if ctx.isSellMode and ctx.isDragSelecting then
+            return false  -- 拖选进行中，阻止滚动
+        end
+        return origOnPanStart(self, event)
+    end
+
     local contentArea = UI.Panel {
         flexGrow = 1,
         flexShrink = 1,
@@ -885,14 +919,7 @@ function Panel.Show(onBack)
         backgroundColor = { 22, 25, 32, 255 },
         children = {
             ctx.emptyPanel,
-            UI.ScrollView {
-                width = "100%",
-                flexGrow = 1,
-                flexBasis = 0,
-                scrollY = true,
-                scrollbarInteractive = false,
-                children = { ctx.gridContainer },
-            },
+            gridScrollView,
             ctx.sellBar,
         },
     }

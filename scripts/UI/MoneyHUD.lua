@@ -16,6 +16,7 @@ local SaveSystem = require("SaveSystem")
 local MoneyHUD = {}
 
 local moneyLabel = nil
+local ticketLabel = nil   -- 点券 HUD 标签
 local hudPanel = nil
 local popupPanel = nil
 local cachedMoney = Config.GAME.StartingMoney
@@ -37,14 +38,22 @@ function MoneyHUD.SetMoney(amount)
     MoneyHUD.Refresh()
 end
 
---- 刷新 HUD 显示
+--- 刷新点券 HUD 显示
+function MoneyHUD.RefreshTickets()
+    if ticketLabel then
+        ticketLabel:SetText(tostring(SaveSystem.GetPointTickets()))
+    end
+end
+
+--- 刷新 HUD 显示（金币 + 点券）
 function MoneyHUD.Refresh()
     if moneyLabel then
         moneyLabel:SetText(Utils.FormatMoney(cachedMoney))
     end
+    MoneyHUD.RefreshTickets()
 end
 
---- 创建 HUD 面板（内联，由父容器控制位置）
+--- 创建金币 HUD 面板（内联，由父容器控制位置）
 function MoneyHUD.CreatePanel()
     local sz = Utils.sz
     moneyLabel = UI.Label {
@@ -79,7 +88,60 @@ function MoneyHUD.CreatePanel()
     return hudPanel
 end
 
+--- 创建点券 HUD 面板（独立面板，与金币并排）
+function MoneyHUD.CreateTicketPanel()
+    local sz = Utils.sz
+    ticketLabel = UI.Label {
+        text = tostring(SaveSystem.GetPointTickets()),
+        fontSize = sz(15),
+        fontColor = { 120, 210, 255, 255 },
+        fontWeight = "bold",
+    }
+    return UI.Panel {
+        height = sz(34),
+        flexDirection = "row",
+        alignItems = "center",
+        gap = sz(6),
+        paddingHorizontal = sz(10),
+        backgroundColor = { 0, 0, 0, 120 },
+        borderRadius = sz(4),
+        cursor = "pointer",
+        onClick = function()
+            Utils.PlayClick()
+            MoneyHUD.TogglePopup()
+        end,
+        children = {
+            UI.Panel {
+                width = sz(18), height = sz(18),
+                backgroundImage = "image/point_ticket_icon_20260518210650.png",
+                backgroundFit = "contain",
+                flexShrink = 0,
+            },
+            ticketLabel,
+        },
+    }
+end
+
 --- 创建资产弹窗
+local watchAdBtn = nil
+local watchAdAmountLabel = nil
+
+function MoneyHUD.RefreshWatchAdBtn()
+    -- 延迟 require 避免循环依赖
+    local ok, AdCardPanel = pcall(require, "UI.AdCardPanel")
+    if not ok then return end
+    local canWatch = AdCardPanel.CanWatchAd()
+    if watchAdBtn then
+        watchAdBtn:SetDisabled(not canWatch)
+    end
+    if watchAdAmountLabel then
+        local tier = AdCardPanel.GetCurrentTier()
+        if tier and tier.coinsPerAd then
+            watchAdAmountLabel:SetText("+" .. Utils.FormatMoney(tier.coinsPerAd))
+        end
+    end
+end
+
 function MoneyHUD.CreatePopup()
     local sz = Utils.sz
     local popupContent = UI.Panel {
@@ -124,7 +186,7 @@ function MoneyHUD.CreatePopup()
                     },
                 },
             },
-            -- 角色币行
+            -- 点券行
             UI.Panel {
                 width = "100%", flexDirection = "row",
                 justifyContent = "space-between", alignItems = "center",
@@ -134,25 +196,73 @@ function MoneyHUD.CreatePopup()
                         children = {
                             UI.Panel {
                                 width = sz(20), height = sz(20),
-                                backgroundImage = Config.CHARACTER_COIN_ICON,
+                                backgroundImage = "image/point_ticket_icon_20260518210650.png",
                                 backgroundFit = "contain", flexShrink = 0,
                             },
-                            UI.Label { text = "角色币", fontSize = sz(13), fontColor = { 200, 205, 220, 255 } },
+                            UI.Label { text = "点券", fontSize = sz(13), fontColor = { 200, 205, 220, 255 } },
                         },
                     },
                     UI.Label {
-                        id = "popup_char_coins",
+                        id = "popup_point_tickets",
                         text = "0",
                         fontSize = sz(14), fontWeight = "bold",
-                        fontColor = { 255, 200, 80, 255 },
+                        fontColor = { 120, 210, 255, 255 },
                     },
                 },
             },
-            -- 门票行
-            UI.Panel {
-                id = "popup_tickets_section",
-                width = "100%", flexDirection = "column", gap = sz(6),
-            },
+            -- 分割线
+            UI.Panel { width = "100%", height = 1, backgroundColor = { 80, 85, 110, 120 } },
+            -- 看广告得金币（带图标，与 AdCardPanel watchBtn 样式一致）
+            (function()
+                local labelNode = UI.Label {
+                    text = "看广告",
+                    fontSize = sz(13), fontWeight = "bold", fontColor = { 20, 20, 20, 255 },
+                }
+                local watchAdCoinIcon = UI.Panel {
+                    width = sz(16), height = sz(16),
+                    backgroundImage = Utils.GetIcon("coin"),
+                    backgroundFit = "contain", flexShrink = 0,
+                }
+                watchAdAmountLabel = UI.Label {
+                    text = "",
+                    fontSize = sz(13), fontWeight = "bold", fontColor = { 20, 20, 20, 255 },
+                }
+                local watchAdTicketIcon = UI.Panel {
+                    width = sz(16), height = sz(16),
+                    backgroundImage = "image/point_ticket_icon_20260518210650.png",
+                    backgroundFit = "contain", flexShrink = 0,
+                }
+                local watchAdTicketQty = UI.Label {
+                    text = "×10",
+                    fontSize = sz(11), fontColor = { 20, 20, 20, 255 },
+                }
+                watchAdBtn = UI.Button {
+                    width = "100%", height = sz(36),
+                    variant = "primary",
+                    onClick = function()
+                        Utils.PlayClick()
+                        MoneyHUD.HidePopup()
+                        local AdCardPanel = require("UI.AdCardPanel")
+                        if AdCardPanel.CanWatchAd() then
+                            AdCardPanel.WatchAd()
+                        end
+                    end,
+                    children = {
+                        UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = sz(4),
+                            justifyContent = "center", width = "100%", height = "100%",
+                            children = {
+                                labelNode,
+                                watchAdCoinIcon,
+                                watchAdAmountLabel,
+                                watchAdTicketIcon,
+                                watchAdTicketQty,
+                            },
+                        },
+                    },
+                }
+                return watchAdBtn
+            end)(),
             -- 关闭按钮
             UI.Button {
                 text = "关闭", width = "100%", height = sz(36),
@@ -192,71 +302,10 @@ local function refreshPopupContent()
     if moneyLbl then
         moneyLbl:SetText(Utils.FormatMoneyExact(cachedMoney))
     end
-    -- 更新角色币
-    local charCoinLbl = popupPanel:FindById("popup_char_coins")
-    if charCoinLbl then
-        charCoinLbl:SetText(tostring(SaveSystem.GetCharacterCoins()))
-    end
-    -- 更新门票区域
-    local ticketSection = popupPanel:FindById("popup_tickets_section")
-    if ticketSection then
-        local ticketChildren = {}
-        local sz = Utils.sz
-        local seen = {}
-
-        -- 辅助：添加一张门票行
-        local function addTicketRow(ticketId)
-            if not ticketId or seen[ticketId] then return end
-            seen[ticketId] = true
-            local count = SaveSystem.GetTicketCount(ticketId)
-            local ticketConf = Config.TICKETS[ticketId]
-            local ticketIconPath = ticketConf and ticketConf.icon or nil
-            local ticketName = ticketConf and ticketConf.name or ticketId
-            ticketChildren[#ticketChildren + 1] = UI.Panel {
-                width = "100%", flexDirection = "row",
-                justifyContent = "space-between", alignItems = "center",
-                children = {
-                    UI.Panel {
-                        flexDirection = "row", alignItems = "center", gap = sz(6),
-                        children = {
-                            ticketIconPath and UI.Panel {
-                                width = sz(28), height = sz(18),
-                                backgroundImage = ticketIconPath,
-                                backgroundFit = "contain", flexShrink = 0,
-                            } or UI.Label { text = "🎫", fontSize = sz(16) },
-                            UI.Label {
-                                text = ticketName,
-                                fontSize = sz(12),
-                                fontColor = { 200, 205, 220, 255 },
-                            },
-                        },
-                    },
-                    UI.Label {
-                        text = "×" .. count,
-                        fontSize = sz(14), fontWeight = "bold",
-                        fontColor = count > 0 and { 255, 200, 80, 255 } or { 255, 100, 100, 255 },
-                    },
-                },
-            }
-        end
-
-        for _, region in ipairs(Config.REGIONS) do
-            -- 区域指定门票（指定仓库类型所需）
-            addTicketRow(region.ticket)
-            -- 难度门票
-            for _, diff in ipairs(region.difficulties or {}) do
-                addTicketRow(diff.requiredTicket)
-            end
-        end
-        if #ticketChildren == 0 then
-            ticketSection:SetVisible(false)
-        else
-            ticketSection:SetVisible(true)
-            ticketSection:ClearChildren()
-            for _, child in ipairs(ticketChildren) do
-                ticketSection:AddChild(child)
-            end
-        end
+    -- 更新点券
+    local ticketLbl = popupPanel:FindById("popup_point_tickets")
+    if ticketLbl then
+        ticketLbl:SetText(tostring(SaveSystem.GetPointTickets()))
     end
 end
 
@@ -268,6 +317,7 @@ function MoneyHUD.TogglePopup()
     popupVisible = not popupVisible
     if popupVisible then
         refreshPopupContent()
+        MoneyHUD.RefreshWatchAdBtn()
     end
     popupPanel:SetVisible(popupVisible)
 end

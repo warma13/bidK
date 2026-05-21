@@ -8,9 +8,14 @@
 --   - GetRefreshText() 返回下次刷新倒计时字符串
 -- ============================================================================
 
-local Props = require("Config.Props")
+local Props      = require("Config.Props")
+local SaveSystem = require("SaveSystem")
 
 local DailyShop = {}
+
+-- 广告刷新后生成的道具列表缓存（同一天只生成一次）
+local _adRefreshItems = nil
+local _adRefreshDate  = nil
 
 -- ============================================================================
 -- 权重表（按 tier 分配权重）
@@ -113,6 +118,53 @@ function DailyShop.GetRefreshText()
     local minutes = math.floor((secondsLeft % 3600) / 60)
     local seconds = secondsLeft % 60
     return string.format("%02d:%02d:%02d后刷新", hours, minutes, seconds)
+end
+
+-- ============================================================================
+-- 广告刷新接口
+-- ============================================================================
+
+--- 今日是否还可以使用广告刷新
+---@return boolean
+function DailyShop.CanAdRefresh()
+    return not SaveSystem.GetDailyAdRefreshUsed()
+end
+
+--- 执行广告刷新：记录存档、清除缓存（下次 GetAdRefreshedItems 重新生成）
+function DailyShop.DoAdRefresh()
+    SaveSystem.RecordDailyAdRefresh()
+    -- 清除缓存，强制下次重新生成
+    _adRefreshItems = nil
+    _adRefreshDate  = nil
+end
+
+--- 获取广告刷新后的12个道具列表
+--- 使用与普通日期种子不同的偏移种子，保证结果不同
+---@return table  道具定义数组（长度12）
+function DailyShop.GetAdRefreshedItems()
+    local year, month, day = GetToday()
+    local today = string.format("%04d%02d%02d", year, month, day)
+
+    -- 同一天内缓存结果
+    if _adRefreshItems and _adRefreshDate == today then
+        return _adRefreshItems
+    end
+
+    local pool = BuildWeightedPool()
+    if #pool == 0 then return {} end
+
+    -- 广告刷新使用偏移后的种子
+    local seed = DateToSeed(year, month, day) + 999983
+    local rand = MakeLCG(seed)
+
+    local items = {}
+    for i = 1, 12 do
+        items[i] = WeightedPick(pool, rand)
+    end
+
+    _adRefreshItems = items
+    _adRefreshDate  = today
+    return items
 end
 
 return DailyShop

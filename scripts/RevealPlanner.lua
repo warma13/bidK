@@ -7,10 +7,10 @@
 -- 揭示类型（8 种）：
 --   total_cells         - 所有藏品格子总数（纯文字）
 --   quality_outline     - 所有 X 品质藏品的轮廓（L1）
---   random_items_full   - 随机 N 件藏品完整信息（L3）
---   random_items_quality- 随机 N 件藏品品质（L2）
---   top_value_item      - 最高价值藏品完整信息（L3）
---   top_cells_item      - 占格数最多的藏品完整信息（L3）
+--   random_items_full   - 随机 N 件藏品完整信息（L4）
+--   random_items_quality- 随机 N 件藏品品质框（L3，全W×H品质色）
+--   top_value_item      - 最高价值藏品完整信息（L4）
+--   top_cells_item      - 占格数最多的藏品完整信息（L4）
 --   quality_avg_cells   - X 品质藏品平均格子数（纯文字）
 --   quality_avg_value   - X 品质藏品平均价值（纯文字）
 --   quality_count       - 本场拍卖共有 X 品质藏品 N 件（纯文字）
@@ -60,6 +60,8 @@ local function analyze(items)
         totalCells    = 0,         -- 所有物品格子总数
         qualityItems  = {},        -- { [qualityId] = { item, ... } }
         qualityIds    = {},        -- 有物品的品质ID列表（低→高）
+        categoryItems = {},        -- { [categoryId] = { item, ... } }
+        categoryIds   = {},        -- 有物品的品类ID列表
         mostValuable  = nil,       -- 价值最高的物品
         mostCells     = nil,       -- 占格数最多的物品
     }
@@ -83,6 +85,15 @@ local function analyze(items)
             end
             local list = stats.qualityItems[q]
             list[#list + 1] = item
+        end
+
+        local cat = item.category
+        if cat then
+            if not stats.categoryItems[cat] then
+                stats.categoryItems[cat] = {}
+                stats.categoryIds[#stats.categoryIds + 1] = cat
+            end
+            stats.categoryItems[cat][#stats.categoryItems[cat] + 1] = item
         end
 
         local val = item.realValue or Config.GetItemRealValue(item)
@@ -241,7 +252,7 @@ function generators.avg_cells_per_item()
     }
 end
 
--- ----- 2. 所有 X 品质藏品的轮廓（L1） -----
+-- ----- 2. 所有 X 品质藏品的轮廓（L3：已知品质，显示品质色框） -----
 function generators.quality_outline(qualityId)
     qualityId = qualityId or pickUnusedQuality(false)
     if not qualityId then return nil end
@@ -253,7 +264,7 @@ function generators.quality_outline(qualityId)
     return {
         type    = "quality_outline",
         text    = "扫描到全部 " .. #items .. " 件" .. colorName .. "品质藏品的轮廓",
-        reveals = makeReveals(items, 1),
+        reveals = makeReveals(items, 3),  -- 已知品质 → L3（品质色框）
     }
 end
 
@@ -276,11 +287,11 @@ function generators.random_items_full(n)
     return {
         type    = "random_items_full",
         text    = "随机鉴定 " .. #selected .. " 件藏品：" .. table.concat(parts, "、"),
-        reveals = makeReveals(selected, 3),
+        reveals = makeReveals(selected, 4),
     }
 end
 
--- ----- 4. 随机 N 件藏品品质（L2） -----
+-- ----- 4. 随机 N 件藏品品质暗示（L2_hint，每件仅1×1品质色格，不暴露轮廓） -----
 function generators.random_items_quality(n)
     if not n then
         n = (math.random(2) == 1) and 3 or 12
@@ -290,12 +301,12 @@ function generators.random_items_quality(n)
 
     return {
         type    = "random_items_quality",
-        text    = "鉴别 " .. #selected .. " 件藏品品质：" .. qualityBreakdownText(selected),
+        text    = "看到了 " .. #selected .. " 件藏品品质：" .. qualityBreakdownText(selected),
         reveals = makeReveals(selected, 2),
     }
 end
 
--- ----- 5. 最高价值藏品完整信息（L3） -----
+-- ----- 5. 最高价值藏品完整信息（L4） -----
 function generators.top_value_item()
     local item = stats.mostValuable
     if not item then return nil end
@@ -305,7 +316,7 @@ function generators.top_value_item()
     return {
         type    = "top_value_item",
         text    = "发现最高价值藏品：" .. item.name .. "（" .. rar.name .. "，" .. FormatValue(val) .. "）",
-        reveals = makeReveals({ item }, 3),
+        reveals = makeReveals({ item }, 4),
     }
 end
 
@@ -335,7 +346,7 @@ function generators.quality_avg_cells(qualityId)
     }
 end
 
--- ----- 7. 占格数最多的藏品完整信息（L3） -----
+-- ----- 7. 占格数最多的藏品完整信息（L4） -----
 function generators.top_cells_item()
     local item = stats.mostCells
     if not item then return nil end
@@ -346,7 +357,7 @@ function generators.top_cells_item()
     return {
         type    = "top_cells_item",
         text    = "占位格数最多的藏品：" .. item.name .. "（" .. rar.name .. "，占 " .. cells .. " 格，" .. FormatValue(val) .. "）",
-        reveals = makeReveals({ item }, 3),
+        reveals = makeReveals({ item }, 4),
     }
 end
 
@@ -376,7 +387,7 @@ function generators.quality_avg_value(qualityId)
     }
 end
 
--- ----- 9. 随机显示 1 件最高品质的藏品完整信息（L3） -----
+-- ----- 9. 随机显示 1 件最高品质的藏品完整信息（L4） -----
 function generators.highest_quality_item()
     -- 找出仓库中品质最高的等级
     local topQualityId = nil
@@ -397,7 +408,35 @@ function generators.highest_quality_item()
     return {
         type    = "highest_quality_item",
         text    = "随机展示1件最高品质藏品：" .. item.name .. "（" .. rar.name .. "，" .. FormatValue(val) .. "）",
-        reveals = makeReveals({ item }, 3),
+        reveals = makeReveals({ item }, 4),
+    }
+end
+
+-- ----- 9b. 随机 1 种品类的全部藏品完整信息（L4） -----
+function generators.random_category_full()
+    if #stats.categoryIds == 0 then return nil end
+    -- 随机选一个有物品的品类
+    local catId = stats.categoryIds[math.random(1, #stats.categoryIds)]
+    local items = stats.categoryItems[catId]
+    if not items or #items == 0 then return nil end
+
+    local cat = Config.GetCategory(catId)
+    local catName = cat and cat.name or catId
+
+    local parts = {}
+    for _, item in ipairs(items) do
+        local rar = Config.GetRarity(item.rarity)
+        local val = item.realValue or Config.GetItemRealValue(item)
+        parts[#parts + 1] = item.name .. "（" .. rar.name .. "，" .. FormatValue(val) .. "）"
+    end
+
+    return {
+        type     = "random_category_full",
+        text     = "鉴定" .. catName .. "类全部 " .. #items .. " 件藏品：" .. table.concat(parts, "、"),
+        reveals  = makeReveals(items, 4),
+        -- 机器可读字段
+        categoryId    = catId,
+        categoryCount = #items,
     }
 end
 
@@ -508,6 +547,7 @@ local ROUND_CONFIG = {
 
     -- R3: 发现重要藏品
     [3] = {
+        { gen = "random_category_full" },
         { gen = "random_items_full" },
         { gen = "top_value_item" },
         { gen = "top_cells_item" },

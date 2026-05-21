@@ -16,6 +16,9 @@ local VersionRewardPanel = require("UI.VersionRewardPanel")
 local SaveSystem = require("SaveSystem")
 local SaveFramework = require("SaveFramework")
 local SaveCompensation = require("SaveCompensation")
+-- 提前 require 确保模块在 SaveFramework.Init() 的 BatchGet 之前完成注册，
+-- 否则其云端 key 不会被纳入初始 BatchGet，导致领取状态永远无法从云端还原
+require("SeasonPass")
 local AppPhase = require("AppPhase")
 local GameLoop = require("GameLoop")
 
@@ -141,62 +144,176 @@ local function InitEngine()
 end
 
 -- ============================================================================
--- Phase 2: 异步数据加载（可能失败，可重试）
---   SaveFramework → SaveSystem → 进入主菜单
+-- Phase 2: 预取状态机
+--   启动时立即开始 BatchGet（与开始画面并行）；
+--   用户点击"开始游戏"时数据通常已就绪，无需等待。
 -- ============================================================================
-local function LoadAndEnter()
+
+-- 预取状态
+local prefetchDone      = false   -- BatchGet + SaveSystem.Init 已完成
+local prefetchSuccess   = nil     -- SaveSystem.Init 的 success 结果
+local prefetchNewPlayer = nil     -- SaveSystem.Init 的 isNewPlayer 结果
+local prefetchFwOk      = true    -- SaveFramework.Init 是否成功（失败只浮窗提示）
+local prefetchWaiter    = nil     -- 用户已点击但数据未就绪时的等待回调
+
+-- 超时保护：BatchGet 如果长时间无响应，显示等待时间并在 20 秒后提供重试按钮
+local PREFETCH_RETRY_HINT = 20    -- 超过多少秒显示重试按钮（秒）
+local prefetchElapsed     = 0     -- 已等待秒数
+local prefetchTimerActive = false -- 是否在计时（用户点击后才开始倒计时）
+local prefetchRetryShown  = false -- 是否已显示重试按钮
+
+-- 所有数据就绪后执行的后半段逻辑（进入主菜单）
+local function EnterMenu()
+    if not prefetchSuccess then
+        -- SaveSystem 失败：提示重试（重新拉起 StartScreen，注意避免循环）
+        print("[Standalone] SaveSystem load failed")
+        Utils.ShowMessage("存档加载失败，请检查网络后重试")
+        -- 重置状态，允许重试
+        prefetchDone      = false
+        prefetchSuccess   = nil
+        prefetchNewPlayer = nil
+        prefetchWaiter    = nil
+        -- 重新显示开始画面，用户再次点击时重新触发 StartPrefetch
+        local function RetryLoad()
+            prefetchDone    = false
+            prefetchSuccess = nil
+            StartPrefetch()  -- 重新拉取（前向引用，下方定义）
+        end
+        StartScreen.Show(RetryLoad, "重新加载")
+        return
+    end
+
+    -- SaveFramework 失败只给浮窗提示，不阻断
+    if not prefetchFwOk then
+        pcall(function()
+            local FloatingMessage = require("UI.FloatingMessage")
+            FloatingMessage.Show("数据同步失败，请检查网络")
+        end)
+    end
+
+    print("[Standalone] Phase 2 complete: data loaded. New player: " .. tostring(prefetchNewPlayer))
+
+    -- 兜底检测：上次对局是否有未回收的结算数据
+    local PendingSettlement = require("PendingSettlement")
+    if PendingSettlement.HasPending() then
+        local summary = PendingSettlement.GetSummary()
+        print("[Standalone] Pending settlement detected: "
+            .. (summary and summary.unrecycledCount or 0) .. " items to recover")
+        local result = PendingSettlement.AutoRecover()
+        local FloatingMessage = require("UI.FloatingMessage")
+        if result.placed > 0 or result.recycledCount > 0 then
+            local msg = "已恢复上局物品: "
+                .. (result.placed > 0 and (result.placed .. "件入库") or "")
+                .. (result.placed > 0 and result.recycledCount > 0 and ", " or "")
+                .. (result.recycledCount > 0 and (result.recycledCount .. "件回收+"
+                    .. result.recycledValue) or "")
+            FloatingMessage.Show(msg)
+        end
+    end
+
+    SettingsPanel.Init()
+    AdCardPanel.Init()
+    OnlineRewardPanel.Init()
+    VersionRewardPanel.Init()
+    require("SeasonPass").Init()
+    SaveCompensation.RunOnce()
+    GameController.ShowMenu()
+end
+
+-- 启动时立即调用：与开始画面并行拉取云端数据
+StartPrefetch = function()
     -- 预注册 PendingSettlement，确保其 cloudKey 加入 Init 的 BatchGet
     require("PendingSettlement")
 
-    -- 1) SaveFramework: 单次 BatchGet 加载所有注册模块（money, adcard, redeem 等）
+    -- 1) SaveFramework: 单次 BatchGet（money, adcard, redeem, online_reward 等）
     SaveFramework.Init(function(fwSuccess)
+        prefetchFwOk = fwSuccess
         if not fwSuccess then
-            -- WASM 无本地缓存：云端拉取失败意味着金币/广告卡等数据用默认值兜底，
-            -- 玩家本局的数据可能不准确，给予提示但不阻断流程。
             print("[Standalone] SaveFramework load failed — using defaults")
-            pcall(function()
-                local FloatingMessage = require("UI.FloatingMessage")
-                FloatingMessage.Show("数据同步失败，请检查网络")
-            end)
         end
-        -- 2) SaveSystem: 加载游戏存档（独立的 BatchGet，带分块逻辑）
+        -- 2) SaveSystem: 独立 BatchGet（游戏存档，带分块逻辑）
         SaveSystem.Init(function(success, isNewPlayer)
-            if not success then
-                print("[Standalone] SaveSystem load failed")
-                Utils.ShowMessage("存档加载失败，请检查网络后重试")
-                StartScreen.Show(LoadAndEnter)
-                return
-            end
-            print("[Standalone] Phase 2 complete: data loaded. New player: " .. tostring(isNewPlayer))
+            prefetchDone      = true
+            prefetchSuccess   = success
+            prefetchNewPlayer = isNewPlayer
 
-            -- 兜底检测：上次对局是否有未回收的结算数据
-            local PendingSettlement = require("PendingSettlement")
-            if PendingSettlement.HasPending() then
-                local summary = PendingSettlement.GetSummary()
-                print("[Standalone] Pending settlement detected: "
-                    .. (summary and summary.unrecycledCount or 0) .. " items to recover")
-                local result = PendingSettlement.AutoRecover()
-                -- 通知玩家
-                local FloatingMessage = require("UI.FloatingMessage")
-                if result.placed > 0 or result.recycledCount > 0 then
-                    local msg = "已恢复上局物品: "
-                        .. (result.placed > 0 and (result.placed .. "件入库") or "")
-                        .. (result.placed > 0 and result.recycledCount > 0 and ", " or "")
-                        .. (result.recycledCount > 0 and (result.recycledCount .. "件回收+"
-                            .. result.recycledValue) or "")
-                    FloatingMessage.Show(msg)
-                end
+            -- 若用户已点击"开始游戏"并在等待，立即进入
+            if prefetchWaiter then
+                local waiter = prefetchWaiter
+                prefetchWaiter = nil
+                waiter()
             end
-
-            SettingsPanel.Init()
-            AdCardPanel.Init()
-            OnlineRewardPanel.Init()
-            VersionRewardPanel.Init()
-            -- 各模块数据就绪后执行一次补偿检查
-            SaveCompensation.RunOnce()
-            GameController.ShowMenu()
         end)
     end)
+end
+
+-- 用户点击"开始游戏"时调用
+local function LoadAndEnter()
+    if prefetchDone then
+        -- 数据已就绪，直接进入
+        EnterMenu()
+    else
+        -- 仍在加载中，注册等待回调；界面保持 StartScreen 显示
+        print("[Standalone] Data not ready yet, waiting for prefetch...")
+        prefetchWaiter = EnterMenu
+
+        -- 启动等待计时器：每秒更新等待文案，超过 PREFETCH_RETRY_HINT 秒显示重试按钮
+        prefetchElapsed     = 0
+        prefetchRetryShown  = false
+        prefetchTimerActive = true
+
+        -- 定义重试动作（重置状态并重新发起 BatchGet）
+        local lastShownSec = -1  -- 上次更新文案时的整秒值，避免每帧 SetText
+        local function DoRetry()
+            print("[Standalone] Manual retry: resetting prefetch state")
+            -- 先隐藏重试按钮、重置文案
+            StartScreen.HideWaiting()
+            -- 重置所有预取状态
+            prefetchTimerActive = false
+            prefetchRetryShown  = false
+            prefetchElapsed     = 0
+            lastShownSec        = -1
+            prefetchDone        = false
+            prefetchSuccess     = nil
+            prefetchNewPlayer   = nil
+            prefetchFwOk        = true
+            prefetchWaiter      = EnterMenu
+            -- SaveFramework.Init 内部有 initGeneration 机制：
+            -- initialized=false 时重新发 BatchGet；旧的悬挂回调因 gen 不匹配被丢弃
+            StartPrefetch()
+            -- 重新启动计时（复用已注册的 RegisterAlways 闭包）
+            prefetchElapsed     = 0
+            prefetchTimerActive = true
+        end
+
+        GameLoop.RegisterAlways("PrefetchTimeout", function(dt)
+            if not prefetchTimerActive then return end
+
+            -- 数据已就绪，停止计时并隐藏等待提示
+            if prefetchDone then
+                prefetchTimerActive = false
+                StartScreen.HideWaiting()
+                return
+            end
+
+            prefetchElapsed = prefetchElapsed + dt
+
+            -- 整秒才刷新一次文案，避免每帧 SetText
+            local secs = math.floor(prefetchElapsed)
+            if secs ~= lastShownSec then
+                lastShownSec = secs
+                StartScreen.SetWaitSeconds(secs)
+            end
+
+            -- 超过阈值后显示重试按钮（只显示一次）
+            if not prefetchRetryShown and prefetchElapsed >= PREFETCH_RETRY_HINT then
+                prefetchRetryShown = true
+                print("[Standalone] ⏰ Prefetch slow (" .. PREFETCH_RETRY_HINT
+                    .. "s elapsed) — showing retry button")
+                StartScreen.ShowRetryButton(DoRetry)
+            end
+        end)
+    end
 end
 
 -- ============================================================================
@@ -207,6 +324,8 @@ function Standalone.Start()
     InitEngine()
 
     AppPhase.Set(AppPhase.LOADING)
+    -- 立即开始拉取云端数据（与开始画面并行，减少等待）
+    StartPrefetch()
     StartScreen.Show(LoadAndEnter)
 
     print("=== " .. Config.GAME.Title .. " [Standalone] Started ===")

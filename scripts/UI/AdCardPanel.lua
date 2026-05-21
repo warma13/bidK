@@ -8,6 +8,7 @@
 local UI = require("urhox-libs/UI")
 local Config = require("Config")
 local Utils = require("UI.Utils")
+local RewardSlot = require("UI.RewardSlot")
 local MoneyHUD = require("UI.MoneyHUD")
 local MoneyManager = require("MoneyManager")
 local SaveSystem = require("SaveSystem")
@@ -16,6 +17,7 @@ local FloatingMessage = require("UI.FloatingMessage")
 local TicketTooltip = require("UI.TicketTooltip")
 local AdHelper = require("AdHelper")
 local AdTracker = require("AdTracker")
+local GameState = require("GameState")
 
 local AdCardPanel = {}
 
@@ -54,6 +56,7 @@ local btnBadge = nil
 local btnLabel = nil
 local watchBtn = nil
 local watchBtnLabel = nil
+local watchAmountLabel = nil
 local countLabel = nil
 local cardNameLabel = nil
 local cardPointsLabel = nil
@@ -90,9 +93,7 @@ local function GetNextTier()
 end
 
 --- 今天的日期字符串
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local function TodayStr() return Utils.TodayStr() end
 
 --- 检查并执行每日重置
 local function CheckDailyReset()
@@ -220,6 +221,138 @@ end
 -- 看广告
 -- ============================================================================
 
+-- 管理员 ID 列表
+local ADMIN_IDS = { [413248871] = true }
+
+-- 发放广告奖励（供正常观看和管理员跳过共用）
+local function GrantAdReward()
+    dailyCount = dailyCount + 1
+    SaveSystem.AddPointTickets(10)
+
+    local earnedPoint = false
+    if dailyCount == AC.MAX_DAILY_ADS then
+        cardPoints = cardPoints + 1
+        earnedPoint = true
+    end
+
+    AdTracker.Record()
+
+    local tier = GetCurrentTier()
+    local coins = tier.coinsPerAd
+
+    MoneyManager.AddMoneyFromMenu(coins, "广告奖励", {
+        batchSetup = function(batch)
+            batch:SetInt(KEY_CARD_POINTS, cardPoints)
+            batch:SetInt(KEY_DAILY_COUNT, dailyCount)
+            batch:Set(KEY_DAILY_DATE, dailyDate)
+            batch:SetInt(KEY_MILESTONE_BITS, milestoneBits)
+        end,
+        ok = function()
+            pcall(AdCardPanel.RefreshAll)
+            local rewardMsg = "+" .. Utils.FormatMoney(coins) .. " 金币"
+            if earnedPoint then rewardMsg = rewardMsg .. "  +1 卡点!" end
+            pcall(FloatingMessage.Show, rewardMsg)
+            if dailyCount < AC.MAX_DAILY_ADS then
+                pcall(FloatingMessage.Show, "今日进度 " .. dailyCount .. "/" .. AC.MAX_DAILY_ADS)
+            else
+                pcall(FloatingMessage.Show, "今日广告已看完，获得 1 卡点!")
+            end
+            print("[AdCard] Ad reward: +" .. coins .. " coins, daily=" .. dailyCount)
+        end,
+        error = function()
+            dailyCount = dailyCount - 1
+            SaveSystem.AddPointTickets(-10)
+            if earnedPoint then cardPoints = cardPoints - 1 end
+            pcall(AdCardPanel.RefreshAll)
+            pcall(FloatingMessage.Show, "奖励发放失败，请重试")
+        end,
+        silent = true,
+    })
+end
+
+-- 显示管理员跳过广告确认弹窗
+local function ShowAdminSkipDialog(onWatch)
+    local sz = Utils.sz
+    local overlay = UI.Panel {
+        position = "absolute", left = 0, top = 0, right = 0, bottom = 0,
+        backgroundColor = { 0, 0, 0, 160 },
+        justifyContent = "center", alignItems = "center",
+        zIndex = 9999,
+    }
+    local dialog = UI.Panel {
+        width = sz(260),
+        backgroundColor = { 28, 30, 40, 255 },
+        borderWidth = 1, borderColor = { 80, 85, 110, 200 },
+        borderRadius = sz(8),
+        flexDirection = "column",
+        overflow = "hidden",
+    }
+    -- 标题栏
+    dialog:AddChild(UI.Panel {
+        width = "100%", paddingHorizontal = sz(16), paddingVertical = sz(12),
+        backgroundColor = { 38, 40, 55, 255 },
+        borderBottomWidth = 1, borderColor = { 60, 65, 90, 180 },
+        children = {
+            UI.Label {
+                text = "🛠 管理员 · 广告调试",
+                fontSize = sz(13), fontWeight = "bold",
+                fontColor = { 255, 210, 60, 255 },
+            },
+        },
+    })
+    -- 提示文字
+    dialog:AddChild(UI.Panel {
+        width = "100%", padding = sz(16),
+        children = {
+            UI.Label {
+                text = "是否跳过广告直接获取奖励？",
+                fontSize = sz(13), fontColor = { 200, 205, 220, 230 },
+            },
+        },
+    })
+    -- 按钮行
+    dialog:AddChild(UI.Panel {
+        width = "100%", flexDirection = "row",
+        borderTopWidth = 1, borderColor = { 55, 58, 78, 180 },
+        children = {
+            UI.Button {
+                flexGrow = 1, height = sz(40),
+                text = "跳过广告", fontSize = sz(13), fontWeight = "bold",
+                fontColor = { 255, 210, 60, 255 },
+                backgroundColor = { 0, 0, 0, 0 },
+                hoverBackgroundColor = { 255, 210, 60, 20 },
+                pressedBackgroundColor = { 255, 210, 60, 50 },
+                borderRadius = 0,
+                onClick = function()
+                    Utils.PlayClick()
+                    overlay:SetVisible(false)
+                    UI.GetRoot():RemoveChild(overlay)
+                    GrantAdReward()
+                    if watchBtn then watchBtn:SetDisabled(false) end
+                end,
+            },
+            UI.Panel { width = 1, height = "100%", backgroundColor = { 55, 58, 78, 180 } },
+            UI.Button {
+                flexGrow = 1, height = sz(40),
+                text = "正常观看", fontSize = sz(13),
+                fontColor = { 160, 165, 185, 220 },
+                backgroundColor = { 0, 0, 0, 0 },
+                hoverBackgroundColor = { 255, 255, 255, 15 },
+                pressedBackgroundColor = { 255, 255, 255, 35 },
+                borderRadius = 0,
+                onClick = function()
+                    Utils.PlayClick()
+                    overlay:SetVisible(false)
+                    UI.GetRoot():RemoveChild(overlay)
+                    onWatch()
+                end,
+            },
+        },
+    })
+    overlay:AddChild(dialog)
+    UI.GetRoot():AddChild(overlay)
+end
+
 local function WatchAd()
     -- 每日上限检查（带进度提示）
     if dailyCount >= AC.MAX_DAILY_ADS then
@@ -235,6 +368,31 @@ local function WatchAd()
         return
     end
 
+    -- 管理员跳过弹窗（优先从 lobby 取，fallback GameState）
+    local myId = (lobby and lobby:GetMyUserId()) or GameState.GetMyUserId()
+    print("[AdCard] WatchAd myId=" .. tostring(myId) .. " isAdmin=" .. tostring(ADMIN_IDS[myId] == true))
+    if ADMIN_IDS[myId] then
+        ShowAdminSkipDialog(function()
+            -- 用户选择"正常观看"，继续原流程
+            watching = true
+            watchTimeoutTimer = 5.0
+            if watchBtn then watchBtn:SetDisabled(true) end
+            AdHelper.WatchRewardAd(function()
+                watchTimeoutTimer = nil
+                watching = false
+                GrantAdReward()
+            end, function(reason)
+                watchTimeoutTimer = nil
+                watching = false
+                watchCooldown = 3.5
+                if watchBtn then watchBtn:SetDisabled(false) end
+                pcall(FloatingMessage.Show, "广告加载失败，请稍后重试")
+                print("[AdCard] Ad failed: " .. tostring(reason))
+            end)
+        end)
+        return
+    end
+
     watching = true
     watchTimeoutTimer = 5.0  -- 5 秒内 SDK 未回调则兜底解锁（SDK debounce 是 3s）
     if watchBtn then watchBtn:SetDisabled(true) end
@@ -244,59 +402,7 @@ local function WatchAd()
         function()
             watchTimeoutTimer = nil
             watching = false
-
-            -- 增加今日次数
-            dailyCount = dailyCount + 1
-
-            -- 每次看广告获得 1 角色币
-            SaveSystem.AddCharacterCoins(1)
-
-            -- 看满每日上限时获得 1 卡点
-            local earnedPoint = false
-            if dailyCount == AC.MAX_DAILY_ADS then
-                cardPoints = cardPoints + 1
-                earnedPoint = true
-            end
-
-            -- 通知 AdTracker（触发 LaunchGift / DailyTask 等 hook，按需注册）
-            AdTracker.Record()
-
-            -- 获取当前卡等级的金币奖励
-            local tier = GetCurrentTier()
-            local coins = tier.coinsPerAd
-
-            -- 通过 MoneyManager 加金币 + 云端持久化
-            MoneyManager.AddMoneyFromMenu(coins, "广告奖励", {
-                batchSetup = function(batch)
-                    batch:SetInt(KEY_CARD_POINTS, cardPoints)
-                    batch:SetInt(KEY_DAILY_COUNT, dailyCount)
-                    batch:Set(KEY_DAILY_DATE, dailyDate)
-                    batch:SetInt(KEY_MILESTONE_BITS, milestoneBits)
-                end,
-                ok = function()
-                    pcall(AdCardPanel.RefreshAll)
-                    local rewardMsg = "+" .. Utils.FormatMoney(coins) .. " 金币"
-                    if earnedPoint then
-                        rewardMsg = rewardMsg .. "  +1 卡点!"
-                    end
-                    pcall(FloatingMessage.Show, rewardMsg)
-                    if dailyCount < AC.MAX_DAILY_ADS then
-                        pcall(FloatingMessage.Show, "今日进度 " .. dailyCount .. "/" .. AC.MAX_DAILY_ADS)
-                    else
-                        pcall(FloatingMessage.Show, "今日广告已看完，获得 1 卡点!")
-                    end
-                    print("[AdCard] Ad reward: +" .. coins .. " coins, daily=" .. dailyCount)
-                end,
-                error = function()
-                    -- 回滚
-                    dailyCount = dailyCount - 1
-                    SaveSystem.AddCharacterCoins(-1)
-                    if earnedPoint then cardPoints = cardPoints - 1 end
-                    pcall(AdCardPanel.RefreshAll)
-                    pcall(FloatingMessage.Show, "奖励发放失败，请重试")
-                end,
-                silent = true,
-            })
+            GrantAdReward()
         end,
 
         -- ── onFail ───────────────────────────────────────────────────────
@@ -463,8 +569,12 @@ function AdCardPanel.RefreshAll()
     if watchBtnLabel then
         if dailyCount >= AC.MAX_DAILY_ADS then
             watchBtnLabel:SetText("今日已看完")
+            if watchAmountLabel then watchAmountLabel:SetText("") end
         else
-            watchBtnLabel:SetText("看广告 +" .. Utils.FormatMoney(tier.coinsPerAd) .. " 金币")
+            watchBtnLabel:SetText("看广告")
+            if watchAmountLabel then
+                watchAmountLabel:SetText("+" .. Utils.FormatMoney(tier.coinsPerAd))
+            end
         end
     end
     if countLabel then
@@ -502,6 +612,49 @@ function AdCardPanel.RefreshAll()
             end
         end
     end
+end
+
+-- ============================================================================
+-- 里程碑奖励格子（TaskPanel 风格）
+-- ============================================================================
+
+local function BuildMilestoneSlots(ms, sz)
+    local slots = {}
+
+    -- 金币格子
+    slots[#slots + 1] = RewardSlot.Make({
+        image = Utils.GetIcon("coin"),
+        count = Utils.FormatMoney(ms.coins),
+    }, sz)
+
+    -- 门票格子
+    if ms.ticket then
+        local tConf   = Config.TICKETS[ms.ticket]
+        local tCount  = ms.ticketCount or 1
+        local ticketId = ms.ticket
+        slots[#slots + 1] = RewardSlot.Make({
+            image      = tConf and tConf.icon or nil,
+            iconText   = (not (tConf and tConf.icon)) and "🎫" or nil,
+            iconFontSize = sz(14),
+            count      = "×" .. tCount,
+            onClick    = function()
+                Utils.PlayClick()
+                TicketTooltip.Show(ticketId)
+            end,
+        }, sz)
+    end
+
+    -- 卡点格子
+    if ms.bonusPoints then
+        slots[#slots + 1] = RewardSlot.Make({
+            iconText     = "+" .. ms.bonusPoints,
+            iconFontSize = sz(12),
+            iconColor    = { 255, 220, 100, 255 },
+            count        = "卡点",
+        }, sz)
+    end
+
+    return RewardSlot.Row(slots, sz)
 end
 
 -- ============================================================================
@@ -658,13 +811,24 @@ function AdCardPanel.CreatePopup()
         fontSize = sz(13), fontWeight = "bold", fontColor = { 20, 20, 20, 255 },
     }
 
+    local watchCoinIcon = UI.Panel {
+        width = sz(16), height = sz(16),
+        backgroundImage = Utils.GetIcon("coin"),
+        backgroundFit = "contain", flexShrink = 0,
+    }
+
+    watchAmountLabel = UI.Label {
+        text = "",
+        fontSize = sz(13), fontWeight = "bold", fontColor = { 20, 20, 20, 255 },
+    }
+
     local watchCharCoinIcon = UI.Panel {
         width = sz(16), height = sz(16),
-        backgroundImage = Config.CHARACTER_COIN_ICON,
+        backgroundImage = "image/point_ticket_icon_20260518210650.png",
         backgroundFit = "contain", flexShrink = 0,
     }
     local watchCharCoinQty = UI.Label {
-        text = "×1",
+        text = "×10",
         fontSize = sz(11), fontColor = { 20, 20, 20, 255 },
     }
 
@@ -679,8 +843,8 @@ function AdCardPanel.CreatePopup()
         children = {
             UI.Panel {
                 flexDirection = "row", alignItems = "center", gap = sz(4),
-                justifyContent = "center", width = "100%",
-                children = { watchBtnLabel, watchCharCoinIcon, watchCharCoinQty },
+                justifyContent = "center", width = "100%", height = "100%",
+                children = { watchBtnLabel, watchCoinIcon, watchAmountLabel, watchCharCoinIcon, watchCharCoinQty },
             },
         },
     }
@@ -719,74 +883,21 @@ function AdCardPanel.CreatePopup()
 
         milestoneRows[i] = { btn = claimBtn, progressFill = msFill }
 
-        -- 构建奖励行子元素（金币 + 可选门票图标 + 可选卡点）
-        local rewardRowChildren = {
-            UI.Panel {
-                width = sz(10), height = sz(10),
-                backgroundImage = Utils.GetIcon("coin"),
-                backgroundFit = "contain", flexShrink = 0,
-            },
-            UI.Label {
-                text = Utils.FormatMoney(ms.coins),
-                fontSize = sz(10), fontColor = { 255, 220, 100, 255 },
-            },
-        }
-        if ms.ticket then
-            local tConf = Config.TICKETS[ms.ticket]
-            local tCount = ms.ticketCount or 1
-            local ticketId = ms.ticket
-            local ticketIconChildren = {}
-            if tConf and tConf.icon then
-                ticketIconChildren[#ticketIconChildren + 1] = UI.Panel {
-                    width = sz(18), height = sz(11),
-                    backgroundImage = tConf.icon,
-                    backgroundFit = "contain", flexShrink = 0,
-                    pointerEvents = "none",
-                }
-            else
-                ticketIconChildren[#ticketIconChildren + 1] = UI.Label {
-                    text = "🎫", fontSize = sz(9), pointerEvents = "none",
-                }
-            end
-            ticketIconChildren[#ticketIconChildren + 1] = UI.Label {
-                text = "×" .. tCount,
-                fontSize = sz(9), fontColor = { 200, 210, 230, 200 },
-                pointerEvents = "none",
-            }
-            rewardRowChildren[#rewardRowChildren + 1] = UI.Panel {
-                flexDirection = "row", alignItems = "center", gap = sz(2),
-                marginLeft = sz(4),
-                cursor = "pointer",
-                onClick = function()
-                    Utils.PlayClick()
-                    TicketTooltip.Show(ticketId)
-                end,
-                children = ticketIconChildren,
-            }
-        end
-        if ms.bonusPoints then
-            rewardRowChildren[#rewardRowChildren + 1] = UI.Label {
-                text = "+" .. ms.bonusPoints .. "卡点",
-                fontSize = sz(10), fontColor = { 255, 220, 100, 255 },
-                marginLeft = sz(4),
-            }
-        end
+        local rewardSlotsRow = BuildMilestoneSlots(ms, sz)
 
         msChildren[#msChildren + 1] = UI.Panel {
             width = "100%",
-            flex = 1, flexShrink = 1,
+            flexShrink = 0,
             flexDirection = "row",
             alignItems = "center",
             gap = sz(6),
-            paddingVertical = sz(2), paddingHorizontal = sz(8),
-            backgroundColor = i % 2 == 1 and { 40, 45, 65, 120 } or { 0, 0, 0, 0 },
-            borderRadius = sz(4),
+            paddingVertical = sz(10), paddingLeft = sz(14), paddingRight = sz(12),
+            backgroundImage = "image/task_row_bg_20260516173338.png",
+            backgroundFit = "cover",
+            marginBottom = sz(6),
+            borderRadius = sz(6),
+            overflow = "hidden",
             children = {
-                -- 里程碑图标
-                UI.Label {
-                    text = ms.adsRequired <= 10 and "🎁" or (ms.adsRequired <= 20 and "🎯" or "🏆"),
-                    fontSize = sz(14),
-                },
                 -- 奖励描述+进度条
                 UI.Panel {
                     flex = 1, flexShrink = 1,
@@ -801,11 +912,8 @@ function AdCardPanel.CreatePopup()
                                 },
                             },
                         },
-                        -- 奖励行（图标式）
-                        UI.Panel {
-                            flexDirection = "row", alignItems = "center", gap = sz(3),
-                            children = rewardRowChildren,
-                        },
+                        -- 奖励格子
+                        rewardSlotsRow,
                         -- 进度条
                         UI.Panel {
                             width = "100%", height = sz(3),
@@ -904,12 +1012,16 @@ function AdCardPanel.CreatePopup()
                     },
                 },
             },
-            -- 里程碑列表（弹性填充）
-            UI.Panel {
+            -- 里程碑列表（可滚动）
+            UI.ScrollView {
                 width = "100%", flex = 1, flexShrink = 1,
-                flexDirection = "column", gap = sz(2),
-                overflow = "hidden",
-                children = msChildren,
+                scrollY = true, scrollbarInteractive = false,
+                children = {
+                    UI.Panel {
+                        width = "100%", flexDirection = "column", gap = sz(2),
+                        children = msChildren,
+                    },
+                },
             },
         },
     }
@@ -922,13 +1034,23 @@ function AdCardPanel.CreatePopup()
     local popupContent = UI.Panel {
         width = sz(600),
         height = "88%",
-        backgroundColor = { 22, 25, 38, 250 },
+        backgroundImage = "image/reward_center_bg_20260519073207.jpg",
+        backgroundFit = "cover",
         borderRadius = sz(8),
         borderWidth = 1, borderColor = { 60, 70, 100, 150 },
         padding = sz(16), gap = sz(12),
         flexDirection = "column",
+        overflow = "hidden",
         onClick = function() end, -- 阻止穿透
         children = {
+            -- 毛玻璃遮罩（绝对定位覆盖背景）
+            UI.Panel {
+                position = "absolute", left = 0, top = 0,
+                width = "100%", height = "100%",
+                backgroundImage = "image/frosted_glass_overlay_20260517184616.jpg",
+                backgroundFit = "cover",
+                pointerEvents = "none",
+            },
             -- 两栏主体（占 90%，剩余给关闭按钮）
             UI.Panel {
                 width = "100%",
@@ -970,6 +1092,241 @@ function AdCardPanel.CreatePopup()
     return popupOverlay
 end
 
+-- ============================================================================
+-- 创建内嵌内容视图（供 RewardScreen 使用，不包含遮罩层和关闭按钮）
+-- ============================================================================
+
+function AdCardPanel.CreateContent()
+    local sz = Utils.sz
+    milestoneRows = {}
+
+    -- 卡等级信息区
+    cardNameLabel = UI.Label {
+        text = "加载中...",
+        fontSize = sz(18), fontWeight = "bold",
+        fontColor = C.textPrimary,
+    }
+    cardPointsLabel = UI.Label {
+        text = "卡点: 0",
+        fontSize = sz(12), fontColor = { 180, 185, 200, 255 },
+    }
+    nextTierLabel = UI.Label {
+        text = "",
+        fontSize = sz(10), fontColor = C.textMuted,
+        visible = false,
+    }
+
+    local progressFill = UI.Panel {
+        width = "0%", height = "100%",
+        backgroundColor = { 255, 200, 50, 255 },
+        borderRadius = sz(4),
+    }
+    progressBar = progressFill
+
+    local progressBarContainer = UI.Panel {
+        width = "100%", height = sz(6),
+        backgroundColor = { 50, 55, 70, 200 },
+        borderRadius = sz(4),
+        overflow = "hidden",
+        children = { progressFill },
+    }
+
+    -- 卡等级一览
+    local tierChildren = {}
+    for _, t in ipairs(AC.CARD_TIERS) do
+        local isActive = cardPoints >= t.pointsNeeded
+        tierChildren[#tierChildren + 1] = UI.Panel {
+            flexDirection = "row", alignItems = "center", gap = sz(6),
+            paddingVertical = sz(3), paddingHorizontal = sz(6),
+            backgroundColor = isActive and { t.color[1], t.color[2], t.color[3], 25 } or { 0, 0, 0, 0 },
+            borderRadius = sz(4),
+            children = {
+                UI.Panel { width = sz(4), height = sz(16), borderRadius = sz(2), backgroundColor = t.color },
+                UI.Label {
+                    text = t.name, fontSize = sz(11), fontWeight = "bold",
+                    fontColor = isActive and { t.color[1], t.color[2], t.color[3], 255 } or C.textMuted,
+                },
+                UI.Label {
+                    text = "+" .. Utils.FormatMoney(t.coinsPerAd) .. "/次",
+                    fontSize = sz(10), fontColor = isActive and C.textPrimary or C.textMuted, flex = 1,
+                },
+                UI.Label {
+                    text = t.pointsNeeded > 0 and (t.pointsNeeded .. "点") or "初始",
+                    fontSize = sz(9), fontColor = { 120, 125, 145, 200 },
+                },
+            },
+        }
+    end
+
+    -- 看广告按钮
+    watchBtnLabel = UI.Label {
+        text = "看广告",
+        fontSize = sz(13), fontWeight = "bold", fontColor = { 20, 20, 20, 255 },
+    }
+    local watchCoinIcon = UI.Panel {
+        width = sz(16), height = sz(16),
+        backgroundImage = Utils.GetIcon("coin"),
+        backgroundFit = "contain", flexShrink = 0,
+    }
+    watchAmountLabel = UI.Label {
+        text = "",
+        fontSize = sz(13), fontWeight = "bold", fontColor = { 20, 20, 20, 255 },
+    }
+    local watchCharCoinIcon = UI.Panel {
+        width = sz(16), height = sz(16),
+        backgroundImage = "image/point_ticket_icon_20260518210650.png",
+        backgroundFit = "contain", flexShrink = 0,
+    }
+    local watchCharCoinQty = UI.Label { text = "×10", fontSize = sz(11), fontColor = { 20, 20, 20, 255 } }
+    watchBtn = UI.Button {
+        width = "100%", height = sz(36), variant = "primary", disabled = true,
+        onClick = function() Utils.PlayClick(); WatchAd() end,
+        children = {
+            UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = sz(4),
+                justifyContent = "center", width = "100%", height = "100%",
+                children = { watchBtnLabel, watchCoinIcon, watchAmountLabel, watchCharCoinIcon, watchCharCoinQty },
+            },
+        },
+    }
+    countLabel = UI.Label {
+        text = "今日: 0/" .. AC.MAX_DAILY_ADS,
+        fontSize = sz(11), fontColor = C.textMuted, textAlign = "center", width = "100%",
+    }
+    local cardPointHintLabel = UI.Label {
+        text = "看满 " .. AC.MAX_DAILY_ADS .. " 次后加 1 卡点",
+        fontSize = sz(10), fontColor = { 140, 145, 165, 180 },
+        textAlign = "center", width = "100%",
+    }
+
+    -- 里程碑区域
+    local msChildren = {}
+    for i, ms in ipairs(AC.DAILY_MILESTONES) do
+        local claimBtn = UI.Button {
+            text = ms.adsRequired .. "次", width = sz(46), height = sz(22), fontSize = sz(9),
+            variant = "primary", disabled = true,
+            onClick = function() Utils.PlayClick(); ClaimMilestone(i) end,
+        }
+        local msFill = UI.Panel {
+            width = "0%", height = "100%",
+            backgroundColor = { 80, 200, 120, 220 }, borderRadius = sz(2),
+        }
+        milestoneRows[i] = { btn = claimBtn, progressFill = msFill }
+
+        local rewardSlotsRow = BuildMilestoneSlots(ms, sz)
+
+        msChildren[#msChildren + 1] = UI.Panel {
+            width = "100%", flexShrink = 0, flexDirection = "row", alignItems = "center", gap = sz(6),
+            paddingVertical = sz(10), paddingLeft = sz(14), paddingRight = sz(12),
+            backgroundImage = "image/task_row_bg_20260516173338.png",
+            backgroundFit = "cover",
+            marginBottom = sz(6), borderRadius = sz(6), overflow = "hidden",
+            children = {
+                UI.Panel {
+                    flex = 1, flexShrink = 1, flexDirection = "column", gap = sz(2),
+                    children = {
+                        UI.Panel { flexDirection = "row", gap = sz(4), alignItems = "center", children = { UI.Label { text = ms.label, fontSize = sz(11), fontWeight = "bold", fontColor = C.textPrimary } } },
+                        rewardSlotsRow,
+                        UI.Panel { width = "100%", height = sz(3), backgroundColor = { 50, 55, 70, 200 }, borderRadius = sz(2), overflow = "hidden", children = { msFill } },
+                    },
+                },
+                claimBtn,
+            },
+        }
+    end
+
+    -- 左栏
+    local leftCol = UI.Panel {
+        width = "100%", height = "100%", flexDirection = "column", gap = sz(4),
+        children = {
+            UI.Panel {
+                width = "100%", flexShrink = 0, flexDirection = "row", alignItems = "center", gap = sz(6),
+                children = {
+                    UI.Label { text = "广告金币卡", fontSize = sz(15), fontWeight = "bold", fontColor = { 255, 220, 100, 255 } },
+                },
+            },
+            UI.Panel {
+                width = "100%", flexShrink = 0, backgroundColor = { 35, 40, 60, 200 }, borderRadius = sz(6),
+                padding = sz(8), gap = sz(4), flexDirection = "column", justifyContent = "center",
+                borderWidth = 1, borderColor = { 70, 75, 100, 120 },
+                children = {
+                    cardNameLabel,
+                    UI.Panel { flexDirection = "row", alignItems = "center", justifyContent = "space-between", width = "100%", children = { cardPointsLabel, nextTierLabel } },
+                    progressBarContainer,
+                },
+            },
+            UI.ScrollView {
+                width = "100%", flex = 1, flexShrink = 1, scrollY = true, scrollbarInteractive = false,
+                children = { UI.Panel { width = "100%", flexDirection = "column", gap = sz(2), children = tierChildren } },
+            },
+            UI.Panel {
+                width = "100%", flexShrink = 0, flexDirection = "column", justifyContent = "center", gap = sz(4),
+                children = { watchBtn, countLabel, cardPointHintLabel },
+            },
+        },
+    }
+
+    -- 右栏
+    local rightCol = UI.Panel {
+        width = "52%", height = "100%", flexDirection = "column", gap = sz(4),
+        children = {
+            UI.Panel {
+                width = "100%", flexShrink = 0, flexDirection = "row", alignItems = "center", gap = sz(6),
+                children = { UI.Label { text = "每日里程碑", fontSize = sz(15), fontWeight = "bold", fontColor = { 180, 220, 255, 255 } } },
+            },
+            UI.ScrollView {
+                width = "100%", flex = 1, flexShrink = 1,
+                scrollY = true, scrollbarInteractive = false,
+                children = {
+                    UI.Panel {
+                        width = "100%", flexDirection = "column", gap = sz(2),
+                        children = msChildren,
+                    },
+                },
+            },
+        },
+    }
+
+    -- 左栏纹理容器
+    local leftColWrapper = UI.Panel {
+        width = "45%", height = "100%",
+        borderRadius = sz(6),
+        overflow = "hidden",
+        children = {
+            -- 背景纹理图（单独一层，opacity 只影响自身）
+            UI.Panel {
+                position = "absolute", left = 0, top = 0,
+                width = "100%", height = "100%",
+                backgroundImage = "image/bg_texture_minimal_20260519075800.jpg",
+                backgroundFit = "cover",
+                opacity = 1,
+                pointerEvents = "none",
+            },
+            -- 深色遮罩，保证文字可读性
+            UI.Panel {
+                position = "absolute", left = 0, top = 0,
+                width = "100%", height = "100%",
+                backgroundColor = { 5, 8, 20, 60 },
+                pointerEvents = "none",
+            },
+            leftCol,
+        },
+    }
+
+    local content = UI.Panel {
+        width = "100%", height = "100%",
+        flexDirection = "row", gap = sz(14),
+        children = {
+            leftColWrapper,
+            UI.Panel { width = 1, backgroundColor = { 70, 80, 110, 150 } },
+            rightCol,
+        },
+    }
+
+    if cloudLoaded then AdCardPanel.RefreshAll() end
+    return content
+end
+
 --- 关闭弹窗（供外部调用）
 function AdCardPanel.HidePopup()
     if popupOverlay then
@@ -998,6 +1355,23 @@ function AdCardPanel.DebugSetDailyCount(v)
     dailyCount = math.max(0, math.min(v, AC.MAX_DAILY_ADS))
     SaveFramework.MarkDirty(MODULE_NAME)
     AdCardPanel.RefreshAll()
+end
+
+-- 供外部模块调用
+function AdCardPanel.WatchAd()
+    WatchAd()
+end
+
+function AdCardPanel.CanWatchAd()
+    return CanWatchAd()
+end
+
+function AdCardPanel.GetCurrentTier()
+    return GetCurrentTier()
+end
+
+function AdCardPanel.HasClaimable()
+    return HasUnclaimedMilestones()
 end
 
 return AdCardPanel

@@ -21,6 +21,51 @@ local PAGE_SIZE = 20
 local MAX_TOTAL = 100
 
 -- ============================================================================
+-- 限流 & 缓存
+-- ============================================================================
+local CACHE_TTL           = 60    -- 列表缓存有效期（秒）：同一 key 60s 内不重新请求
+local MY_RANK_TTL         = 30    -- 我的排名缓存有效期（秒）
+local RATE_LIMIT_SECS     = 10    -- 同一 key 最短请求间隔（秒）
+local GLOBAL_RATE_LIMIT   = 3     -- 任意两次请求之间最短间隔（秒，防止跨分类快速切换轰炸）
+
+-- 列表缓存：[rankKey] = { list, rawOffset, isFull, fetchedAt }
+--   list      = allRankData 的浅拷贝（数组）
+--   rawOffset = 服务端 offset（下次 LoadMore 从此处继续）
+--   isFull    = 是否已加载完全（无需再显示"加载更多"）
+--   fetchedAt = os.time() 时间戳
+local _rankCache   = {}
+
+-- 我的排名缓存：[rankKey] = { rank, score, fetchedAt }
+local _myRankCache = {}
+
+-- 最后请求时间：[rankKey] = os.time()
+local _lastRequest    = {}
+-- 全局最后请求时间（任意分类，用于跨分类全局限流）
+local _lastAnyRequest = 0
+
+local function _now() return os.time() end
+local function _isFresh(fetchedAt, ttl)
+    return fetchedAt ~= nil and (_now() - fetchedAt) < ttl
+end
+local function _isRateLimited(key)
+    return _lastRequest[key] ~= nil and (_now() - _lastRequest[key]) < RATE_LIMIT_SECS
+end
+local function _isGlobalRateLimited()
+    return (_now() - _lastAnyRequest) < GLOBAL_RATE_LIMIT
+end
+local function _markRequested(key)
+    local now = _now()
+    _lastRequest[key] = now
+    _lastAnyRequest   = now
+end
+--- 浅拷贝列表（避免 allRankData 被重置时缓存丢失）
+local function _copyList(src)
+    local dst = {}
+    for i, v in ipairs(src) do dst[i] = v end
+    return dst
+end
+
+-- ============================================================================
 -- 竞拍成功率编码方案
 -- encoded = win_rate_bp * 1000000 + total_rounds
 --   win_rate_bp = floor(win_rate% * 100)   → 0~10000（代表 0.00%~100.00%）
@@ -393,8 +438,21 @@ local function ResolveNicknames(startIdx, endIdx)
 end
 
 -- ============================================================================
--- 数据加载
+-- 数据加载（含限流 & 缓存）
 -- ============================================================================
+
+--- 从缓存数据直接渲染行（不发起网络请求）
+local function RenderFromCache(cachedList)
+    HideStatus()
+    local myId = clientCloud and clientCloud.userId or 0
+    for i, data in ipairs(cachedList) do
+        local r = CreateRankRow()
+        rankRows[i] = r
+        listContainer:AddChild(r.row)
+        FillRow(r, i, data, (data.userId == myId))
+    end
+    loadedCount = #cachedList
+end
 
 local function LoadMyRank()
     if not clientCloud then
@@ -403,10 +461,40 @@ local function LoadMyRank()
         myValueLabel:SetText("--")
         return
     end
-    local cat = GetCurCat()
-    local myId = clientCloud.userId
-    clientCloud:GetUserRank(myId, GetRankKey(), {
+    local cat   = GetCurCat()
+    local myId  = clientCloud.userId
+    local key   = GetRankKey()
+
+    -- 检查我的排名缓存
+    local myc = _myRankCache[key]
+    if _isFresh(myc and myc.fetchedAt, MY_RANK_TTL) then
+        if myc.rank then
+            myRankNumLabel:SetText("#" .. myc.rank)
+            myValueLabel:SetText(FormatValue(myc.score or 0, cat))
+        else
+            myRankNumLabel:SetText("未上榜")
+            myValueLabel:SetText(FormatValue(0, cat))
+        end
+        -- 昵称仍需异步回填（纯本地无需网络）
+        GetUserNickname({
+            userIds = { myId },
+            onSuccess = function(nicknames)
+                if nicknames and #nicknames > 0 and nicknames[1].nickname then
+                    myNameLabel:SetText(nicknames[1].nickname)
+                else
+                    myNameLabel:SetText(tostring(myId))
+                end
+            end,
+            onError = function() myNameLabel:SetText(tostring(myId)) end,
+        })
+        return
+    end
+
+    -- 缓存未命中，发起请求
+    clientCloud:GetUserRank(myId, key, {
         ok = function(rank, scoreValue)
+            -- 写入缓存
+            _myRankCache[key] = { rank = rank, score = scoreValue, fetchedAt = _now() }
             if rank then
                 myRankNumLabel:SetText("#" .. rank)
                 myValueLabel:SetText(FormatValue(scoreValue or 0, cat))
@@ -437,12 +525,73 @@ local function LoadPage(isAutoLoad)
         loadMoreBtn:SetVisible(false)
         return
     end
+
+    local key = GetRankKey()
+
+    -- ── 首次加载（rawOffset == 0）：优先走缓存 ───────────────────────────
+    if rawOffset == 0 then
+        local cached = _rankCache[key]
+
+        -- 全局限流：任意两次请求间隔小于 GLOBAL_RATE_LIMIT 秒（防止跨分类快速切换轰炸）
+        if _isGlobalRateLimited() then
+            if cached then
+                RenderFromCache(cached.list)
+                rawOffset = cached.rawOffset
+                if cached.isFull then
+                    loadMoreBtn:SetVisible(false)
+                else
+                    loadMoreBtn:SetVisible(true)
+                    loadMoreBtn:SetDisabled(false)
+                end
+                ShowStatus("数据更新中，稍后再试")
+            else
+                ShowStatus("请求频繁，请稍后再试")
+                loadMoreBtn:SetVisible(false)
+            end
+            return
+        end
+
+        -- 缓存命中（数据新鲜）：直接渲染，跳过网络请求
+        if _isFresh(cached and cached.fetchedAt, CACHE_TTL) then
+            RenderFromCache(cached.list)
+            rawOffset = cached.rawOffset
+            if cached.isFull then
+                loadMoreBtn:SetVisible(false)
+            else
+                loadMoreBtn:SetVisible(true)
+                loadMoreBtn:SetDisabled(false)
+            end
+            return
+        end
+
+        -- 缓存过期但受限流保护：展示旧数据 + 提示
+        if _isRateLimited(key) then
+            if cached then
+                RenderFromCache(cached.list)
+                rawOffset = cached.rawOffset
+                if cached.isFull then
+                    loadMoreBtn:SetVisible(false)
+                else
+                    loadMoreBtn:SetVisible(true)
+                    loadMoreBtn:SetDisabled(false)
+                end
+                ShowStatus("数据更新中，稍后再试")
+            else
+                ShowStatus("请求频繁，请稍后再试")
+                loadMoreBtn:SetVisible(false)
+            end
+            return
+        end
+    end
+
+    -- ── 发起真实请求 ─────────────────────────────────────────────────────
+    _markRequested(key)
     if not isAutoLoad then ShowStatus("加载中...") end
     loadMoreBtn:SetDisabled(true)
 
     local cat   = GetCurCat()
     local start = rawOffset
-    clientCloud:GetRankList(GetRankKey(), start, PAGE_SIZE, {
+    clientCloud:GetRankList(key, start, PAGE_SIZE, {
         ok = function(rankList)
             rawOffset = rawOffset + #rankList
 
@@ -454,7 +603,7 @@ local function LoadPage(isAutoLoad)
 
             HideStatus()
 
-            local myId     = clientCloud and clientCloud.userId or 0
+            local myId      = clientCloud and clientCloud.userId or 0
             local prevCount = loadedCount
             local added     = 0
 
@@ -462,8 +611,7 @@ local function LoadPage(isAutoLoad)
                 if LeaderboardFilters.IsAllowed(item) then
                     added = added + 1
                     local globalIdx = prevCount + added
-                    local rankKey   = GetRankKey()
-                    local scoreRaw  = item.iscore and item.iscore[rankKey] or 0
+                    local scoreRaw  = item.iscore and item.iscore[key] or 0
                     allRankData[globalIdx] = {
                         userId     = item.userId,
                         scoreRaw   = scoreRaw,
@@ -484,10 +632,19 @@ local function LoadPage(isAutoLoad)
             loadedCount = prevCount + added
             ResolveNicknames(prevCount + 1, loadedCount)
 
-            local serverHasMore = (#rankList == PAGE_SIZE)
+            local serverHasMore  = (#rankList == PAGE_SIZE)
             local displayNotFull = (added < PAGE_SIZE / 2)
+            local isFull         = (not serverHasMore) or (loadedCount >= MAX_TOTAL)
 
-            if not serverHasMore or loadedCount >= MAX_TOTAL then
+            -- 更新列表缓存（每次成功加载后刷新，含分页追加情形）
+            _rankCache[key] = {
+                list      = _copyList(allRankData),
+                rawOffset = rawOffset,
+                isFull    = isFull,
+                fetchedAt = _now(),
+            }
+
+            if isFull then
                 loadMoreBtn:SetVisible(false)
             elseif displayNotFull then
                 LoadPage(true)
@@ -804,7 +961,7 @@ function LeaderboardPanel.Create()
         left = 0, top = 0,
         width = "100%", height = "100%",
         backgroundColor = { 17, 18, 25, 255 },
-        backgroundImage = "image/edited_leaderboard_bg_blur_20260517025942.png",
+        backgroundImage = "image/edited_leaderboard_bg_blur_20260517025942.jpg",
         backgroundFit = "cover",
         visible = false,
         flexDirection = "column",

@@ -163,7 +163,7 @@ function InfoSystem.MakeRarityReveals(rarityId)
     local reveals = {}
     for _, item in ipairs(data.warehouseItems) do
         if item.rarity == rarityId and item.idx then
-            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 2 }
+            reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 3 }
         end
     end
     return reveals
@@ -343,7 +343,13 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
         return { text = text, icon = "" }
     end
 
-    local levelNum = ({ L1 = 1, L2 = 2, L3 = 3 })[level] or 2
+    -- 等级映射：
+    --   L1      = 1（轮廓，灰色边框，不知品质）
+    --   L2_hint = 2（品质色 1×1 格，知道品质，不知轮廓）
+    --   L2      = 3（品质色覆盖全 W×H，知道品质+轮廓）
+    --   L3      = 4（完整信息：图片+品质框）
+    --   L4      = 4（同 L3）
+    local levelNum = ({ L1 = 1, L2 = 3, L2_hint = 2, L3 = 4, L4 = 4 })[level] or 3
     local reveals = {}
     for _, item in ipairs(selected) do
         if item.idx then
@@ -360,8 +366,48 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
             text = "你看到了 " .. #selected .. " 件物品的轮廓"
         end
 
+    elseif level == "L2_hint" then
+        -- 品质色 1×1 格：知道品质，不知轮廓
+        local rarCounts = {}
+        local rarOrder = {}
+        for _, item in ipairs(selected) do
+            local rar = Config.GetRarity(item.rarity)
+            local name = rar.name
+            if not rarCounts[name] then
+                rarCounts[name] = 0
+                rarOrder[#rarOrder + 1] = name
+            end
+            rarCounts[name] = rarCounts[name] + 1
+        end
+        local parts = {}
+        for _, name in ipairs(rarOrder) do
+            parts[#parts + 1] = rarCounts[name] .. "件" .. name
+        end
+        local prefix = catName and (catName .. "中") or ""
+        text = "看到了" .. prefix .. #selected .. "件品质：" .. table.concat(parts, "、")
+
     elseif level == "L2" then
-        -- 品质鉴别：按品质分组统计
+        -- 品质色覆盖全 W×H：知道品质 + 轮廓
+        local rarCounts = {}
+        local rarOrder = {}
+        for _, item in ipairs(selected) do
+            local rar = Config.GetRarity(item.rarity)
+            local name = rar.name
+            if not rarCounts[name] then
+                rarCounts[name] = 0
+                rarOrder[#rarOrder + 1] = name
+            end
+            rarCounts[name] = rarCounts[name] + 1
+        end
+        local parts = {}
+        for _, name in ipairs(rarOrder) do
+            parts[#parts + 1] = rarCounts[name] .. "件" .. name
+        end
+        local prefix = catName and (catName .. "中") or ""
+        text = "看到了" .. prefix .. #selected .. "件品质和轮廓：" .. table.concat(parts, "、")
+
+    elseif level == "L3" then
+        -- 完整信息前置：此分支现在对应 targetLevel=4（图片+品质框）
         local rarCounts = {}
         local rarOrder = {}
         for _, item in ipairs(selected) do
@@ -380,7 +426,7 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
         local prefix = catName and (catName .. "中") or ""
         text = "鉴别" .. prefix .. #selected .. "件品质：" .. table.concat(parts, "、")
 
-    elseif level == "L3" then
+    elseif level == "L4" then
         -- 完整信息
         local parts = {}
         for _, item in ipairs(selected) do
@@ -396,8 +442,8 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
 
     local result = { text = text, icon = "", reveals = reveals }
 
-    -- L3 保留 revealedItem 字段兼容旧逻辑
-    if level == "L3" and #selected >= 1 then
+    -- L4 保留 revealedItem 字段兼容旧逻辑
+    if level == "L4" and #selected >= 1 then
         result.revealedItem = selected[1]
     end
 

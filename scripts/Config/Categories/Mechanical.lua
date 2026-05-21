@@ -132,6 +132,8 @@ Mechanical.items = {
     { name = "旧工控机柜",     rows = 3, cols = 4, quality = "white", value = 1600, weight = 2, desc = "拆光了内件的旧工控系统机柜", image = IMG .. "机械/旧工控机柜.png" },
     { name = "液压集成组件",   rows = 3, cols = 4, quality = "green", value = 6500, weight = 1, desc = "液压控制阀台，管路有渗漏", image = IMG .. "机械/液压集成组件.png" },
 
+    -- ===== 限定红（exclusive = true，礼盒极稀有池专用）=====
+    { name = "百达翡丽Cal.89怀表", rows = 2, cols = 2, quality = "red", value = 35000000, weight = 1, exclusive = true, desc = "百达翡丽Cal.89怀表，含33项复杂功能，全球制作5枚，2009年苏富比成交价约5000万港元", image = IMG .. "机械/百达翡丽Cal89怀表.png", tags = {"horology"} },
 }
 
 return Mechanical

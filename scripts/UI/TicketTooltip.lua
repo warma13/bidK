@@ -6,10 +6,10 @@
 --   门票图标 onClick = function() TicketTooltip.Show(ticketId) end
 -- ============================================================================
 
-local UI              = require("urhox-libs/UI")
-local ItemDetailPanel = require("UI.ItemDetailPanel")
-local Config          = require("Config")
-local Utils           = require("UI.Utils")
+local UI                = require("urhox-libs/UI")
+local ItemDetailPanel   = require("UI.ItemDetailPanel")
+local RewardItemAdapter = require("UI.RewardItemAdapter")
+local SaveSystem        = require("SaveSystem")
 
 local TicketTooltip = {}
 
@@ -19,19 +19,6 @@ local detail   = nil
 local backdrop = nil
 ---@type table 顶层容器
 local container = nil
-
--- ============================================================================
--- 查找 ticket 对应区域名
--- ============================================================================
-
-local function GetRegionForTicket(ticketId)
-    for _, region in ipairs(Config.REGIONS) do
-        if region.ticket == ticketId then
-            return region.name
-        end
-    end
-    return nil
-end
 
 -- ============================================================================
 -- 创建 overlay（在 MenuScreen 中调用一次，返回 UI 节点插入 children）
@@ -77,23 +64,12 @@ end
 
 function TicketTooltip.Show(ticketId)
     if not detail or not container then return end
-    local tConf = Config.TICKETS[ticketId]
-    if not tConf then return end
-
-    local regionName = GetRegionForTicket(ticketId) or "—"
 
     -- 先显示容器，再 Show 内容（确保可见后渲染）
     container:SetVisible(true)
 
-    detail:Show({
-        name     = tConf.name or ticketId,
-        rarity   = "blue",
-        subtitle = "仓库指定券",
-        image    = tConf.icon or "",
-        desc     = "解锁区域：" .. regionName .. "\n\n持有此券可指定进入该区域竞拍仓库，无需满足资产门槛，不消耗普通拍卖次数。",
-        w        = 3,
-        h        = 2,
-    })
+    local held = SaveSystem.GetTicketCount(ticketId)
+    detail:Show(RewardItemAdapter.TicketItem(ticketId, held))
 end
 
 function TicketTooltip.Hide()

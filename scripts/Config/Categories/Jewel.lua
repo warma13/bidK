@@ -125,6 +125,8 @@ Jewel.items = {
     { name = "百年灵限量飞行表", rows = 1, cols = 1, quality = "red",    value = 1800000, tags = {"horology"}, desc = "百年灵为某航空公司定制的限量款，编号001/001，附出厂档案", image = IMG .. "珠宝/百年灵限量飞行表.png" },
     { name = "百达翡丽孤品三问", rows = 1, cols = 1, quality = "red",    value = 8500000, tags = {"horology"}, desc = "百达翡丽特别定制款三问报时表，全球孤品，附拍卖记录",     image = IMG .. "珠宝/百达翡丽孤品三问.png" },
 
+    -- ===== 限定红（exclusive = true，礼盒极稀有池专用）=====
+    { name = "霍普蓝钻",         rows = 1, cols = 1, quality = "red", value = 80000000, weight = 1, exclusive = true, desc = "45.52克拉天然艳彩蓝钻，同级裸石参考拍卖成交价",        image = IMG .. "珠宝/霍普蓝钻.png" },
 }
 
 return Jewel

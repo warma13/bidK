@@ -742,7 +742,7 @@ local function ShowMatchDetail(rec, onBack)
         children = {
             UI.Panel {
                 width = "100%", height = "100%",
-                backgroundImage = "image/task_bg_20260516170303.png",
+                backgroundImage = "image/task_bg_20260516170303.jpg",
                 backgroundFit = "cover",
                 flexDirection = "column",
                 children = {
@@ -1416,7 +1416,7 @@ function PersonalInfoScreen.Show(onBackCallback)
         children = {
             UI.Panel {
                 width = "100%", height = "100%",
-                backgroundImage = "image/task_bg_20260516170303.png",
+                backgroundImage = "image/task_bg_20260516170303.jpg",
                 backgroundFit = "cover",
                 flexDirection = "column",
                 children = {

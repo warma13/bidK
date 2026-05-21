@@ -44,7 +44,8 @@ local versionLabel = nil             -- 版本号显示
 local versionStatusLabel = nil       -- 检测结果提示
 local versionCheckBtn = nil          -- 手动检测按钮
 local hasNewVersion = false          -- 是否检测到新版本
-local lastCheckTime = 0              -- 上次检测时间
+local lastCheckTime = os.time()      -- 上次检测时间（初始化为当前时间，避免定时器立即触发）
+local _checking = false              -- 防重入：GetRankList 进行中时不重复发起
 -- versionTimerHandle 已移除：版本检测改用 GameLoop.RegisterAlways 驱动
 
 -- ============================================================================
@@ -251,6 +252,9 @@ local function DoVersionCheck()
         print("[VersionCheck] clientCloud not available")
         return
     end
+    -- 防重入：上次请求未完成时不重复发起
+    if _checking then return end
+    _checking = true
 
     local localEncoded = EncodeVersion(LOCAL_VERSION)
     print("[VersionCheck] Checking... local=" .. LOCAL_VERSION .. " (" .. localEncoded .. ")")
@@ -260,6 +264,7 @@ local function DoVersionCheck()
     -- 拉取排行榜第一名（最高版本号）
     clientCloud:GetRankList(VERSION_CHECK_KEY, 0, 1, {
         ok = function(rankList)
+            _checking = false
             lastCheckTime = os.time()
             local cloudVersion = 0
             if rankList and #rankList > 0 then
@@ -269,15 +274,25 @@ local function DoVersionCheck()
             print("[VersionCheck] Cloud highest version: " .. DecodeVersion(cloudVersion) .. " (" .. cloudVersion .. ")")
 
             if localEncoded > cloudVersion then
-                -- 本地版本更高，上传到云端
-                clientCloud:SetInt(VERSION_CHECK_KEY, localEncoded, {
-                    ok = function()
-                        print("[VersionCheck] Uploaded version " .. LOCAL_VERSION)
-                    end,
-                    error = function(code, reason)
-                        print("[VersionCheck] Upload failed: " .. tostring(reason))
-                    end,
-                })
+                -- 本地版本更高：延迟 5 秒上传，避免与存档初始化写入并发触发限流
+                local uploadDelay = 5.0
+                local elapsed = 0.0
+                local uploaded = false
+                local GameLoop = require("GameLoop")
+                GameLoop.RegisterAlways("SettingsPanel.VersionUpload", function(dt)
+                    if uploaded then return end
+                    elapsed = elapsed + dt
+                    if elapsed < uploadDelay then return end
+                    uploaded = true
+                    clientCloud:SetInt(VERSION_CHECK_KEY, localEncoded, {
+                        ok = function()
+                            print("[VersionCheck] Uploaded version " .. LOCAL_VERSION)
+                        end,
+                        error = function(code, reason)
+                            print("[VersionCheck] Upload failed: " .. tostring(reason))
+                        end,
+                    })
+                end)
                 hasNewVersion = false
                 if versionStatusLabel then
                     versionStatusLabel:SetText("当前已是最新版本 v" .. LOCAL_VERSION)
@@ -305,6 +320,7 @@ local function DoVersionCheck()
             if versionCheckBtn then versionCheckBtn:SetDisabled(false) end
         end,
         error = function(code, reason)
+            _checking = false
             print("[VersionCheck] Check failed: " .. tostring(reason))
             if versionStatusLabel then
                 versionStatusLabel:SetText("检测失败，请稍后重试")

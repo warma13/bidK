@@ -17,6 +17,7 @@ local ran = false  -- 防止同一次启动重复执行
 -- 内部工具
 -- ============================================================================
 
+-- 与 Utils.TodayStr() 保持相同格式；此模块不依赖 UI 层，故本地定义
 local function TodayStr()
     return os.date("%Y-%m-%d")
 end
@@ -75,24 +76,21 @@ local function DoCompensate(onlineBits, adBits, dailyCount)
         end
     end
 
-    -- ---- 2. 角色币补偿（今日看广告次数 = 应得角色币数）----
-    -- 角色币是累计值，只能补偿"今日应得但未到账"的部分
-    -- 今日看了 dailyCount 次广告，理论上应获得 dailyCount 个角色币
-    -- 但历史累计不可知，所以用保守策略：
-    --   若当前角色币 < dailyCount，则补足至 dailyCount
-    --   （只补今天，不触碰历史积累；若玩家已有更多则不动）
+    -- ---- 2. 点券补偿（今日看广告次数 × 10 = 应得点券数）----
+    -- 点券是累计值，只补偿"今日应得但未到账"的部分
     if dailyCount > 0 then
-        local actualCoins = SaveSystem.GetCharacterCoins()
-        if actualCoins < dailyCount then
-            local diff = dailyCount - actualCoins
-            SaveSystem.AddCharacterCoins(diff)
-            local msg = "角色币补偿 +" .. diff
-                     .. " (实际" .. actualCoins .. " 今日应得" .. dailyCount .. ")"
+        local expectedTickets = dailyCount * 10
+        local actualTickets   = SaveSystem.GetPointTickets()
+        if actualTickets < expectedTickets then
+            local diff = expectedTickets - actualTickets
+            SaveSystem.AddPointTickets(diff)
+            local msg = "点券补偿 +" .. diff
+                     .. " (实际" .. actualTickets .. " 今日应得" .. expectedTickets .. ")"
             table.insert(log, msg)
             print("[SaveCompensation] " .. msg)
         else
-            print("[SaveCompensation] 角色币无需补偿 (actual="
-                  .. SaveSystem.GetCharacterCoins() .. " dailyCount=" .. dailyCount .. ")")
+            print("[SaveCompensation] 点券无需补偿 (actual="
+                  .. SaveSystem.GetPointTickets() .. " expected=" .. expectedTickets .. ")")
         end
     end
 

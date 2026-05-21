@@ -332,8 +332,8 @@ function SaveFramework.Init(onReady)
             print("[SaveFramework] Init FAILED: " .. tostring(reason))
 
             -- 云端加载失败时不调用 defaults()，各模块的 local 变量已有声明时的合理初始值
+            -- 关键：不设 initialized = true，保留重试能力，下次调用 Init 可重新发 BatchGet
             -- 关键：不设置 saveConfirmed = true，防止空数据在网络恢复后覆盖云端真实存档
-            initialized = true
             if onReady then onReady(false) end
         end,
     })
@@ -508,9 +508,35 @@ function SaveFramework.DirectSave(label, setup, opts)
     local batch = clientCloud:BatchSet()
     setup(batch)
 
+    -- 顺带把所有脏模块写入同一个 batch，避免 DirectSave 覆盖未持久化的脏数据
+    local piggybackNames = {}
+    for _, name in ipairs(moduleOrder) do
+        if dirtySet[name] then
+            local mod = modules[name]
+            if mod.save then
+                local ok, err = pcall(mod.save, batch)
+                if not ok then
+                    print("[SaveFramework] DirectSave piggyback ERROR [" .. name .. "]: " .. tostring(err))
+                else
+                    piggybackNames[#piggybackNames + 1] = name
+                    print("[SaveFramework] DirectSave piggyback: " .. name)
+                end
+            end
+        end
+    end
+    if #piggybackNames == 0 then
+        print("[SaveFramework] DirectSave piggyback: no dirty modules")
+    end
+
     batch:Save(label, {
         ok = function()
             if not OnWriteSuccess(myGen, nil) then return end
+            -- 清除已随 DirectSave 一起写入的脏模块，并触发其 onSaved 回调
+            for _, name in ipairs(piggybackNames) do
+                dirtySet[name] = nil
+                local mod = modules[name]
+                if mod.onSaved then pcall(mod.onSaved) end
+            end
             if opts.ok then opts.ok() end
             -- 先冲刷 DirectSave 等待队列（用户主动操作优先）
             if #directSaveQueue > 0 then
@@ -614,10 +640,10 @@ function SaveFramework.Update(dt)
         end
     end
 
-    -- 重试（指数退避：3s / 9s / 27s）
+    -- 重试（指数退避：10s / 30s / 90s，基于 RETRY_INTERVAL=10）
     if needRetry then
         retryTimer = retryTimer + dt
-        local backoff = RETRY_INTERVAL * (3 ^ (retryCount))  -- 3,9,27
+        local backoff = RETRY_INTERVAL * (3 ^ (retryCount))  -- 10,30,90
         if retryTimer >= backoff and retryCount < MAX_RETRY then
             retryTimer = 0
             retryCount = retryCount + 1

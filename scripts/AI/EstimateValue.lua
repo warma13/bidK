@@ -79,6 +79,14 @@ local rarityAvgValue = {}
 -- 类别相对比例: categoryRelative[category] = avg(该类别物品) / poolAvg
 local categoryRelative = {}
 
+-- 尺寸均价: sizeAvgValue[cells] = avg(占位 cells 格的所有物品)
+-- 用于修正 SizeAvgValue 道具产生的 random_avg_value 的比较基准
+local sizeAvgValue = {}
+
+-- 品类×品质均价: categoryRarityAvg["catId:rarity"] = 加权均价
+-- 用于 L2（品质+轮廓）比 L2_hint（仅品质）更精确的估值
+local categoryRarityAvg = {}
+
 -- 池平均值（所有物品的算术平均，用于计算相对比例的基准）
 local poolAvg = 0
 
@@ -192,6 +200,32 @@ function EstimateValue.Init(warehouseTypeId)
         categoryRelative[c] = wAvg / poolAvg
     end
 
+    -- 构建 sizeAvgValue[cells]（尺寸均价，Fix B 用）
+    sizeAvgValue = {}
+    local sizeWeightedSum = {}
+    local sizeTotalWeight = {}
+    for _, item in ipairs(pool) do
+        local cells = (item.cols or 1) * (item.rows or 1)
+        sizeWeightedSum[cells] = (sizeWeightedSum[cells] or 0) + item.value * item.weight
+        sizeTotalWeight[cells] = (sizeTotalWeight[cells] or 0) + item.weight
+    end
+    for cells, wSum in pairs(sizeWeightedSum) do
+        sizeAvgValue[cells] = wSum / sizeTotalWeight[cells]
+    end
+
+    -- 构建 categoryRarityAvg["catId:rarity"]（品类×品质均价，Fix A 用）
+    categoryRarityAvg = {}
+    local crWeightedSum = {}
+    local crTotalWeight = {}
+    for _, item in ipairs(pool) do
+        local key = item.category .. ":" .. item.rarity
+        crWeightedSum[key] = (crWeightedSum[key] or 0) + item.value * item.weight
+        crTotalWeight[key]  = (crTotalWeight[key]  or 0) + item.weight
+    end
+    for key, wSum in pairs(crWeightedSum) do
+        categoryRarityAvg[key] = wSum / crTotalWeight[key]
+    end
+
     initialized = true
 
     -- 调试日志
@@ -271,21 +305,33 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
         local level = revealLevels[idx] or 0
         local est = baseline
 
-        if level >= 3 then
-            -- L3: 精确值
+        if level >= 4 then
+            -- L4: 精确值
             est = item.realValue or item.value or baseline
             l3Count = l3Count + 1
+        elseif level >= 3 then
+            -- L2（numeric 3）：知品质+轮廓 → 同时知道 category，使用品类×品质均价
+            local rr = rarityRelative[item.rarity] or 1.0
+            local crKey = item.category .. ":" .. item.rarity
+            local crAvg = categoryRarityAvg[crKey]
+            local poolRarityAvg = rarityAvgValue[item.rarity] or (poolAvg * rr)
+            local warehouseRarityAvg = inWarehouseRarityAvg[item.rarity]
+            -- 优先 crAvg（品类+品质最精确），其次品质均价，再次仓库实际均价
+            est = math.max(
+                crAvg or (baseline * rr),
+                poolRarityAvg
+            )
+            if warehouseRarityAvg and warehouseRarityAvg > est then
+                est = warehouseRarityAvg
+            end
         elseif level >= 2 then
-            -- L2: 知品质 → 优先用仓库内实际均价（quality_avg_value info），回退到池均价
-            -- 仓库内实际均价 > 池统计均价时，以实际均价为准（例：神秘仓库蓝色物品均价实际远高于池统计）
+            -- L2_hint（numeric 2）：仅知品质，不知轮廓/category
             local rr = rarityRelative[item.rarity] or 1.0
             local poolRarityAvg = rarityAvgValue[item.rarity] or (poolAvg * rr)
-            local warehouseRarityAvg = inWarehouseRarityAvg[item.rarity]  -- 仓库内实际均价（可能为 nil）
-            -- 取三者最大值：baseline×rr（tier先验）、池均价、仓库实际均价
+            local warehouseRarityAvg = inWarehouseRarityAvg[item.rarity]
             est = math.max(baseline * rr, poolRarityAvg)
             if warehouseRarityAvg and warehouseRarityAvg > est then
                 est = warehouseRarityAvg
-                -- 注：不使用 AI 的 tier 先验折扣，因为 quality_avg_value 已是仓库实际数据
             end
         elseif level >= 1 then
             -- L1: 知轮廓/类别 → baseline × categoryRelative
@@ -342,13 +388,26 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
     local skillInfos  = infoState.skillInfos  or {}
     for _, infos in ipairs({ publicInfos, skillInfos }) do
         for _, info in ipairs(infos) do
-            if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 and poolAvg > 0 then
-                local ratio = info.sampleAvgValue / poolAvg
-                local dm = math.sqrt(ratio)
-                dm = math.max(0.5, math.min(5.0, dm))  -- 上限提高到 5x，支持神秘仓库等极高价值场景
-                -- 取影响最大的一条（离 1.0 最远）
-                if math.abs(dm - 1.0) > math.abs(sampleDampedMult - 1.0) then
-                    sampleDampedMult = dm
+            if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 then
+                -- 选择正确的基准均价，避免子集均价和全池均价对比产生系统偏差：
+                --   sampleRarity    → 该品质的池均价（RarityAvgValue 道具）
+                --   sampleCellCount → 该尺寸的池均价（SizeAvgValue 道具）
+                --   其他            → 全池均价（全局信息）
+                local referenceAvg
+                if info.sampleRarity then
+                    referenceAvg = rarityAvgValue[info.sampleRarity] or poolAvg
+                elseif info.sampleCellCount then
+                    referenceAvg = sizeAvgValue[info.sampleCellCount] or poolAvg
+                else
+                    referenceAvg = poolAvg
+                end
+                if referenceAvg > 0 then
+                    local ratio = info.sampleAvgValue / referenceAvg
+                    local dm = math.sqrt(ratio)
+                    dm = math.max(0.5, math.min(5.0, dm))
+                    if math.abs(dm - 1.0) > math.abs(sampleDampedMult - 1.0) then
+                        sampleDampedMult = dm
+                    end
                 end
             end
         end
@@ -361,19 +420,75 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
         local level = perItemLevel[idx] or 0
         local est = perItemEstimate[idx] or baseline
 
-        -- L3 物品不需要修正（已是精确值）
-        -- 非 L3 物品：先应用 L3 质量推断修正，再应用样品均价信号
-        if level < 3 then
+        -- L4 物品不需要修正（已是精确值）
+        -- 非 L4 物品：先应用 L4 质量推断修正，再应用样品均价信号
+        if level < 4 then
             if l3Count >= 3 then
                 est = est * qualityRatio
             end
-            -- L0/L1：进一步应用仓库质量信号（L2 已有稀有度信息，不再调整）
+            -- L0/L1：进一步应用仓库质量信号（L2/L3 已有稀有度信息，不再调整）
             if level < 2 then
                 est = est * sampleDampedMult
             end
         end
 
         totalEstimate = totalEstimate + est
+    end
+
+    -- ── quality_count 配额修正 ──────────────────────────────────────────────
+    -- 若公开/技能信息中有"某品质共 N 件"，而其中部分物品尚未揭示（level < 2），
+    -- 则这些未揭示物品的当前估值（baseline）应提升为对应品质的均价。
+    -- 仅做加法补偿，不修改 perItemEstimate，避免影响后续 L0V 约束。
+    do
+        local knownRarityCounts = {}  -- [rarityId] = 已确认的最大件数
+        local function collectCount(info)
+            if info.type == "quality_count" and info.rarityId and info.rarityCount then
+                local cur = knownRarityCounts[info.rarityId] or 0
+                if info.rarityCount > cur then
+                    knownRarityCounts[info.rarityId] = info.rarityCount
+                end
+            end
+        end
+        for _, info in ipairs(publicInfos) do collectCount(info) end
+        for _, info in ipairs(skillInfos) do
+            collectCount(info)
+            if info.extraInfos then
+                for _, extra in ipairs(info.extraInfos) do collectCount(extra) end
+            end
+        end
+
+        if next(knownRarityCounts) then
+            -- 统计已揭示（level >= 2）的各品质件数
+            local revealedByRarity = {}
+            for _, item in ipairs(items) do
+                local lv = perItemLevel[item.idx] or 0
+                if lv >= 2 then
+                    revealedByRarity[item.rarity] = (revealedByRarity[item.rarity] or 0) + 1
+                end
+            end
+
+            for rarId, totalCount in pairs(knownRarityCounts) do
+                local revealed = revealedByRarity[rarId] or 0
+                local quota = math.max(0, totalCount - revealed)
+                if quota > 0 then
+                    -- 未揭示这 quota 件的期望值（按品质均价）
+                    local expectedPerItem = math.max(
+                        rarityAvgValue[rarId] or 0,
+                        inWarehouseRarityAvg[rarId] or 0
+                    )
+                    -- 当前这 quota 件被估为 baseline（L0），差额补入总估值
+                    local boost = quota * math.max(0, expectedPerItem - baseline)
+                    if boost > 0 then
+                        totalEstimate = totalEstimate + boost
+                        print("[EstimateValue] quality_count 配额修正 [" .. rarId .. "]:"
+                            .. " quota=" .. quota
+                            .. " expectedPerItem=" .. string.format("%.0f", expectedPerItem)
+                            .. " baseline=" .. string.format("%.0f", baseline)
+                            .. " boost=" .. string.format("%.0f", boost))
+                    end
+                end
+            end
+        end
     end
 
     -- L0V 约束：将已知批次总价值作为下界

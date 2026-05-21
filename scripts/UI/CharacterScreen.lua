@@ -42,6 +42,13 @@ local REVEAL_LEVEL_TEXT = {
 }
 
 -- ============================================================================
+-- 常量：解锁费用
+-- ============================================================================
+
+local UNLOCK_TICKET_COST = 300  -- 解锁所需点券
+local COIN_TO_TICKET     = 10   -- 1 角色币抵扣 10 点券
+
+-- ============================================================================
 -- 状态
 -- ============================================================================
 
@@ -189,7 +196,29 @@ function CharacterScreen.Show(onBackCallback)
         if not isUnlocked then
             if char.unlockCost and char.unlockCost > 0 then
                 -- 有费用：显示解锁按钮
-                local cost = char.unlockCost
+                local charCoins    = SaveSystem.GetCharacterCoins()
+                local coinsToUse   = math.min(charCoins, math.floor(UNLOCK_TICKET_COST / COIN_TO_TICKET))
+                local actualCost   = UNLOCK_TICKET_COST - coinsToUse * COIN_TO_TICKET
+                -- 底部按钮子节点
+                local btnChildren = {
+                    UI.Panel {
+                        width = sz(16), height = sz(16),
+                        backgroundImage = "image/point_ticket_icon_20260518210650.png",
+                        backgroundFit = "contain", flexShrink = 0,
+                    },
+                    UI.Label {
+                        text = tostring(actualCost) .. " 点券  解锁",
+                        fontSize = sz(13), fontWeight = "bold",
+                        fontColor = { 255, 225, 80, 255 },
+                    },
+                }
+                if coinsToUse > 0 then
+                    table.insert(btnChildren, UI.Label {
+                        text = "(-" .. tostring(coinsToUse) .. "角色币)",
+                        fontSize = sz(11),
+                        fontColor = { 180, 220, 140, 210 },
+                    })
+                end
                 statusNode = UI.Panel {
                     width = "100%",
                     flexDirection = "column", gap = sz(8),
@@ -210,18 +239,7 @@ function CharacterScreen.Show(onBackCallback)
                                 dialogCharId = char.id
                                 Rebuild()
                             end,
-                            children = {
-                                UI.Panel {
-                                    width = sz(16), height = sz(16),
-                                    backgroundImage = "Textures/tickets/character_coin.png",
-                                    backgroundFit = "contain", flexShrink = 0,
-                                },
-                                UI.Label {
-                                    text = cost .. " 角色币  解锁",
-                                    fontSize = sz(13), fontWeight = "bold",
-                                    fontColor = { 255, 225, 80, 255 },
-                                },
-                            },
+                            children = btnChildren,
                         },
                     },
                 }
@@ -250,7 +268,7 @@ function CharacterScreen.Show(onBackCallback)
         -- ── 主树 ─────────────────────────────────────────────────────────
         local newRoot = UI.Panel {
             width = "100%", height = "100%",
-            backgroundImage = "image/char_screen_bg.png",
+            backgroundImage = "image/char_screen_bg.jpg",
             backgroundFit = "cover",
             backgroundPosition = "center",
             flexDirection = "row",
@@ -456,9 +474,12 @@ function CharacterScreen.Show(onBackCallback)
                 if c.id == dialogCharId then dc = c; break end
             end
             if dc then
-                local coins   = SaveSystem.GetCharacterCoins()
-                local cost2   = dc.unlockCost or 0
-                local canAfford = coins >= cost2
+                local charCoins      = SaveSystem.GetCharacterCoins()
+                local currentTickets = SaveSystem.GetPointTickets()
+                local coinsToUse     = math.min(charCoins, math.floor(UNLOCK_TICKET_COST / COIN_TO_TICKET))
+                local discount       = coinsToUse * COIN_TO_TICKET
+                local actualCost     = UNLOCK_TICKET_COST - discount
+                local canAfford      = currentTickets >= actualCost
 
                 dialogOverlay = UI.Panel {
                     position = "absolute",
@@ -535,48 +556,93 @@ function CharacterScreen.Show(onBackCallback)
                                     width = "100%",
                                     flexDirection = "column",
                                     alignItems = "center",
-                                    gap = sz(10),
+                                    gap = sz(8),
                                     paddingHorizontal = sz(20),
                                     paddingTop = sz(16),
                                     paddingBottom = sz(18),
                                     borderBottomWidth = 1,
                                     borderColor = { 50, 44, 30, 200 },
                                     children = {
-                                        -- 费用行
+                                        -- 基础费用行
                                         UI.Panel {
                                             flexDirection = "row",
                                             alignItems = "center",
+                                            justifyContent = "center",
                                             gap = sz(8),
                                             paddingHorizontal = sz(24),
-                                            paddingVertical = sz(12),
+                                            paddingVertical = sz(10),
                                             backgroundColor = { 40, 32, 6, 240 },
                                             borderRadius = sz(8),
                                             borderWidth = 1,
                                             borderColor = { 160, 130, 30, 150 },
+                                            width = "100%",
                                             children = {
                                                 UI.Panel {
-                                                    width = sz(22), height = sz(22),
-                                                    backgroundImage = "Textures/tickets/character_coin.png",
-                                                    backgroundFit = "contain",
-                                                    flexShrink = 0,
+                                                    width = sz(20), height = sz(20),
+                                                    backgroundImage = "image/point_ticket_icon_20260518210650.png",
+                                                    backgroundFit = "contain", flexShrink = 0,
                                                 },
                                                 UI.Label {
-                                                    text = tostring(cost2),
-                                                    fontSize = sz(28), fontWeight = "bold",
+                                                    text = tostring(UNLOCK_TICKET_COST),
+                                                    fontSize = sz(26), fontWeight = "bold",
                                                     fontColor = { 255, 215, 55, 255 },
                                                 },
                                                 UI.Label {
-                                                    text = "角色币",
+                                                    text = "点券",
                                                     fontSize = sz(14),
                                                     fontColor = { 210, 185, 100, 220 },
+                                                },
+                                            },
+                                        },
+                                        -- 角色币抵扣行（有角色币时才显示）
+                                        coinsToUse > 0 and UI.Panel {
+                                            width = "100%",
+                                            flexDirection = "row", alignItems = "center",
+                                            justifyContent = "center", gap = sz(6),
+                                            paddingVertical = sz(6),
+                                            backgroundColor = { 30, 60, 30, 160 },
+                                            borderRadius = sz(6),
+                                            children = {
+                                                UI.Panel {
+                                                    width = sz(16), height = sz(16),
+                                                    backgroundImage = "Textures/tickets/character_coin.png",
+                                                    backgroundFit = "contain", flexShrink = 0,
+                                                },
+                                                UI.Label {
+                                                    text = tostring(coinsToUse) .. " 角色币 × " .. COIN_TO_TICKET .. " = -" .. tostring(discount) .. " 点券",
+                                                    fontSize = sz(12), fontWeight = "bold",
+                                                    fontColor = { 140, 220, 120, 240 },
+                                                },
+                                            },
+                                        } or nil,
+                                        -- 实际消耗行
+                                        UI.Panel {
+                                            width = "100%",
+                                            flexDirection = "row", alignItems = "center",
+                                            justifyContent = "center", gap = sz(6),
+                                            children = {
+                                                UI.Label {
+                                                    text = "实际消耗：",
+                                                    fontSize = sz(12),
+                                                    fontColor = { 180, 185, 200, 200 },
+                                                },
+                                                UI.Panel {
+                                                    width = sz(16), height = sz(16),
+                                                    backgroundImage = "image/point_ticket_icon_20260518210650.png",
+                                                    backgroundFit = "contain", flexShrink = 0,
+                                                },
+                                                UI.Label {
+                                                    text = tostring(actualCost) .. " 点券",
+                                                    fontSize = sz(14), fontWeight = "bold",
+                                                    fontColor = { 255, 215, 55, 255 },
                                                 },
                                             },
                                         },
                                         -- 余额提示
                                         UI.Label {
                                             text = canAfford
-                                                and ("当前余额 " .. coins .. "，解锁后剩余 " .. (coins - cost2))
-                                                or  ("余额不足，当前仅有 " .. coins .. " 角色币"),
+                                                and ("当前点券 " .. currentTickets .. "，解锁后剩余 " .. (currentTickets - actualCost))
+                                                or  ("点券不足，当前仅有 " .. currentTickets .. " 点券"),
                                             fontSize = sz(11),
                                             fontColor = canAfford
                                                 and { 120, 195, 100, 220 }
@@ -621,11 +687,16 @@ function CharacterScreen.Show(onBackCallback)
                                             onClick = function()
                                                 if not canAfford then return end
                                                 Utils.PlayClick()
-                                                if SaveSystem.SpendCharacterCoins(cost2) then
-                                                    SaveSystem.UnlockCharacter(dc.id)
-                                                    dialogCharId = nil
-                                                    Rebuild()
+                                                -- 扣除点券
+                                                SaveSystem.AddPointTickets(-actualCost)
+                                                -- 扣除角色币（抵扣部分）
+                                                if coinsToUse > 0 then
+                                                    SaveSystem.SpendCharacterCoins(coinsToUse)
                                                 end
+                                                SaveSystem.UnlockCharacter(dc.id)
+                                                SaveSystem.Save()
+                                                dialogCharId = nil
+                                                Rebuild()
                                             end,
                                             children = {
                                                 UI.Label {
@@ -639,6 +710,66 @@ function CharacterScreen.Show(onBackCallback)
                                         },
                                     },
                                 },
+                                -- 看广告得点券（仅点券不足时显示）
+                                not canAfford and UI.Panel {
+                                    width = "100%",
+                                    paddingHorizontal = sz(16), paddingVertical = sz(10),
+                                    borderTopWidth = 1,
+                                    borderColor = { 50, 44, 30, 200 },
+                                    children = {
+                                        UI.Button {
+                                            width = "100%", height = sz(36),
+                                            variant = "primary",
+                                            onClick = function()
+                                                Utils.PlayClick()
+                                                dialogCharId = nil
+                                                Rebuild()
+                                                local AdCardPanel = require("UI.AdCardPanel")
+                                                if AdCardPanel.CanWatchAd() then
+                                                    AdCardPanel.WatchAd()
+                                                end
+                                            end,
+                                            children = {
+                                                UI.Panel {
+                                                    flexDirection = "row", alignItems = "center", gap = sz(4),
+                                                    justifyContent = "center", width = "100%", height = "100%",
+                                                    children = {
+                                                        UI.Label {
+                                                            text = "看广告",
+                                                            fontSize = sz(13), fontWeight = "bold",
+                                                            fontColor = { 20, 20, 20, 255 },
+                                                        },
+                                                        UI.Panel {
+                                                            width = sz(16), height = sz(16),
+                                                            backgroundImage = Utils.GetIcon("coin"),
+                                                            backgroundFit = "contain", flexShrink = 0,
+                                                        },
+                                                        (function()
+                                                            local AdCardPanel = require("UI.AdCardPanel")
+                                                            local tier = AdCardPanel.GetCurrentTier()
+                                                            local coins = tier and tier.coinsPerAd or 0
+                                                            return UI.Label {
+                                                                text = "+" .. Utils.FormatMoney(coins),
+                                                                fontSize = sz(13), fontWeight = "bold",
+                                                                fontColor = { 20, 20, 20, 255 },
+                                                            }
+                                                        end)(),
+                                                        UI.Panel {
+                                                            width = sz(16), height = sz(16),
+                                                            backgroundImage = "image/point_ticket_icon_20260518210650.png",
+                                                            backgroundFit = "contain", flexShrink = 0,
+                                                        },
+                                                        UI.Label {
+                                                            text = "×10",
+                                                            fontSize = sz(11), fontWeight = "bold",
+                                                            fontColor = { 20, 20, 20, 255 },
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                } or nil,
                             },
                         },
                     },
@@ -655,11 +786,11 @@ function CharacterScreen.Show(onBackCallback)
                 UI.Panel {
                     position = "absolute",
                     right = sz(14), top = sz(10),
-                    width = sz(36), height = sz(36),
-                    borderRadius = sz(18),
-                    backgroundColor = { 30, 32, 50, 210 },
+                    width = sz(32), height = sz(32),
+                    borderRadius = sz(4),
+                    backgroundColor = { 40, 42, 55, 200 },
                     borderWidth = 1,
-                    borderColor = { 60, 65, 95, 200 },
+                    borderColor = { 70, 75, 90, 180 },
                     alignItems = "center", justifyContent = "center",
                     cursor = "pointer",
                     onClick = function()
@@ -669,8 +800,8 @@ function CharacterScreen.Show(onBackCallback)
                     children = {
                         UI.Label {
                             text = "✕",
-                            fontSize = sz(16), fontWeight = "bold",
-                            fontColor = { 180, 185, 210, 230 },
+                            fontSize = sz(18), fontWeight = "bold",
+                            fontColor = { 180, 220, 0, 230 },
                         },
                     },
                 },

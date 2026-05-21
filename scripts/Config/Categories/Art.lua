@@ -136,6 +136,9 @@ Art.items = {
     { name = "诺贝尔奖章复刻",   rows = 1, cols = 1, quality = "gold",   value = 5000,      desc = "某年物理学奖章的精仿品，纯金镀层",                 image = IMG_QL .. "艺术/诺贝尔奖章复刻_20260510133126.png" },
     -- 红 x1
     { name = "爱因斯坦亲笔信",   rows = 1, cols = 1, quality = "red",    value = 350000,    desc = "讨论EPR悖论的私人信件，真伪待鉴",                  image = IMG_QL .. "艺术/爱因斯坦亲笔信_20260510133616.png" },
+
+    -- ===== 限定红（exclusive = true，礼盒极稀有池专用）=====
+    { name = "达利原作油画",       rows = 3, cols = 4, quality = "red", value = 15000000, weight = 1, exclusive = true, desc = "萨尔瓦多·达利超现实主义布面油画原作，附出处证明及拍卖记录", image = IMG .. "艺术/达利原作油画.png" },
 }
 
 return Art
