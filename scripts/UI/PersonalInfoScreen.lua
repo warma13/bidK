@@ -14,6 +14,7 @@
 local UI = require("urhox-libs/UI")
 local UIState = require("UI.UIState")
 local Utils = require("UI.Utils")
+local UserCache = require("UserCache")
 local SaveSystem = require("SaveSystem")
 local Config = require("Config")
 local Props = require("Config.Props")
@@ -264,15 +265,9 @@ local function BuildInfoTab()
     local myUserId = (lobby and lobby:GetMyUserId()) or 0
     if myUserId ~= 0 then
         userIdLbl.text = "ID: " .. tostring(myUserId)
-        GetUserNickname({
-            userIds = { myUserId },
-            onSuccess = function(nicknames)
-                if nicknames and #nicknames > 0 and nicknames[1].nickname then
-                    nicknameLbl.text = nicknames[1].nickname
-                end
-            end,
-            onError = function() end,
-        })
+        UserCache.GetNickname(myUserId, function(nick)
+            nicknameLbl.text = nick
+        end)
     else
         nicknameLbl.text = "游客"
     end

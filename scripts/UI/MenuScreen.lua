@@ -7,6 +7,7 @@
 local UI = require("urhox-libs/UI")
 local Config = require("Config")
 local UIState = require("UI.UIState")
+local UserCache = require("UserCache")
 local MoneyHUD = require("UI.MoneyHUD")
 local Utils = require("UI.Utils")
 local LeaderboardPanel = require("UI.LeaderboardPanel")
@@ -400,15 +401,9 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                         local myUserId = (lobby and lobby:GetMyUserId()) or 0
                         if myUserId ~= 0 then
                             uidLbl.text = "UID: " .. tostring(myUserId)
-                            GetUserNickname({
-                                userIds  = { myUserId },
-                                onSuccess = function(nicks)
-                                    if nicks and #nicks > 0 and nicks[1].nickname then
-                                        nickLbl.text = nicks[1].nickname
-                                    end
-                                end,
-                                onError = function() end,
-                            })
+                            UserCache.GetNickname(myUserId, function(nick)
+                                nickLbl.text = nick
+                            end)
                         else
                             nickLbl.text = "游客"
                         end

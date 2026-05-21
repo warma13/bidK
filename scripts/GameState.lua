@@ -4,6 +4,7 @@
 
 ---@diagnostic disable: undefined-global
 local Config = require("Config")
+local UserCache = require("UserCache")
 local WarehouseGenerator = require("WarehouseGenerator")
 local MoneyManager = require("MoneyManager")
 local SkillSystem = require("SkillSystem")
@@ -162,17 +163,12 @@ function GameState.Init(playerCharIdx, regionId, diffIdx, warehouseTypeId, playe
             money = playerMoney,
         }
 
-        -- 异步获取 TapTap 昵称
+        -- 异步获取 TapTap 昵称（使用缓存，避免每局重复请求）
         if myUserId ~= 0 then
-            GetUserNickname({
-                userIds = { myUserId },
-                onSuccess = function(nicknames)
-                    if nicknames and #nicknames > 0 and nicknames[1].nickname then
-                        state.players[1].name = nicknames[1].nickname
-                        GameState.NotifyChange()
-                    end
-                end,
-            })
+            UserCache.GetNickname(myUserId, function(nick)
+                state.players[1].name = nick
+                GameState.NotifyChange()
+            end)
         end
 
         -- AI 玩家 2-4：从名字库不放回抽取

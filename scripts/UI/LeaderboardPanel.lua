@@ -13,6 +13,7 @@
 local UI = require("urhox-libs/UI")
 local Utils = require("UI.Utils")
 local LeaderboardFilters = require("UI.LeaderboardFilters")
+local UserCache = require("UserCache")
 
 local LeaderboardPanel = {}
 
@@ -416,25 +417,19 @@ local function ResolveNicknames(startIdx, endIdx)
         end
     end
     if #userIds == 0 then return end
-    GetUserNickname({
-        userIds = userIds,
-        onSuccess = function(nicknames)
-            local map = {}
-            for _, info in ipairs(nicknames) do map[info.userId] = info.nickname or "" end
-            for uid, indices in pairs(idxMap) do
-                local nick = map[uid]
-                if nick and nick ~= "" then
-                    for _, idx in ipairs(indices) do
-                        allRankData[idx].nickname = nick
-                        if rankRows[idx] then
-                            rankRows[idx].nameLabel:SetText(nick)
-                        end
+    UserCache.BatchGetNicknames(userIds, function(map)
+        for uid, indices in pairs(idxMap) do
+            local nick = map[uid]
+            if nick and nick ~= "" then
+                for _, idx in ipairs(indices) do
+                    allRankData[idx].nickname = nick
+                    if rankRows[idx] then
+                        rankRows[idx].nameLabel:SetText(nick)
                     end
                 end
             end
-        end,
-        onError = function() end,
-    })
+        end
+    end)
 end
 
 -- ============================================================================
@@ -475,18 +470,10 @@ local function LoadMyRank()
             myRankNumLabel:SetText("未上榜")
             myValueLabel:SetText(FormatValue(0, cat))
         end
-        -- 昵称仍需异步回填（纯本地无需网络）
-        GetUserNickname({
-            userIds = { myId },
-            onSuccess = function(nicknames)
-                if nicknames and #nicknames > 0 and nicknames[1].nickname then
-                    myNameLabel:SetText(nicknames[1].nickname)
-                else
-                    myNameLabel:SetText(tostring(myId))
-                end
-            end,
-            onError = function() myNameLabel:SetText(tostring(myId)) end,
-        })
+        -- 昵称从缓存回填（命中缓存时无需网络）
+        UserCache.GetNickname(myId, function(nick)
+            myNameLabel:SetText(nick)
+        end)
         return
     end
 
@@ -504,19 +491,9 @@ local function LoadMyRank()
             end
         end,
     })
-    GetUserNickname({
-        userIds = { myId },
-        onSuccess = function(nicknames)
-            if nicknames and #nicknames > 0 and nicknames[1].nickname then
-                myNameLabel:SetText(nicknames[1].nickname)
-            else
-                myNameLabel:SetText(tostring(myId))
-            end
-        end,
-        onError = function()
-            myNameLabel:SetText(tostring(clientCloud.userId))
-        end,
-    })
+    UserCache.GetNickname(myId, function(nick)
+        myNameLabel:SetText(nick)
+    end)
 end
 
 local function LoadPage(isAutoLoad)
