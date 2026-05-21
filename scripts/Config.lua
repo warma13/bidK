@@ -258,6 +258,11 @@ Config.REWARD_TYPES = {
         icon     = nil,   -- 动态：Config.TICKETS[ticketId].icon
         countFmt = function(amount) return "×" .. (amount or 1) end,
     },
+    point_tickets = {
+        name     = "点券",
+        icon     = "image/point_ticket_icon_20260518210650.png",
+        countFmt = function(amount) return "×" .. (amount or 1) end,
+    },
 }
 
 --- 获取奖励图标路径（coins 走 Utils.GetIcon，ticket 走 Config.TICKETS）
@@ -296,7 +301,28 @@ end
 -- ============================================================================
 -- 系统邮件（id 不可变更，用于标记已读/已领取）
 -- ============================================================================
--- reward 字段格式：{ type="coins"|"bp_exp"|"ticket", amount=N, ticketId="..." }
-Config.MAILS = {}
+-- reward  字段：单奖励 { type="coins"|"bp_exp"|"ticket"|"point_tickets", amount=N, ticketId="..." }
+-- rewards 字段：多奖励数组，与 reward 互斥（优先使用 rewards）
+Config.MAILS = {
+    {
+        id     = "v" .. Config.GAME.Version:gsub("%.", "_") .. "_update",
+        title  = Config.GAME.Version .. " 版本更新公告",
+        sender = "系统",
+        date   = "2026-05-21",
+        expiry = "",
+        body   = "感谢各位拍友一直以来的支持！本次更新带来以下新内容：\n\n"
+              .. "【新增】通行证系统\n参与对局、完成每日任务可获得通行证经验，积累经验升级通行证，解锁丰厚赛季奖励。看广告可自动解锁高级奖励，无需手动领取。\n\n"
+              .. "【新增】金色 & 红色道具\n部分道具现有金色（稀有）和红色（传说）品质版本，每日商店有概率刷新，也可在商城直接购买。\n\n"
+              .. "【新增】礼盒系统\n商城新增礼盒，开启有机会获得赛季限定红色藏品，手气好的拍友不要错过！\n\n"
+              .. "【优化】局内效果改动\n品质光效与轮廓显示已分离，启用「显示品质」时不再强制显示物品轮廓，视觉更清爽。\n\n"
+              .. "【优化】部分体验优化\n修复了若干已知问题，优化了界面流畅度，感谢大家的反馈！\n\n"
+              .. "特别感谢所有玩家的支持，祝大家游戏愉快！",
+        rewards = {
+            { type = "bp_exp",       amount = 1000 },
+            { type = "coins",        amount = 1000000 },
+            { type = "point_tickets", amount = 50 },
+        },
+    },
+}
 
 return Config

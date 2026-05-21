@@ -76,6 +76,8 @@ local function GiveReward(reward)
         SaveFW.MarkDirty("save_system")
     elseif reward.type == "bp_exp" then
         SeasonPass.AddTaskXP(reward.amount, "邮件奖励")
+    elseif reward.type == "point_tickets" then
+        SaveSystem.AddPointTickets(reward.amount or 1)
     elseif reward.type == "ticket" then
         SaveSystem.AddTickets(reward.ticketId, reward.amount or 1)
         SaveFW.MarkDirty("save_system")
@@ -89,6 +91,8 @@ function MailPanel.Show(onBackCallback)
     UIState.currentScreen = "mail"
     local sz    = Utils.sz
 
+    local MAIL_CAP = 30  -- 最多保留邮件数量
+
     -- 合并系统邮件 + 溢出邮件（溢出邮件在前，更紧急）
     local function BuildMailList_GetMails()
         local result = {}
@@ -101,21 +105,39 @@ function MailPanel.Show(onBackCallback)
                 sender   = "系统",
                 date     = os.date("%Y-%m-%d", m.wonAt or os.time()),
                 expiry   = "",
+                _sortTime = m.wonAt or 0,
                 body     = "您开箱获得的【" .. (m.name or "物品") .. "】因仓库空间不足无法放入，请领取后存入仓库。",
-                -- 标记为溢出邮件，领取走特殊逻辑
                 isOverflow  = true,
                 overflowItem = m,
-                -- 奖励展示用字段
                 reward   = {
                     type    = "_overflow_item",
                     _item   = m,
                 },
             }
         end
-        -- 系统邮件
+        -- 系统邮件（按 date 字段排序，较新的在前）
         local sysMails = Config.MAILS or {}
         for _, m in ipairs(sysMails) do
-            result[#result + 1] = m
+            -- 附加排序时间戳（用 date 字符串比较，格式 YYYY-MM-DD 字典序即时序）
+            local entry = {}
+            for k, v in pairs(m) do entry[k] = v end
+            entry._sortTime = m.date or ""
+            result[#result + 1] = entry
+        end
+        -- 按时间降序（溢出邮件 _sortTime 是数字，系统邮件是字符串，分开比较：溢出在前）
+        table.sort(result, function(a, b)
+            -- 溢出邮件始终排在系统邮件前面
+            local aIsOvf = a.isOverflow and 1 or 0
+            local bIsOvf = b.isOverflow and 1 or 0
+            if aIsOvf ~= bIsOvf then return aIsOvf > bIsOvf end
+            -- 同类型按 _sortTime 降序（新→旧）
+            return tostring(a._sortTime) > tostring(b._sortTime)
+        end)
+        -- 超出上限：截断最旧的
+        if #result > MAIL_CAP then
+            local trimmed = {}
+            for i = 1, MAIL_CAP do trimmed[i] = result[i] end
+            result = trimmed
         end
         return result
     end
@@ -172,17 +194,17 @@ function MailPanel.Show(onBackCallback)
     -- ── 构建奖励格子区 ────────────────────────────────────────────────────────
     local function BuildRewardArea(mail)
         mailRewardContainer:ClearChildren()
-        if not mail or not mail.reward then return end
+        -- 统一：rewards 数组优先，否则降级到 reward 单项
+        local hasAnyReward = (mail and mail.rewards and #mail.rewards > 0)
+                          or (mail and mail.reward)
+        if not mail or not hasAnyReward then return end
 
-        local reward = mail.reward
-        local cell   ---@type table
         local claimBtn ---@type table
 
         -- ── 溢出邮件（开箱仓库满）────────────────────────────────────────────
         if mail.isOverflow then
             local item = mail.overflowItem
-            -- 用物品图片显示格子
-            cell = RewardSlot.Make({
+            local cell = RewardSlot.Make({
                 image       = item.image or "",
                 count       = "",
                 bgColor     = { 30, 33, 44, 220 },
@@ -195,7 +217,6 @@ function MailPanel.Show(onBackCallback)
                 local ok, err = SaveSystem.ClaimOverflowMail(mail.id)
                 if ok then
                     FloatingMsg.Show("已领取：" .. (item.name or "物品"))
-                    -- 刷新邮件列表（溢出邮件已消费）
                     mails = BuildMailList_GetMails()
                     selectedMail = nil
                     BuildMailList()
@@ -212,33 +233,52 @@ function MailPanel.Show(onBackCallback)
             claimBtn = UI.Panel {
                 paddingHorizontal = sz(20), paddingVertical = sz(8),
                 borderRadius = sz(4),
-                backgroundColor = C.claimBg,
-                hoverBackgroundColor = C.claimHv,
-                cursor = "pointer",
-                onClick = DoClaimOverflow,
+                backgroundColor = C.claimBg, hoverBackgroundColor = C.claimHv,
+                cursor = "pointer", onClick = DoClaimOverflow,
                 children = {
                     UI.Label { text = "领取", fontSize = sz(13), fontWeight = "bold", fontColor = C.claimText },
                 },
             }
 
-        -- ── 普通系统邮件 ──────────────────────────────────────────────────────
+            mailRewardContainer:AddChild(UI.Panel {
+                width = "100%", flexDirection = "column", gap = sz(6),
+                paddingHorizontal = sz(14), paddingVertical = sz(10),
+                backgroundColor = C.rewardBg,
+                borderTopWidth = 1, borderColor = C.rewardBdr,
+                children = {
+                    UI.Label { text = "邮件附件", fontSize = sz(11), fontColor = C.dateText },
+                    UI.Panel {
+                        width = "100%", flexDirection = "row", alignItems = "center", gap = sz(8),
+                        children = { cell, UI.Panel { flexGrow = 1 }, claimBtn },
+                    },
+                },
+            })
+
+        -- ── 普通系统邮件（支持单 reward 和 rewards 数组）────────────────────
         else
             local isClaimed = SaveSystem.IsMailClaimed(mail.id)
-            local icon      = RewardIcon(reward)
-            local count     = RewardCount(reward)
-            local name      = RewardName(reward)
+            -- 统一为数组
+            local rewardList = mail.rewards or { mail.reward }
 
-            local function DoClaim()
+            local function DoClaimAll()
                 Utils.PlayClick()
                 if not SaveSystem.ClaimMail(mail.id) then return end
-                GiveReward(reward)
-                FloatingMsg.Show("已领取：" .. name .. " " .. count)
+                local names = {}
+                for _, r in ipairs(rewardList) do
+                    GiveReward(r)
+                    names[#names + 1] = RewardName(r) .. " " .. RewardCount(r)
+                end
+                FloatingMsg.Show("已领取：" .. table.concat(names, "、"))
                 BuildMailContent(mail)
                 BuildMailList()
             end
 
-            -- 格子（使用共享 RewardSlot 组件）
-            cell = RewardSlot.FromReward(reward, sz)
+            -- 格子行：每个奖励一个格子
+            local cells = {}
+            for _, r in ipairs(rewardList) do
+                cells[#cells + 1] = RewardSlot.FromReward(r, sz)
+            end
+            cells[#cells + 1] = UI.Panel { flexGrow = 1 }  -- 弹性间距
 
             if isClaimed then
                 claimBtn = UI.Panel {
@@ -254,40 +294,30 @@ function MailPanel.Show(onBackCallback)
                 claimBtn = UI.Panel {
                     paddingHorizontal = sz(20), paddingVertical = sz(8),
                     borderRadius = sz(4),
-                    backgroundColor = C.claimBg,
-                    hoverBackgroundColor = C.claimHv,
-                    cursor = "pointer",
-                    onClick = DoClaim,
+                    backgroundColor = C.claimBg, hoverBackgroundColor = C.claimHv,
+                    cursor = "pointer", onClick = DoClaimAll,
                     children = {
                         UI.Label { text = "领取", fontSize = sz(13), fontWeight = "bold", fontColor = C.claimText },
                     },
                 }
             end
-        end
+            cells[#cells + 1] = claimBtn
 
-        mailRewardContainer:AddChild(UI.Panel {
-            width = "100%",
-            flexDirection = "column",
-            gap = sz(6),
-            paddingHorizontal = sz(14), paddingVertical = sz(10),
-            backgroundColor = C.rewardBg,
-            borderTopWidth = 1, borderColor = C.rewardBdr,
-            children = {
-                -- 顶行：标题
-                UI.Label { text = "邮件附件", fontSize = sz(11), fontColor = C.dateText },
-                -- 底行：格子横排 + 领取按钮
-                UI.Panel {
-                    width = "100%",
-                    flexDirection = "row", alignItems = "center",
-                    gap = sz(8),
-                    children = {
-                        cell,
-                        UI.Panel { flexGrow = 1 },
-                        claimBtn,
+            mailRewardContainer:AddChild(UI.Panel {
+                width = "100%", flexDirection = "column", gap = sz(6),
+                paddingHorizontal = sz(14), paddingVertical = sz(10),
+                backgroundColor = C.rewardBg,
+                borderTopWidth = 1, borderColor = C.rewardBdr,
+                children = {
+                    UI.Label { text = "邮件附件", fontSize = sz(11), fontColor = C.dateText },
+                    UI.Panel {
+                        width = "100%", flexDirection = "row",
+                        alignItems = "center", gap = sz(8),
+                        children = cells,
                     },
                 },
-            },
-        })
+            })
+        end
     end
 
     -- ── 构建正文区 ────────────────────────────────────────────────────────────
@@ -355,11 +385,108 @@ function MailPanel.Show(onBackCallback)
         BuildRewardArea(mail)
     end
 
-    -- ── 构建邮件列表 ──────────────────────────────────────────────────────────
+    -- ── 构建邮件列表（VirtualList）────────────────────────────────────────────
+    -- 每行高度：paddingV(9)*2 + 标题行(12*1.4行高≈17) + gap(4) + 发件人行(10*1.4行高≈14) + 边框≈2
+    local ROW_H    = sz(9) * 2 + sz(17) + sz(4) + sz(14) + sz(2)
+    local ROW_GAP  = sz(4)
+    local screenH  = graphics:GetHeight()
+    -- 左栏可用高度 = 屏幕高 - 顶栏(50+1) - 底栏(paddingV*2 + btnPaddingV*2 + border=1) - 主体paddingV*2
+    local listH    = screenH
+                   - (sz(50) + 1)             -- 顶栏高度 + 底部border
+                   - (sz(9)*2 + sz(7)*2 + 1)  -- 底栏: paddingVertical + button paddingV + 顶部border
+                   - (sz(8) * 2)              -- 主体区 paddingVertical
+
+    ---@type table|nil  当前 VirtualList 实例（用于 SetData 刷新）
+    local mailVirtualList = nil
+
+    -- 构建单行 widget（VirtualList createItem）
+    local function CreateMailRow()
+        local dot   = UI.Panel { width = sz(6), height = sz(6), borderRadius = sz(3), flexShrink = 0, marginTop = sz(2) }
+        local badge = UI.Panel { paddingHorizontal = sz(5), paddingVertical = sz(1), borderRadius = sz(2), borderWidth = 1 }
+        local badgeLbl = UI.Label { fontSize = sz(9), fontWeight = "bold" }
+        badge:AddChild(badgeLbl)
+        local titleLbl  = UI.Label { fontSize = sz(12), flexShrink = 1 }
+        local senderLbl = UI.Label { fontSize = sz(10) }
+        local expiryLbl = UI.Label { fontSize = sz(10) }
+
+        local titleRow = UI.Panel {
+            width = "100%", flexDirection = "row", alignItems = "center", gap = sz(6),
+            children = { titleLbl, badge },
+        }
+        local metaRow = UI.Panel {
+            flexDirection = "row", alignItems = "center", gap = sz(8),
+            children = { senderLbl, expiryLbl },
+        }
+        local inner = UI.Panel {
+            flexGrow = 1, flexShrink = 1,
+            flexDirection = "column", gap = sz(4),
+            children = { titleRow, metaRow },
+        }
+        local row = UI.Panel {
+            width = "100%", height = ROW_H,
+            flexDirection = "row", alignItems = "flex-start",
+            gap = sz(8),
+            paddingHorizontal = sz(10), paddingVertical = sz(9),
+            borderWidth = 1, borderRadius = sz(4),
+            cursor = "pointer",
+            children = { dot, inner },
+        }
+        -- 缓存子控件引用，供 bindItem 使用
+        row._dot       = dot
+        row._badge     = badge
+        row._badgeLbl  = badgeLbl
+        row._titleLbl  = titleLbl
+        row._senderLbl = senderLbl
+        row._expiryLbl = expiryLbl
+        return row
+    end
+
+    -- 数据绑定（VirtualList bindItem）
+    local function BindMailRow(widget, m, _index)
+        local isRead    = SaveSystem.IsMailRead(m.id)
+        local hasReward = (m.rewards and #m.rewards > 0) or m.reward ~= nil
+        local isClaimed = hasReward and SaveSystem.IsMailClaimed(m.id)
+        local isSelected = selectedMail and selectedMail.id == m.id
+        local showDot   = not isRead or (hasReward and not isClaimed)
+
+        -- 圆点
+        widget._dot:SetBackgroundColor(showDot and C.unreadDot or { 0, 0, 0, 0 })
+
+        -- 角标
+        if hasReward then
+            widget._badge:SetVisible(true)
+            widget._badge:SetBackgroundColor(isClaimed and { 40, 42, 52, 160 } or C.rewardBg)
+            widget._badge:SetBorderColor(isClaimed and C.divider or C.rewardBdr)
+            widget._badgeLbl:SetText(isClaimed and "已领取" or "有附件")
+            widget._badgeLbl:SetFontColor(isClaimed and C.claimedText or C.rewardText)
+        else
+            widget._badge:SetVisible(false)
+        end
+
+        -- 标题
+        widget._titleLbl:SetText(m.title or "")
+        widget._titleLbl:SetProp("fontWeight", isRead and "normal" or "bold")
+        widget._titleLbl:SetFontColor(isRead and C.dimText or C.title)
+
+        -- 发件人 / 过期
+        widget._senderLbl:SetText(m.sender or "")
+        widget._senderLbl:SetFontColor(C.sender)
+        widget._expiryLbl:SetText(m.expiry or "")
+        widget._expiryLbl:SetFontColor(C.expiry)
+
+        -- 选中高亮
+        widget:SetBackgroundColor(isSelected and C.rowActive or { 0, 0, 0, 0 })
+        widget:SetBorderColor(isSelected and { 195, 215, 40, 120 } or C.rowBdr)
+        widget:SetProp("hoverBackgroundColor", isSelected and C.rowActive or C.rowHover)
+
+        -- 记录到 rowPanels（用于 SelectRow 高亮切换）
+        rowPanels[m.id] = widget
+    end
+
     BuildMailList = function()
         rowPanels = {}
         mailListContainer:ClearChildren()
-        -- 每次重建列表时刷新邮件数据（溢出邮件可能已变化）
+        -- 每次重建时刷新邮件数据
         mails = BuildMailList_GetMails()
 
         if #mails == 0 then
@@ -370,104 +497,27 @@ function MailPanel.Show(onBackCallback)
                     UI.Label { text = "暂无邮件", fontSize = sz(13), fontColor = C.noMailText },
                 },
             })
+            mailVirtualList = nil
             return
         end
 
-        local rows = {}
-        for _, mail in ipairs(mails) do
-            local m         = mail
-            local isRead    = SaveSystem.IsMailRead(m.id)
-            local isClaimed = SaveSystem.IsMailClaimed(m.id)
-            local isSelected = (selectedMail and selectedMail.id == m.id)
-            local hasReward  = m.reward ~= nil
-            local showDot    = not isRead or (hasReward and not isClaimed)
-
-            -- 未读圆点
-            local dot = UI.Panel {
-                width = sz(6), height = sz(6),
-                borderRadius = sz(3), flexShrink = 0,
-                marginTop = sz(2),
-                backgroundColor = showDot and C.unreadDot or { 0, 0, 0, 0 },
-            }
-
-            -- 有奖励角标
-            local badge
-            if hasReward then
-                badge = UI.Panel {
-                    paddingHorizontal = sz(5), paddingVertical = sz(1),
-                    backgroundColor = isClaimed and { 40, 42, 52, 160 } or C.rewardBg,
-                    borderWidth = 1,
-                    borderColor = isClaimed and C.divider or C.rewardBdr,
-                    borderRadius = sz(2),
-                    children = {
-                        UI.Label {
-                            text = isClaimed and "已领取" or "有附件",
-                            fontSize = sz(9), fontWeight = "bold",
-                            fontColor = isClaimed and C.claimedText or C.rewardText,
-                        },
-                    },
-                }
-            end
-
-            rows[#rows + 1] = UI.Panel {
-                width = "100%",
-                flexDirection = "row", alignItems = "flex-start",
-                gap = sz(8),
-                paddingHorizontal = sz(10), paddingVertical = sz(9),
-                marginBottom = sz(4),
-                backgroundColor = isSelected and C.rowActive or { 0, 0, 0, 0 },
-                borderWidth = 1,
-                borderColor = isSelected and { 195, 215, 40, 120 } or C.rowBdr,
-                borderRadius = sz(4),
-                cursor = "pointer",
-                hoverBackgroundColor = isSelected and C.rowActive or C.rowHover,
-                onClick = function()
-                    Utils.PlayClick()
-                    SelectRow(m.id)
-                    selectedMail = m
-                    BuildMailContent(m)
-                end,
-                children = {
-                    dot,
-                    UI.Panel {
-                        flexGrow = 1, flexShrink = 1,
-                        flexDirection = "column", gap = sz(4),
-                        children = {
-                            -- 标题行 + 附件角标
-                            UI.Panel {
-                                width = "100%",
-                                flexDirection = "row", alignItems = "center", gap = sz(6),
-                                children = {
-                                    UI.Label {
-                                        text = m.title or "",
-                                        fontSize = sz(12),
-                                        fontWeight = isRead and "normal" or "bold",
-                                        fontColor = isRead and C.dimText or C.title,
-                                        flexShrink = 1,
-                                    },
-                                    badge or UI.Panel { width = 0 },
-                                },
-                            },
-                            -- 发件人 + 过期时间
-                            UI.Panel {
-                                flexDirection = "row", alignItems = "center", gap = sz(8),
-                                children = {
-                                    UI.Label { text = m.sender or "", fontSize = sz(10), fontColor = C.sender },
-                                    UI.Label { text = m.expiry or "", fontSize = sz(10), fontColor = C.expiry },
-                                },
-                            },
-                        },
-                    },
-                },
-            }
-            rowPanels[m.id] = rows[#rows]
-        end
-
-        mailListContainer:AddChild(UI.ScrollView {
-            width = "100%", flexGrow = 1,
-            paddingHorizontal = sz(6), paddingTop = sz(6),
-            children = rows,
-        })
+        mailVirtualList = UI.VirtualList {
+            width  = "100%",
+            height = listH,     -- 左栏实际可用高度（屏幕高 - 顶栏 - 底栏 - padding）
+            data        = mails,
+            itemHeight  = ROW_H,
+            itemGap     = ROW_GAP,
+            paddingLeft = sz(6), paddingRight = sz(6), paddingTop = sz(6),
+            createItem  = CreateMailRow,
+            bindItem    = BindMailRow,
+            onItemClick = function(m, _index, _widget)
+                Utils.PlayClick()
+                SelectRow(m.id)
+                selectedMail = m
+                BuildMailContent(m)
+            end,
+        }
+        mailListContainer:AddChild(mailVirtualList)
     end
 
     -- ── 初始构建 ─────────────────────────────────────────────────────────────
@@ -491,9 +541,10 @@ function MailPanel.Show(onBackCallback)
                     fullHit = true
                     break  -- 仓库满就停止，后续都放不进去
                 end
-            elseif m.reward and not SaveSystem.IsMailClaimed(m.id) then
+            elseif (m.rewards or m.reward) and not SaveSystem.IsMailClaimed(m.id) then
                 if SaveSystem.ClaimMail(m.id) then
-                    GiveReward(m.reward)
+                    local rewardList = m.rewards or { m.reward }
+                    for _, r in ipairs(rewardList) do GiveReward(r) end
                     count = count + 1
                 end
             end
