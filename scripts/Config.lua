@@ -303,10 +303,12 @@ end
 -- ============================================================================
 -- reward  字段：单奖励 { type="coins"|"bp_exp"|"ticket"|"point_tickets", amount=N, ticketId="..." }
 -- rewards 字段：多奖励数组，与 reward 互斥（优先使用 rewards）
+-- 每次版本更新在此追加一条新记录，id 固定不变，旧公告永久保留。
+-- id 命名规范：v{版本号下划线形式}_update，例如 v1_1_28_update
 Config.MAILS = {
     {
-        id     = "v" .. Config.GAME.Version:gsub("%.", "_") .. "_update",
-        title  = Config.GAME.Version .. " 版本更新公告",
+        id     = "v1_1_28_update",
+        title  = "1.1.28 版本更新公告",
         sender = "系统",
         date   = "2026-05-21",
         expiry = "",
@@ -323,6 +325,16 @@ Config.MAILS = {
             { type = "point_tickets", amount = 50 },
         },
     },
+    -- 在此追加新版本公告，例如：
+    -- {
+    --     id     = "v1_1_29_update",
+    --     title  = "1.1.29 版本更新公告",
+    --     sender = "系统",
+    --     date   = "2026-xx-xx",
+    --     expiry = "",
+    --     body   = "...",
+    --     rewards = { ... },
+    -- },
 }
 
 return Config

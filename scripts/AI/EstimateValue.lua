@@ -90,6 +90,9 @@ local categoryRarityAvg = {}
 -- 池平均值（所有物品的算术平均，用于计算相对比例的基准）
 local poolAvg = 0
 
+-- 池内最低价物品价值（白品质中最便宜的，用于 sampleAvgValue 精确下界）
+local poolMinValue = 0
+
 -- 是否已初始化
 local initialized = false
 
@@ -225,6 +228,15 @@ function EstimateValue.Init(warehouseTypeId)
     for key, wSum in pairs(crWeightedSum) do
         categoryRarityAvg[key] = wSum / crTotalWeight[key]
     end
+
+    -- 池内最低价（用于 sampleAvgValue 精确下界）
+    poolMinValue = math.huge
+    for _, item in ipairs(pool) do
+        if item.value < poolMinValue then
+            poolMinValue = item.value
+        end
+    end
+    if poolMinValue == math.huge then poolMinValue = 0 end
 
     initialized = true
 
@@ -525,6 +537,41 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
                     .. " 已知总价" .. string.format("%.0f", lot.totalValue)
                     .. " 提升 totalEstimate+" .. string.format("%.0f", delta))
             end
+        end
+    end
+
+    -- sampleAvgValue 精确下界：
+    -- 已知 sampleCount 件样品均价 = X：
+    --   精确下界 = sampleCount × X + (totalCount - sampleCount) × poolMinValue
+    -- 无 sampleCount 时回退到保守估算 × 0.25
+    do
+        local bestFloor = 0
+        for _, infos in ipairs({ publicInfos, skillInfos }) do
+            for _, info in ipairs(infos) do
+                if info.type == "random_avg_value"
+                    and info.sampleAvgValue and info.sampleAvgValue > 0
+                    and not info.sampleRarity
+                    and not info.sampleCellCount
+                    and info.totalCount and info.totalCount > 0
+                then
+                    local tc = info.totalCount
+                    local floor
+                    if info.sampleCount and info.sampleCount > 0 then
+                        local sc = math.min(info.sampleCount, tc)
+                        floor = sc * info.sampleAvgValue + math.max(0, tc - sc) * poolMinValue
+                    else
+                        floor = tc * info.sampleAvgValue * 0.25
+                    end
+                    if floor > bestFloor then
+                        bestFloor = floor
+                    end
+                end
+            end
+        end
+        if bestFloor > totalEstimate then
+            print("[EstimateValue] sampleAvgValue 精确下界: "
+                .. string.format("%.0f", totalEstimate) .. " -> " .. string.format("%.0f", bestFloor))
+            totalEstimate = bestFloor
         end
     end
 

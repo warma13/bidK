@@ -39,11 +39,18 @@ local cloudLoaded = false
 -- 版本检测状态
 local LOCAL_VERSION = Config.GAME.Version  -- 统一引用 Config
 local VERSION_CHECK_KEY = "app_version"
-local VERSION_CHECK_INTERVAL = 120   -- 定时检测间隔（秒）
+local VERSION_CHECK_INTERVAL = 600   -- 定时检测间隔（秒，10分钟）
 local versionLabel = nil             -- 版本号显示
 local versionStatusLabel = nil       -- 检测结果提示
 local versionCheckBtn = nil          -- 手动检测按钮
 local hasNewVersion = false          -- 是否检测到新版本
+local settingsBtnDot = nil           -- 齿轮按钮红点
+local versionCheckDot = nil          -- 检测新版本按钮红点
+
+local function SetNewVersionDots(show)
+    if settingsBtnDot  then settingsBtnDot:SetVisible(show)  end
+    if versionCheckDot then versionCheckDot:SetVisible(show) end
+end
 local lastCheckTime = os.time()      -- 上次检测时间（初始化为当前时间，避免定时器立即触发）
 local _checking = false              -- 防重入：GetRankList 进行中时不重复发起
 -- versionTimerHandle 已移除：版本检测改用 GameLoop.RegisterAlways 驱动
@@ -294,6 +301,7 @@ local function DoVersionCheck()
                     })
                 end)
                 hasNewVersion = false
+                SetNewVersionDots(false)
                 if versionStatusLabel then
                     versionStatusLabel:SetText("当前已是最新版本 v" .. LOCAL_VERSION)
                     versionStatusLabel:SetFontColor({ 130, 200, 130, 255 })
@@ -302,6 +310,7 @@ local function DoVersionCheck()
             elseif cloudVersion > localEncoded then
                 -- 云端版本更高，提示更新
                 hasNewVersion = true
+                SetNewVersionDots(true)
                 if versionStatusLabel then
                     versionStatusLabel:SetText("发现新版本 v" .. DecodeVersion(cloudVersion) .. "\n点击右上角三个点，再点下方\n重新启动更新版本")
                     versionStatusLabel:SetFontColor({ 255, 200, 80, 255 })
@@ -310,6 +319,7 @@ local function DoVersionCheck()
             else
                 -- 版本相同
                 hasNewVersion = false
+                SetNewVersionDots(false)
                 if versionStatusLabel then
                     versionStatusLabel:SetText("当前已是最新版本 v" .. LOCAL_VERSION)
                     versionStatusLabel:SetFontColor({ 130, 200, 130, 255 })
@@ -387,6 +397,14 @@ function SettingsPanel.CreateButton()
     -- 重置弹窗状态，防止跨界面残留
     popupVisible = false
 
+    settingsBtnDot = UI.Panel {
+        width = sz(8), height = sz(8), borderRadius = sz(4),
+        backgroundColor = { 235, 50, 50, 255 },
+        position = "absolute", top = sz(2), right = sz(2),
+        visible = hasNewVersion,
+        pointerEvents = "none",
+    }
+
     return UI.Panel {
         width = sz(34), height = sz(34),
         alignItems = "center", justifyContent = "center",
@@ -405,6 +423,7 @@ function SettingsPanel.CreateButton()
                 backgroundFit = "contain",
                 pointerEvents = "none",
             },
+            settingsBtnDot,
         },
     }
 end
@@ -503,13 +522,26 @@ function SettingsPanel.CreatePopup()
         fontSize = sz(12), fontColor = C.textMuted, flexShrink = 0,
     }
 
-    versionCheckBtn = UI.Button {
-        text = "检测新版本", width = "100%", height = sz(30), fontSize = sz(12),
-        variant = "secondary",
-        onClick = function()
-            Utils.PlayClick()
-            DoVersionCheck()
-        end,
+    versionCheckDot = UI.Panel {
+        width = sz(8), height = sz(8), borderRadius = sz(4),
+        backgroundColor = { 235, 50, 50, 255 },
+        position = "absolute", top = sz(4), right = sz(4),
+        visible = hasNewVersion,
+        pointerEvents = "none",
+    }
+    versionCheckBtn = UI.Panel {
+        width = "100%", flexDirection = "row", alignItems = "center",
+        children = {
+            UI.Button {
+                text = "检测新版本", flexGrow = 1, height = sz(30), fontSize = sz(12),
+                variant = "secondary",
+                onClick = function()
+                    Utils.PlayClick()
+                    DoVersionCheck()
+                end,
+            },
+            versionCheckDot,
+        },
     }
 
     versionStatusLabel = UI.Label {
@@ -682,6 +714,17 @@ end
 --- 手动触发版本检测
 function SettingsPanel.DebugDoVersionCheck()
     DoVersionCheck()
+end
+
+function SettingsPanel.IsOpen()
+    return popupVisible
+end
+
+function SettingsPanel.Hide()
+    if popupVisible then
+        popupVisible = false
+        if popupOverlay then popupOverlay:SetVisible(false) end
+    end
 end
 
 return SettingsPanel

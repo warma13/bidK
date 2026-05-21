@@ -22,6 +22,9 @@ local FloatingMsg  = require("UI.FloatingMessage")
 
 local MailPanel = {}
 
+-- 当前活跃的返回函数（Show 时赋值，供外部 ESC 调用）
+local goBackFn = nil
+
 -- ─── 颜色 ────────────────────────────────────────────────────────────────────
 local C = {
     bg          = { 6,   8,  16, 200 },
@@ -182,6 +185,7 @@ function MailPanel.Show(onBackCallback)
     -- ── 关闭/返回 ─────────────────────────────────────────────────────────────
     local function GoBack()
         Utils.PlayClick()
+        goBackFn = nil
         UIState.currentScreen = "menu"
         if onBackCallback then
             onBackCallback()
@@ -190,6 +194,7 @@ function MailPanel.Show(onBackCallback)
             GameController.ShowMenu()
         end
     end
+    goBackFn = GoBack
 
     -- ── 构建奖励格子区 ────────────────────────────────────────────────────────
     local function BuildRewardArea(mail)
@@ -702,6 +707,14 @@ function MailPanel.Show(onBackCallback)
             },
         },
     })
+end
+
+function MailPanel.IsOpen()
+    return UIState.currentScreen == "mail"
+end
+
+function MailPanel.GoBack()
+    if goBackFn then goBackFn() end
 end
 
 return MailPanel

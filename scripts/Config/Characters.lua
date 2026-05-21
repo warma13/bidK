@@ -114,11 +114,12 @@ M.CHARACTERS = {
         avatar = "Textures/characters/shen_jinghong.png",
         portrait = "Textures/characters/portraits/portrait_gu_qingyun.png",
         ability = "艺术直觉",
-        desc = "第1轮：看到艺术中随机3件的轮廓\n第4轮：鉴别艺术中随机2件的品质",
+        desc = "第1轮：看到艺术中随机3件的轮廓\n第2轮：知晓艺术的件数\n第4轮：鉴别艺术中随机2件的轮廓和品质",
         specialty = "art",
         revealEvents = {
             { trigger = "round_1", target = "category_random_3", category = "art", level = "L1" },
-            { trigger = "round_4", target = "category_random_2", category = "art", level = "L2_hint" },
+            { trigger = "round_2", target = "category_all",      category = "art", level = "L0" },
+            { trigger = "round_4", target = "category_random_2", category = "art", level = "L2" },
         },
         personality = {
             style = "info_driven",
@@ -297,20 +298,20 @@ M.CHARACTERS = {
             qualitySensDown = 0.65,
         },
     },
-    -- ========== 白凌霄 — 通才 · 开场博览+持续 · 甜妹 · 锁定 ==========
+    -- ========== 陆时晴 — 通才 · 开局全览+逐轮品质探 · 锁定 ==========
     {
         id = 14,
         name = "陆时晴",
         avatar = "Textures/characters/avatar_lu_shiqing.png",
         portrait = "Textures/characters/portraits/portrait_lu_shiqing.png",
         ability = "开场博览",
-        desc = "拍卖开始时：看到随机5件物品的轮廓\n第2轮起每轮：看到随机2件物品的轮廓",
+        desc = "第1轮：鉴别随机5件物品的品质\n第2轮起每轮：鉴别随机2件物品的品质",
         specialty = nil,
         locked = true,
         unlockCost = 30,
         revealEvents = {
-            { trigger = "round_1",      target = "random_5", category = nil, level = "L1" },
-            { trigger = "from_round_2", target = "random_2", category = nil, level = "L1" },
+            { trigger = "round_1",      target = "random_5", category = nil, level = "L2_hint" },
+            { trigger = "from_round_2", target = "random_2", category = nil, level = "L2_hint" },
         },
         personality = {
             style = "arbitrage",
@@ -408,18 +409,19 @@ M.CHARACTERS = {
             qualitySensDown = 0.55,
         },
     },
-    -- ========== 程云裳 — 服饰专精 · 开场全透 ==========
+    -- ========== 程云裳 — 服饰专精 · 开场全览+持续深挖 ==========
     {
         id = 15,
         name = "程云裳",
         avatar = "Textures/characters/avatar_cheng_yunshang.png",
         portrait = "Textures/characters/portraits/portrait_cheng_yunshang.png",
         ability = "锦绣眼",
-        desc = "第2轮起每轮：看到随机2件服饰物品的品质",
+        desc = "第1轮：看到全部服饰的轮廓\n第2轮起每轮：鉴别随机2件服饰的品质",
         specialty = "fashion",
         locked = true,
         unlockCost = 30,
         revealEvents = {
+            { trigger = "round_1",      target = "category_all",      category = "fashion", level = "L1" },
             { trigger = "from_round_2", target = "category_random_2", category = "fashion", level = "L2_hint" },
         },
         personality = {
@@ -435,19 +437,20 @@ M.CHARACTERS = {
             qualitySensDown = 0.65,
         },
     },
-    -- ========== 何启明 — 通才 · 信息洪流 ==========
+    -- ========== 何启明 — 通才 · 信息洪流+中期爆发 ==========
     {
         id = 11,
         name = "何启明",
         avatar = "Textures/characters/he_qiming.png",
         portrait = "Textures/characters/portraits/portrait_he_qiming.png",
         ability = "消息灵通",
-        desc = "每轮：鉴别仓库中随机3件物品的品质",
+        desc = "每轮：鉴别随机3件物品的品质\n第3轮：额外看到全场品质最高的3件物品的轮廓",
         specialty = nil,
         locked = true,
         unlockCost = 30,
         revealEvents = {
-            { trigger = "every_round", target = "random_3", category = nil, level = "L2_hint" },
+            { trigger = "every_round", target = "random_3",  category = nil, level = "L2_hint" },
+            { trigger = "round_3",     target = "highest_3", category = nil, level = "L1" },
         },
         personality = {
             style = "arbitrage",
@@ -472,7 +475,7 @@ M.CHARACTERS = {
         desc = "第1轮：知晓珠宝的件数\n第2轮：看透珠宝中随机2件的全部信息\n第4轮：鉴别珠宝中另外随机2件的品质",
         specialty = "jewel",
         locked = true,
-        unlockCost = 300,
+        unlockCost = 30,
         revealEvents = {
             { trigger = "round_1", target = "category_all",      category = "jewel", level = "L0" },
             { trigger = "round_2", target = "category_random_2", category = "jewel", level = "L3" },
@@ -491,6 +494,34 @@ M.CHARACTERS = {
             qualitySensDown = 0.70,
         },
     },
+    -- ========== 裴锦书 — 日用专精 · 全透+全场顶尖追踪 · 高价锁定 ==========
+    {
+        id = 19,
+        name = "裴锦书",
+        avatar = "Textures/characters/avatar_pei_jingxing.png",
+        portrait = "Textures/characters/portraits/portrait_pei_jingxing_new.png",
+        ability = "烟火慧眼",
+        desc = "第1轮：看到全部日用物品的轮廓\n第3轮起每轮：鉴别随机2件物品的轮廓和品质",
+        specialty = "daily",
+        locked = true,
+        unlockCost = 300,
+        revealEvents = {
+            { trigger = "round_1",      target = "category_all", category = "daily", level = "L1" },
+            { trigger = "from_round_3", target = "random_2",     category = nil,     level = "L2" },
+        },
+        personality = {
+            style = "specialist",
+            bidLow = 0.45, bidHigh = 0.82,
+            tiebreakMaxRatio = 1.9,
+            resignStyle = "silent",
+            numberStyle = "precise",
+            bluffTendency = 0.03,
+            pumpTendency = 0.0,
+            resignThreshold = 0.40,
+            qualitySensUp = 0.70,
+            qualitySensDown = 0.75,
+        },
+    },
     -- ========== 周正霆 — 机械专精 · 中期型 ==========
     {
         id = 6,
@@ -501,7 +532,7 @@ M.CHARACTERS = {
         desc = "第1轮：知晓机械的件数\n第2轮：看到全部机械物品的轮廓\n第3轮：看透机械中随机2件的全部信息",
         specialty = "mechanical",
         locked = true,
-        unlockCost = 300,
+        unlockCost = 30,
         revealEvents = {
             { trigger = "round_1", target = "category_all",      category = "mechanical", level = "L0" },
             { trigger = "round_2", target = "category_all",      category = "mechanical", level = "L1" },

@@ -14,6 +14,9 @@ local TicketTooltip = require("UI.TicketTooltip")
 
 local RewardScreen = {}
 
+-- 当前活跃的返回函数（Show 时赋值，供外部 ESC 调用）
+local goBackFn = nil
+
 -- ============================================================================
 -- Tab 定义
 -- ============================================================================
@@ -61,6 +64,16 @@ local TABS = {
 
 function RewardScreen.Show(onBackCallback)
     local sz = Utils.sz
+
+    -- 注册返回函数供 ESC 快捷键调用
+    goBackFn = function()
+        Utils.PlayClick()
+        for _, t in ipairs(TABS) do
+            if t.id == activeTabId and t.onHide then t.onHide() end
+        end
+        goBackFn = nil
+        if onBackCallback then onBackCallback() end
+    end
 
     local activeTabId = TABS[1].id
 
@@ -306,6 +319,14 @@ function RewardScreen.Show(onBackCallback)
 
     -- 初始展示第一个 Tab
     SwitchTab(TABS[1].id)
+end
+
+function RewardScreen.IsOpen()
+    return goBackFn ~= nil
+end
+
+function RewardScreen.GoBack()
+    if goBackFn then goBackFn() end
 end
 
 return RewardScreen

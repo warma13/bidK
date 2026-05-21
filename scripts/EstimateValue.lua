@@ -695,17 +695,23 @@ function EstimateValue.Calculate(infoState, whTypeId)
         end
     end
 
-    -- sampleAvgValue 直接下界约束：
-    -- 已知 N 件随机样品均价 = X → 整仓估价至少 totalCount × X × 0.4
-    -- 系数 0.4：min 模式保守（期望约为均价×totalCount，取 40% 作为下界）
-    -- 这是最直接利用均价信息的约束，防止高价值仓库被严重低估
+    -- sampleAvgValue 精确最低价约束：
+    -- 已知 sampleCount 件随机样品均价 = X：
+    --   - 这 sampleCount 件已确认总价 = sampleCount × X
+    --   - 其余 (totalCount - sampleCount) 件最差情况：每件 = 池内最低价物品
+    -- → 精确最低价 = sampleCount × X + (totalCount - sampleCount) × absolutePoolMin
+    -- 对无 sampleCount 字段（旧格式/子集变体）的信息，回退到保守估算 × 0.25
     do
         local bestSampleAvg = nil
+        local bestSampleCount = nil
         local bestTotalCount = nil
         local function checkSample(info)
-            if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 then
+            if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0
+                and not info.sampleRarity and not info.sampleCellCount
+            then
                 if not bestSampleAvg or info.sampleAvgValue > bestSampleAvg then
                     bestSampleAvg = info.sampleAvgValue
+                    bestSampleCount = info.sampleCount  -- 可能为 nil（旧格式）
                     bestTotalCount = info.totalCount
                 end
             end
@@ -718,22 +724,36 @@ function EstimateValue.Calculate(infoState, whTypeId)
             end
         end
         if bestSampleAvg then
-            local n = bestTotalCount or #items
-            local sampleFloor = n * bestSampleAvg * 0.4
-            if sampleFloor > totalMin then
-                print("[EstimateValue] sampleAvgValue 下界约束: "
+            local tc = bestTotalCount or #items
+            local sampleFloor
+            if bestSampleCount and bestSampleCount > 0 then
+                -- 精确公式：已确认部分 + 其余部分取池内绝对最低价
+                local absolutePoolMin = (tables.min.qualityMinValue and tables.min.qualityMinValue["white"]) or 0
+                local sc = math.min(bestSampleCount, tc)
+                sampleFloor = sc * bestSampleAvg + math.max(0, tc - sc) * absolutePoolMin
+                print("[EstimateValue] sampleAvgValue 精确下界: "
+                    .. string.format("%.0f", totalMin) .. " -> " .. string.format("%.0f", sampleFloor)
+                    .. " (sampleCount=" .. sc .. " avgValue=" .. string.format("%.0f", bestSampleAvg)
+                    .. " totalCount=" .. tc
+                    .. " poolMin=" .. string.format("%.0f", absolutePoolMin) .. ")")
+            else
+                -- 无 sampleCount 信息，回退到保守估算
+                sampleFloor = tc * bestSampleAvg * 0.25
+                print("[EstimateValue] sampleAvgValue 保守下界: "
                     .. string.format("%.0f", totalMin) .. " -> " .. string.format("%.0f", sampleFloor)
                     .. " (avgValue=" .. string.format("%.0f", bestSampleAvg)
-                    .. " n=" .. n .. " factor=0.4)")
+                    .. " n=" .. tc .. " factor=0.25)")
+            end
+            if sampleFloor > totalMin then
                 totalMin = sampleFloor
             end
         end
     end
 
-    -- quality_avg_value 下界约束：
-    -- 已知某品质仓库内实际均价 = V，件数 = N
-    -- → 那 N 件物品对 totalMin 的贡献至少为 N × V × 0.5（min 模式保守系数）
-    -- 注意：已揭示物品已有更精确估价，这里仅针对未揭示的件数补充下界
+    -- quality_avg_value 精确约束：
+    -- 已知某品质全部 N 件物品均价 = V（由道具精确揭示，非采样）
+    -- → 该品质物品总价 = N × V（精确值，不需要保守系数）
+    -- 与已揭示物品的当前估价取 max，避免重复计算
     do
         local rarityAvgValues = collectRarityAvgValues(publicInfos, skillInfos)
         local rarityCounstForFloor = collectRarityCounts(publicInfos, skillInfos)
@@ -750,12 +770,8 @@ function EstimateValue.Calculate(infoState, whTypeId)
             for rarId, avgV in pairs(rarityAvgValues) do
                 local totalKnownCount = rarityCounstForFloor[rarId] or 0
                 if totalKnownCount > 0 then
-                    -- 未揭示的该品质件数（仅对未揭示部分应用约束，避免重复计算）
-                    local revealedCount = revealedByRarity[rarId] or 0
-                    local unrevealed = math.max(0, totalKnownCount - revealedCount)
-                    -- 全品质下界：totalCount × avgV × 0.5（包含已揭示部分的贡献）
-                    -- 使用更简单的方法：直接用总件数 × 均价 × 0.5 作为该品质贡献的下界
-                    local rarFloor = totalKnownCount * avgV * 0.5
+                    -- 精确总价：N × V（均价由道具精确揭示，无需折扣）
+                    local rarFloor = totalKnownCount * avgV
 
                     -- 计算已揭示该品质物品的当前估价总和
                     local revealedSum = 0
@@ -771,6 +787,8 @@ function EstimateValue.Calculate(infoState, whTypeId)
                     end
 
                     -- 未揭示该品质物品的当前估价（以 white 为底）
+                    local revealedCount = revealedByRarity[rarId] or 0
+                    local unrevealed = math.max(0, totalKnownCount - revealedCount)
                     local unrevealedCurrentSum = unrevealed > 0
                         and (unrevealed * (tables.min.qualityMinValue["white"] or 0) * unknownMult)
                         or 0
@@ -779,12 +797,12 @@ function EstimateValue.Calculate(infoState, whTypeId)
                     if rarFloor > currentRarContrib then
                         local boost = rarFloor - currentRarContrib
                         totalMin = totalMin + boost
-                        print("[EstimateValue] rarityAvgValue 下界约束 [" .. rarId .. "]:"
+                        print("[EstimateValue] rarityAvgValue 精确约束 [" .. rarId .. "]:"
                             .. " 当前贡献=" .. string.format("%.0f", currentRarContrib)
-                            .. " 下界=" .. string.format("%.0f", rarFloor)
+                            .. " 精确总价=" .. string.format("%.0f", rarFloor)
                             .. " (avgV=" .. string.format("%.0f", avgV)
                             .. " totalCount=" .. totalKnownCount
-                            .. " factor=0.5) +boost=" .. string.format("%.0f", boost))
+                            .. ") +boost=" .. string.format("%.0f", boost))
                     end
                 end
             end

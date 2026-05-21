@@ -2,15 +2,16 @@
 -- UI/LobbyScreen.lua - 竞拍大厅（选角色/仓库/难度/道具）
 -- ============================================================================
 
-local UI = require("urhox-libs/UI")
-local Config = require("Config")
-local UIState = require("UI.UIState")
-local MoneyHUD = require("UI.MoneyHUD")
-local Utils = require("UI.Utils")
-local DebugPanel = require("UI.DebugPanel")
-local SaveSystem = require("SaveSystem")
+local UI               = require("urhox-libs/UI")
+local Config           = require("Config")
+local UIState          = require("UI.UIState")
+local MoneyHUD         = require("UI.MoneyHUD")
+local Utils            = require("UI.Utils")
+local DebugPanel       = require("UI.DebugPanel")
+local SaveSystem       = require("SaveSystem")
+local FloatingMessage  = require("UI.FloatingMessage")
+local UnlockCharDialog = require("UI.UnlockCharDialog")
 
-local FloatingMessage = require("UI.FloatingMessage")
 local LobbyScreen = {}
 
 ---@param regionIdx number
@@ -69,49 +70,44 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
     local avatarLockOverlays = {}
     local refreshCharInfo  -- 后面赋值
 
-    -- 角色币显示（图标 + 数字）
-    local charCoinText = UI.Label {
-        text = "", fontSize = Utils.sz(10),
-        fontColor = { 255, 200, 80, 255 },
-    }
-    local charCoinLabel = UI.Panel {
-        flexDirection = "row", alignItems = "center", gap = Utils.sz(4),
-        visible = false,
-        children = {
-            UI.Panel {
-                width = Utils.sz(14), height = Utils.sz(14),
-                backgroundImage = Config.CHARACTER_COIN_ICON,
-                backgroundFit = "contain", flexShrink = 0,
-            },
-            charCoinText,
-        },
-    }
-
-    -- 解锁按钮
-    local unlockBtn = UI.Button {
-        text = "解锁", width = "100%", height = Utils.sz(28),
-        fontSize = Utils.sz(11), variant = "primary",
-        visible = false,
-        onClick = function()
-            Utils.PlayClick()
-            local ch = Config.CHARACTERS[selectedCharIdx]
-            if not ch or not ch.locked then return end
-            local cost = ch.unlockCost or 20
-            if SaveSystem.GetCharacterCoins() < cost then
-                FloatingMessage.Show("角色币不足，需要 " .. cost .. " 个")
-                return
-            end
-            if not SaveSystem.SpendCharacterCoins(cost) then
-                FloatingMessage.Show("角色币不足")
-                return
-            end
-            SaveSystem.UnlockCharacter(ch.id)
-            SaveSystem.MarkDirty()
-            -- 刷新 UI
+    -- -------------------------------------------------------------------------
+    -- 解锁弹窗（复用 UnlockCharDialog 模块）
+    -- -------------------------------------------------------------------------
+    local unlockDialog = UnlockCharDialog.Create({
+        sz = Utils.sz,
+        onUnlocked = function(ch)
             avatarLockOverlays[selectedCharIdx]:SetVisible(false)
             refreshCharInfo()
             FloatingMessage.Show("🎉 成功解锁 " .. ch.name .. "!")
         end,
+    })
+
+    -- 解锁按钮
+    local unlockBtn = UI.Panel {
+        flexDirection = "row", alignItems = "center", justifyContent = "center",
+        gap = Utils.sz(6), width = "100%", height = Utils.sz(28),
+        backgroundColor = { 100, 80, 15, 230 },
+        borderRadius = Utils.sz(6), borderWidth = 1,
+        borderColor = { 180, 148, 50, 200 },
+        cursor = "pointer", visible = false,
+        onClick = function()
+            Utils.PlayClick()
+            local ch = Config.CHARACTERS[selectedCharIdx]
+            if not ch or not isCharLocked(ch) then return end
+            unlockDialog.show(ch)
+        end,
+        children = {
+            UI.Panel {
+                width = Utils.sz(14), height = Utils.sz(14),
+                backgroundImage = "image/point_ticket_icon_20260518210650.png",
+                backgroundFit = "contain", flexShrink = 0,
+            },
+            UI.Label {
+                text = "300 点券  解锁",
+                fontSize = Utils.sz(11), fontWeight = "bold",
+                fontColor = { 255, 225, 80, 255 },
+            },
+        },
     }
 
     -- =========================================================================
@@ -396,23 +392,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
 
         -- 锁定状态 UI
         local locked = isCharLocked(ch)
-        if locked then
-            local cost = ch.unlockCost or 20
-            local coins = SaveSystem.GetCharacterCoins()
-            charCoinText:SetText(coins .. "/" .. cost)
-            charCoinLabel:SetVisible(true)
-            if coins >= cost then
-                charCoinText:SetStyle({ fontColor = { 100, 255, 100, 255 } })
-            else
-                charCoinText:SetStyle({ fontColor = { 255, 200, 80, 255 } })
-            end
-            unlockBtn:SetText("解锁 (" .. cost .. ")")
-            unlockBtn:SetVisible(true)
-            unlockBtn:SetDisabled(coins < cost)
-        else
-            charCoinLabel:SetVisible(false)
-            unlockBtn:SetVisible(false)
-        end
+        unlockBtn:SetVisible(locked)
 
         -- 更新全身立绘
         if ch.portrait then
@@ -665,8 +645,6 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                     charDescLabel,
                     -- 技能
                     charSkillLabel,
-                    -- 角色币信息（锁定角色时显示）
-                    charCoinLabel,
                     -- 解锁按钮（锁定角色时显示）
                     unlockBtn,
                 },
@@ -861,6 +839,7 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         children = {
             lobbyRoot,
             MoneyHUD.CreatePopup(),
+            unlockDialog.panel,
         },
     }
 

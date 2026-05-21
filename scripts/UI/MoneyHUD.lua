@@ -329,4 +329,8 @@ function MoneyHUD.HidePopup()
     end
 end
 
+function MoneyHUD.IsPopupOpen()
+    return popupVisible
+end
+
 return MoneyHUD

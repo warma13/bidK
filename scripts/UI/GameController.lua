@@ -20,6 +20,11 @@ local AppPhase = require("AppPhase")
 local GameSession = require("GameSession")
 local GameOverDialog = require("UI.GameOverDialog")
 local LeaderboardPanel = require("UI.LeaderboardPanel")
+local TaskPanel = require("UI.TaskPanel")
+local RewardScreen = require("UI.RewardScreen")
+local SettingsPanel = require("UI.SettingsPanel")
+local MoneyHUD = require("UI.MoneyHUD")
+local MailPanel = require("UI.MailPanel")
 
 local GameController = {}
 
@@ -143,6 +148,30 @@ function GameController.HandleUpdate(dt)
             return
         end
 
+        -- 浮层弹窗（任务 / 奖励 / 设置 / 我的资产）：优先关闭
+        if TaskPanel.IsOpen() then
+            TaskPanel.Hide()
+            return
+        end
+        if RewardScreen.IsOpen() then
+            RewardScreen.GoBack()
+            return
+        end
+        if SettingsPanel.IsOpen() then
+            SettingsPanel.Hide()
+            return
+        end
+        if MoneyHUD.IsPopupOpen() then
+            MoneyHUD.HidePopup()
+            return
+        end
+
+        -- 邮件全屏：优先关闭
+        if MailPanel.IsOpen() then
+            MailPanel.GoBack()
+            return
+        end
+
         local screen = UIState.currentScreen
         if GameOverDialog.IsVisible() then
             -- 竞拍结算：确认返回
@@ -160,8 +189,8 @@ function GameController.HandleUpdate(dt)
             -- 仓库 → 主菜单
             GameController.ShowMenu()
         elseif screen == "character" then
-            -- 角色图鉴 → 主菜单
-            GameController.ShowMenu()
+            -- 角色图鉴：ESC 由 CharacterScreen 内部 KeyDown 优先处理（弹窗/退出）
+            -- GameController 不重复处理，避免双触发
         elseif screen == "prop" then
             -- 道具商店：优先关闭购买弹窗，否则返回主菜单
             if PropScreen.HasOpenDialog() then

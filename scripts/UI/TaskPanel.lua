@@ -1142,4 +1142,15 @@ function TaskPanel.RefreshBadge()
     UpdateBadge()
 end
 
+function TaskPanel.IsOpen()
+    return popupVisible
+end
+
+function TaskPanel.Hide()
+    if popupVisible then
+        popupVisible = false
+        if popupOverlay then popupOverlay:SetVisible(false) end
+    end
+end
+
 return TaskPanel

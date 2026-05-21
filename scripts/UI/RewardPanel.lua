@@ -376,4 +376,15 @@ function RewardPanel.Update(dt)
     end
 end
 
+function RewardPanel.IsOpen()
+    return popupVisible
+end
+
+function RewardPanel.Hide()
+    if popupVisible then
+        popupVisible = false
+        if popupOverlay then popupOverlay:SetVisible(false) end
+    end
+end
+
 return RewardPanel

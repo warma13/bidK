@@ -15,6 +15,35 @@ local MAX_ROWS = Config.GAME.LootMaxRows     -- 20
 local MAX_CELLS = COLS * MAX_ROWS            -- 200
 
 -- ============================================================================
+-- 本地 RNG（xorshift32，支持种子，用于联机时确定性复现仓库）
+-- 替代全局 math.random，避免影响游戏其他系统的随机状态
+-- ============================================================================
+local _rngState = 0
+
+local function _seedRng(seed)
+    _rngState = (seed ~= 0) and (seed & 0xFFFFFFFF) or 2463534242
+end
+
+--- rng()     → float [0, 1)
+--- rng(a, b) → integer [a, b]
+--- rng(n)    → integer [1, n]
+local function rng(a, b)
+    local x = _rngState
+    x = (x ~ (x << 13)) & 0xFFFFFFFF
+    x = (x ~ (x >> 17)) & 0xFFFFFFFF
+    x = (x ~ (x << 5))  & 0xFFFFFFFF
+    _rngState = x
+    local r = x / 4294967296.0
+    if a == nil then
+        return r
+    elseif b == nil then
+        return math.floor(r * a) + 1
+    else
+        return a + math.floor(r * (b - a + 1))
+    end
+end
+
+-- ============================================================================
 -- 仓库分层系统（Tier）
 -- 先掷骰决定本仓库的价值档位，再在档位区间内采样
 --
@@ -45,7 +74,7 @@ local function rollTier()
     for _, t in ipairs(WAREHOUSE_TIERS) do
         totalWeight = totalWeight + t.weight
     end
-    local r = math.random() * totalWeight
+    local r = rng() * totalWeight
     local acc = 0
     for _, t in ipairs(WAREHOUSE_TIERS) do
         acc = acc + t.weight
@@ -86,7 +115,7 @@ local function weightedRandom(weights)
         total = total + weights[i]
     end
     if total <= 0 then return 1 end
-    local r = math.random() * total
+    local r = rng() * total
     local acc = 0
     for i = 1, #weights do
         acc = acc + weights[i]
@@ -97,7 +126,7 @@ end
 
 -- 在 min 和 max 之间取随机整数（含两端）
 local function randInt(minVal, maxVal)
-    return math.random(minVal, maxVal)
+    return rng(minVal, maxVal)
 end
 
 -- ============================================================================
@@ -343,7 +372,7 @@ local function pickWeightedBudget(pool, targetPerPick, k)
         total = total + e._dynWeight
     end
     if total <= 0 then return pool[1] end
-    local r = math.random() * total
+    local r = rng() * total
     local acc = 0
     for _, e in ipairs(pool) do
         acc = acc + e._dynWeight
@@ -361,7 +390,7 @@ local function pickWeightedCategory(pool)
         total = total + e.catWeight * itemWeight * (e.tagBonus or 1.0)
     end
     if total <= 0 then return pool[1] end
-    local r = math.random() * total
+    local r = rng() * total
     local acc = 0
     for _, e in ipairs(pool) do
         local itemWeight = e.item.weight or 1
@@ -422,7 +451,7 @@ end
 -- Fisher-Yates 洗牌
 local function shuffle(t)
     for i = #t, 2, -1 do
-        local j = math.random(1, i)
+        local j = rng(1, i)
         t[i], t[j] = t[j], t[i]
     end
 end
@@ -437,8 +466,8 @@ end
 
 --- Box-Muller 变换生成标准正态随机数
 local function randNormal()
-    local u1 = math.random()
-    local u2 = math.random()
+    local u1 = rng()
+    local u2 = rng()
     -- 避免 log(0)
     if u1 < 1e-10 then u1 = 1e-10 end
     return math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
@@ -541,7 +570,7 @@ local function sampleSessionParams(whType, whTypeId)
     local tier = rollTier()
 
     -- 2. 在 tier 倍率区间内采样目标价值（先算价值，再推件数）
-    local mult = tier.multMin + math.random() * (tier.multMax - tier.multMin)
+    local mult = tier.multMin + rng() * (tier.multMax - tier.multMin)
     local targetValue = baseValue * mult
     -- 绝对保底：不低于 warehouseValue 的 2%
     targetValue = math.max(baseValue * 0.02, targetValue)
@@ -579,8 +608,14 @@ end
 --- @param regionId string|nil 区域ID（nil=随机选择）
 --- @param warehouseTypeId string|nil 仓库类型ID（nil=根据区域随机选择）
 --- @param diffIdx number|nil 难度索引（1-based，nil=默认第一个）
---- @return table result { region, warehouseType, items, grid, totalCells, totalValue, usedRows }
-function WG.Generate(regionId, warehouseTypeId, diffIdx)
+--- @param seed number|nil 随机种子（nil=自动生成；联机时传入相同 seed 可复现完全相同仓库）
+--- @return table result { region, warehouseType, items, grid, totalCells, totalValue, usedRows, seed }
+function WG.Generate(regionId, warehouseTypeId, diffIdx, seed)
+    -- 种子处理：有种子用种子（联机复现），无种子从全局随机生成（单机模式）
+    if not seed or seed == 0 then
+        seed = math.random(1, 2147483647)
+    end
+    _seedRng(seed)
     -- 1. 确定区域
     local region
     if regionId then
@@ -589,7 +624,7 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
         end
     end
     if not region then
-        region = Config.REGIONS[math.random(1, #Config.REGIONS)]
+        region = Config.REGIONS[rng(1, #Config.REGIONS)]
     end
 
     -- 2. 确定难度（经济参数来源）
@@ -605,7 +640,7 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
     local whTypeId = warehouseTypeId
     if not whTypeId then
         local types = region.warehouseTypes
-        whTypeId = types[math.random(1, #types)]
+        whTypeId = types[rng(1, #types)]
     end
     local whType = Config.WAREHOUSE_TYPES[whTypeId]
     if not whType then
@@ -647,7 +682,10 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
 
     local fillerCount  = math.max(1, math.floor(targetItemCount * tier.fillerRatio))
     local premiumCount = math.max(0, targetItemCount - fillerCount)
-    local fillerCells  = math.floor(targetCells * tier.fillerRatio)
+    -- 按价值比例分配格子（而非件数比例），确保 premium 阶段有足够格子放较大物品
+    -- fillerRatio² × 0.5 = 价值占比，用于格子分配
+    local fillerValueFrac2 = tier.fillerRatio * tier.fillerRatio * 0.5
+    local fillerCells = math.max(fillerCount, math.floor(targetCells * fillerValueFrac2))
 
     -- 显式分割预算：filler 拿小头，premium 拿大头
     -- fillerRatio² × 0.5：trash(0.95²×0.5=0.45) → filler最多45%价值
@@ -838,6 +876,7 @@ function WG.Generate(regionId, warehouseTypeId, diffIdx)
         totalValue = totalValue,
         usedRows = usedRows,
         itemCount = #items,
+        seed = seed,  -- 用于联机时编入房间码，传给其他玩家后可复现完全相同仓库
     }
 
     local warehouseValue = difficulty.warehouseValue or difficulty.expectedValue
