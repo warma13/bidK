@@ -27,19 +27,22 @@ local EstimateValue = {}
 -- AI 用这些数据建立先验估值锚定
 -- ============================================================================
 
--- Tier 分布（复制自 WarehouseGenerator）
+-- Tier 分布（复制自 WarehouseGenerator，2026-05-22 同步）
+-- budgetK：budgetWeight 高斯核集中度，值越大物品价值越集中于目标均价附近
+-- 此字段用于 computeDynWeight，模拟生成算法中实际的选品集中度
 local WAREHOUSE_TIERS = {
-    { id = "junk",     weight = 22, multMin = 0.10, multMax = 0.30 },
-    { id = "poor",     weight = 25, multMin = 0.30, multMax = 0.60 },
-    { id = "normal",   weight = 28, multMin = 0.60, multMax = 1.25 },
-    { id = "good",     weight = 15, multMin = 1.25, multMax = 2.10 },
-    { id = "treasure", weight = 7,  multMin = 2.10, multMax = 3.50 },
-    { id = "jackpot",  weight = 3,  multMin = 3.50, multMax = 5.50 },
+    { id = "trash",    weight = 25, multMin = 0.25, multMax = 0.40, budgetK = 1.2 },
+    { id = "junk",     weight = 23, multMin = 0.35, multMax = 0.55, budgetK = 1.0 },
+    { id = "poor",     weight = 22, multMin = 0.50, multMax = 0.75, budgetK = 0.9 },
+    { id = "normal",   weight = 13, multMin = 0.65, multMax = 1.00, budgetK = 0.8 },
+    { id = "good",     weight = 9,  multMin = 1.00, multMax = 1.80, budgetK = 0.6 },
+    { id = "treasure", weight = 6,  multMin = 1.80, multMax = 3.20, budgetK = 0.4 },
+    { id = "jackpot",  weight = 2,  multMin = 3.20, multMax = 5.50, budgetK = 0.3 },
 }
 
 --- 计算 tier 分布的先验乘数
 --- 使用加权 P40 分位（比中位数更保守）
---- junk(22%) + poor(25%) = 47%，P40 落在 poor tier 后段 → ≈0.52x
+--- trash(25%) + junk(23%) = 48%，P40 落在 junk tier 中段 → ≈0.46x
 local PRIOR_PERCENTILE = 0.40  -- 先验分位数（0.5=中位数，0.4=偏保守）
 
 local function computeTierPriorMult()
@@ -100,11 +103,67 @@ local initialized = false
 -- 加载物品池数据
 -- ============================================================================
 
+-- 仓库 tier 期望件数（与 WarehouseGenerator 中 baseCount~40 对齐）
+local EXPECTED_ITEM_COUNT = 35
+
+--- 计算 budgetWeight（与 WarehouseGenerator 中相同公式）
+--- 非对称高斯衰减：高于目标价衰减更慢，允许高价物品偶发出现
+local function budgetWeightCalc(value, targetPerPick, k)
+    if targetPerPick <= 0 then targetPerPick = 1 end
+    k = k or 1.5
+    local logRatio = math.log(value / targetPerPick)
+    if logRatio > 0 then
+        return math.exp(-(k * 0.5) * logRatio * logRatio)
+    else
+        return math.exp(-k * logRatio * logRatio)
+    end
+end
+
+--- 计算物品在指定仓库类型下的动态出现期望权重
+--- 跨所有 tier 加权：dynWeight = Σ(tierProb × budgetWeight_in_tier)
+--- 这反映了物品在该仓库类型中实际被选中的期望频率：
+---   - 差仓（trash/junk tier，warehouseValue 的 0.30~0.50 倍）中 targetPerPick 极低
+---     → 高价物品（2800万）在 targetPerPick=6~10万 时权重趋近 0
+---   - 好仓（treasure/jackpot tier，warehouseValue 的 2~5 倍）中 targetPerPick 高
+---     → 高价物品才有一定出现概率
+---@param value number 物品价值
+---@param warehouseValue number 仓库期望价值（高点）
+---@param catMult number 品类权重乘数
+---@return number 动态权重
+local function computeDynWeight(value, warehouseValue, catMult)
+    local totalTierWeight = 0
+    for _, t in ipairs(WAREHOUSE_TIERS) do
+        totalTierWeight = totalTierWeight + t.weight
+    end
+
+    local dynWeight = 0
+    for _, t in ipairs(WAREHOUSE_TIERS) do
+        local tierProb = t.weight / totalTierWeight
+        -- 用 tier 倍率中点估算 targetPerPick
+        local multMid = (t.multMin + t.multMax) * 0.5
+        local tierValue = warehouseValue * multMid
+        -- 绝对保底（与 WarehouseGenerator 一致）
+        tierValue = math.max(warehouseValue * 0.02, tierValue)
+        local targetPerPick = tierValue / EXPECTED_ITEM_COUNT
+        -- 使用 tier 的 budgetK（与生成时一致）
+        local bw = budgetWeightCalc(value, targetPerPick, t.budgetK or 1.5)
+        -- 硬截断：与 WarehouseGenerator.pickWeightedBudget 一致
+        if value < targetPerPick * 0.4 then
+            bw = 0
+        end
+        dynWeight = dynWeight + tierProb * bw
+    end
+
+    -- 最终权重 = 动态出现概率 × 品类权重（反映该仓库倾向哪类物品）
+    return dynWeight * catMult
+end
+
 --- 获取指定仓库类型的合并物品池
 --- 直接从 Config.WAREHOUSE_TYPES 读取 categoryWeights/allowedCategories，物品来自 ItemPool
 ---@param warehouseTypeId string|nil
----@return table[] 物品列表 { rarity, category, value }
-local function loadPool(warehouseTypeId)
+---@param warehouseValue number|nil 仓库期望价值（用于动态权重计算）
+---@return table[] 物品列表 { rarity, category, value, weight }
+local function loadPool(warehouseTypeId, warehouseValue)
     local whCfg = Config.WAREHOUSE_TYPES[warehouseTypeId or ""]
     -- fallback 到 suburb_basement（无 allowedCategories = 全品类）
     if not whCfg then
@@ -119,18 +178,55 @@ local function loadPool(warehouseTypeId)
         end
     end
 
+    -- 读取仓库的品类权重（categoryWeights 覆盖 ItemPool 默认值）
+    -- 若没有配置则各品类等权（乘数 = 1）
+    local catWeights = whCfg.categoryWeights or {}
+    -- 若仓库明确指定了 categoryWeights，则未列出的品类 catMult=0（排除在统计池外）
+    -- 这样专精仓库（如地下金库 jewel=65）不会被不相关品类污染均值
+    local hasCatWeights = next(catWeights) ~= nil
+
+    -- 是否使用动态权重：需要知道 warehouseValue 才能计算 targetPerPick
+    -- 若 warehouseValue 未提供（≤0），退化到旧的固定权重模式
+    local useDynWeight = warehouseValue and warehouseValue > 0
+
     local itemPoolMod = require("Config.Warehouses.ItemPool")
     local allItems = {}
 
     for _, cat in ipairs(itemPoolMod.categories) do
         if not allowed or allowed[cat.id] then
-            for _, item in ipairs(cat.items) do
-                allItems[#allItems + 1] = {
-                    rarity   = item.quality or "white",
-                    category = cat.id,
-                    value    = item.value or 0,
-                    weight   = item.weight or 1,  -- 出现权重（权重越高越常见）
-                }
+            local catMult
+            if hasCatWeights then
+                -- 明确指定了品类权重：未列出的品类不进入统计池
+                catMult = catWeights[cat.id] or 0
+            else
+                -- 未指定品类权重：各品类等权
+                catMult = 1
+            end
+            if catMult > 0 then
+                for _, item in ipairs(cat.items) do
+                    -- exclusive 物品（孤品/限定）不进入统计池
+                    -- 这类物品极其稀有，均值不应被其拉高导致AI对普通仓库严重高估
+                    if not item.exclusive then
+                        local w
+                        if useDynWeight then
+                            -- 动态权重：用仓库生成算法的实际出现概率作为加权依据
+                            -- 高价物品在差仓（targetPerPick低）中几乎不会出现，动态权重趋近0
+                            -- 这解决了极端高价物品（追光者引擎原型2800万）污染rarityAvgValue的根本原因
+                            w = computeDynWeight(item.value or 0, warehouseValue, catMult)
+                        else
+                            -- 回退：物品自身出现权重 × 仓库品类权重
+                            w = (item.weight or 1) * catMult
+                        end
+                        if w > 0 then
+                            allItems[#allItems + 1] = {
+                                rarity   = item.quality or "white",
+                                category = cat.id,
+                                value    = item.value or 0,
+                                weight   = w,
+                            }
+                        end
+                    end
+                end
             end
         end
     end
@@ -144,8 +240,9 @@ end
 
 --- 初始化估值模块，构建相对比例表
 ---@param warehouseTypeId string|nil 仓库类型
-function EstimateValue.Init(warehouseTypeId)
-    local pool = loadPool(warehouseTypeId)
+---@param warehouseValue number|nil 仓库期望价值（用于动态权重，应传入难度的 warehouseValue）
+function EstimateValue.Init(warehouseTypeId, warehouseValue)
+    local pool = loadPool(warehouseTypeId, warehouseValue)
 
     -- ===== 使用出现权重(weight)加权平均 =====
     -- 物品池中每个物品有 weight 字段，表示出现概率权重
@@ -289,15 +386,22 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
         for _, infos in ipairs({ publicInfos, skillInfos }) do
             for _, info in ipairs(infos) do
                 if info.type == "quality_avg_value" and info.rarityId and info.rarityAvgValue and info.rarityAvgValue > 0 then
-                    if not inWarehouseRarityAvg[info.rarityId] or info.rarityAvgValue > inWarehouseRarityAvg[info.rarityId] then
-                        inWarehouseRarityAvg[info.rarityId] = info.rarityAvgValue
+                    -- 修复：isSingleTopItem（TopRarityItemValue 道具）揭示的是仓库内【最贵单件】的价值，
+                    -- 将其用作品质均价会严重高估（最贵单件 ≫ 该品质所有物品均价）。
+                    -- 0.65× 折扣依然不足，且概念上也是错误的，应完全排除。
+                    if not info.isSingleTopItem then
+                        if not inWarehouseRarityAvg[info.rarityId] or info.rarityAvgValue > inWarehouseRarityAvg[info.rarityId] then
+                            inWarehouseRarityAvg[info.rarityId] = info.rarityAvgValue
+                        end
                     end
                 end
                 if info.extraInfos then
                     for _, extra in ipairs(info.extraInfos) do
                         if extra.type == "quality_avg_value" and extra.rarityId and extra.rarityAvgValue and extra.rarityAvgValue > 0 then
-                            if not inWarehouseRarityAvg[extra.rarityId] or extra.rarityAvgValue > inWarehouseRarityAvg[extra.rarityId] then
-                                inWarehouseRarityAvg[extra.rarityId] = extra.rarityAvgValue
+                            if not extra.isSingleTopItem then
+                                if not inWarehouseRarityAvg[extra.rarityId] or extra.rarityAvgValue > inWarehouseRarityAvg[extra.rarityId] then
+                                    inWarehouseRarityAvg[extra.rarityId] = extra.rarityAvgValue
+                                end
                             end
                         end
                     end
@@ -305,6 +409,132 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
             end
         end
     end
+
+    -- 提前声明 publicInfos / skillInfos，供后续 forEachInfo 等闭包使用
+    local publicInfos = infoState.publicInfos or {}
+    local skillInfos  = infoState.skillInfos  or {}
+
+    -- 辅助：通过平均格数插值 sizeAvgValue，估算均价
+    local function interpolateSizeAvg(avgCells)
+        if not avgCells or avgCells <= 0 then return nil end
+        local lo = math.floor(avgCells)
+        local hi = math.ceil(avgCells)
+        local loVal = sizeAvgValue[lo]
+        local hiVal = sizeAvgValue[hi]
+        if loVal and hiVal then
+            local frac = avgCells - lo
+            return loVal * (1 - frac) + hiVal * frac
+        end
+        return loVal or hiVal
+    end
+
+    -- 辅助：遍历所有 info（含 extraInfos），对匹配的 type 执行回调
+    local function forEachInfo(callback)
+        for _, infos in ipairs({ publicInfos, skillInfos }) do
+            for _, info in ipairs(infos) do
+                callback(info)
+                if info.extraInfos then
+                    for _, extra in ipairs(info.extraInfos) do
+                        callback(extra)
+                    end
+                end
+            end
+        end
+    end
+
+    -- 预处理：收集 rarity_avg_cell_count 信息（角色道具产生）
+    -- 利用 sizeAvgValue[cells] 插值，将"该品质平均占 N 格"转化为估计均价
+    -- 仅在 inWarehouseRarityAvg 尚无该品质数据时填入（quality_avg_value 更精确，优先级更高）
+    forEachInfo(function(info)
+        if info.type == "rarity_avg_cell_count" and info.avgCellCount and info.avgCellCount > 0 and info.rarities then
+            local estimatedAvg = interpolateSizeAvg(info.avgCellCount)
+            if estimatedAvg and estimatedAvg > 0 then
+                for _, r in ipairs(info.rarities) do
+                    if not inWarehouseRarityAvg[r] then
+                        inWarehouseRarityAvg[r] = estimatedAvg
+                        print(string.format("[EstimateValue] rarity_avg_cell_count [%s]: avgCells=%.1f → estimatedAvg=%.0f",
+                            r, info.avgCellCount, estimatedAvg))
+                    end
+                end
+            end
+        end
+    end)
+
+    -- 预处理：收集 quality_avg_cells / quality_total_cells（公开竞拍信息）
+    -- 同样通过 sizeAvgValue 插值获得品质均价估计
+    -- 同时 rarityCount 可补充 quality_count 配额信息
+    local knownRarityCountsFromCells = {}  -- 从格子信息中提取的品质件数
+    forEachInfo(function(info)
+        if (info.type == "quality_avg_cells" or info.type == "quality_total_cells")
+            and info.rarityId and info.rarityAvgCells and info.rarityAvgCells > 0 then
+            local estimatedAvg = interpolateSizeAvg(info.rarityAvgCells)
+            if estimatedAvg and estimatedAvg > 0 then
+                if not inWarehouseRarityAvg[info.rarityId] then
+                    inWarehouseRarityAvg[info.rarityId] = estimatedAvg
+                    print(string.format("[EstimateValue] %s [%s]: avgCells=%d → estimatedAvg=%.0f",
+                        info.type, info.rarityId, info.rarityAvgCells, estimatedAvg))
+                end
+            end
+            -- 提取品质件数供 quality_count 配额修正使用
+            if info.rarityCount and info.rarityCount > 0 then
+                local cur = knownRarityCountsFromCells[info.rarityId] or 0
+                if info.rarityCount > cur then
+                    knownRarityCountsFromCells[info.rarityId] = info.rarityCount
+                end
+            end
+        end
+    end)
+
+    -- 预处理：收集 total_cells / avg_cells_per_item（全仓平均格数）
+    -- 通过 sizeAvgValue 插值获得全仓均价估计，用于修正 baseline
+    -- 仅当估计均价显著偏离当前 baseline 时才应用（阻尼平方根，类似 sampleDampedMult）
+    local cellsBaselineMult = 1.0
+    do
+        local bestAvgCells = nil
+        forEachInfo(function(info)
+            if info.type == "avg_cells_per_item" and info.avgCellsPerItem and info.avgCellsPerItem > 0 then
+                bestAvgCells = info.avgCellsPerItem
+            elseif info.type == "total_cells" and info.totalCells and info.totalCount and info.totalCount > 0 then
+                local avg = info.totalCells / info.totalCount
+                if not bestAvgCells then
+                    bestAvgCells = avg
+                end
+            end
+        end)
+        if bestAvgCells then
+            local estimatedAvg = interpolateSizeAvg(bestAvgCells)
+            if estimatedAvg and estimatedAvg > 0 and poolAvg > 0 then
+                local ratio = estimatedAvg / poolAvg
+                -- 阻尼平方根，收窄范围 [0.7, 1.5]
+                local dm = math.sqrt(ratio)
+                dm = math.max(0.7, math.min(1.5, dm))
+                cellsBaselineMult = dm
+                print(string.format("[EstimateValue] cells baseline: avgCells=%.2f → estimatedAvg=%.0f → mult=%.3f",
+                    bestAvgCells, estimatedAvg, dm))
+            end
+        end
+    end
+
+    -- 预计算已揭示比例，用于 L1/L2 damping
+    -- 原则：信息量少时，单件揭示对估值的影响应该小（贝叶斯：后验靠近先验）
+    -- revealedCount：已揭示至少 L1（知道类别/品质）的件数
+    -- revealFraction：揭示比例，从 0→1
+    -- l1l2DampFactor = min(1.0, revealFraction × 2)
+    --   → 揭示 10%（2/20件）时 dampFactor=0.20，调整量只有满信息的 20%
+    --   → 揭示 50%（10/20件）时 dampFactor=1.0，完全应用
+    local revealedCount = 0
+    for _, item in ipairs(items) do
+        if (revealLevels[item.idx] or 0) >= 1 then
+            revealedCount = revealedCount + 1
+        end
+    end
+    local revealFraction = revealedCount / math.max(itemCount, 1)
+    -- × 1.5：需要揭示 2/3 才达到满分（原来是 ×2，揭示 50% 即满分）
+    -- ×2 时：程云裳在 priv_wardrobe 揭示 50% fashion 物品 → dampFactor=1.0（完全无 damping！）
+    -- ×1.5 时：50% 覆盖 → dampFactor=0.75；67% 才达满分（更保守，抑制单轮大量揭示的估值膨胀）
+    local l1l2DampFactor = math.min(1.0, revealFraction * 1.5)
+    print(string.format("[EstimateValue] L1/L2 damping: revealed=%d/%d fraction=%.2f dampFactor=%.2f",
+        revealedCount, itemCount, revealFraction, l1l2DampFactor))
 
     -- 第一遍：按信息层级估算每件物品
     local perItemEstimate = {}  -- [idx] = 估值
@@ -323,32 +553,39 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
             l3Count = l3Count + 1
         elseif level >= 3 then
             -- L2（numeric 3）：知品质+轮廓 → 同时知道 category，使用品类×品质均价
+            -- 关键修复（在 Init 中已完成）：rarityAvgValue 改为品类等权均值，不再被极端品类主导。
+            -- 这里：crAvg 可用时直接使用（最精确），不再与 rarityAvgValue 取 max（避免跨品类污染）。
             local rr = rarityRelative[item.rarity] or 1.0
             local crKey = item.category .. ":" .. item.rarity
             local crAvg = categoryRarityAvg[crKey]
             local poolRarityAvg = rarityAvgValue[item.rarity] or (poolAvg * rr)
             local warehouseRarityAvg = inWarehouseRarityAvg[item.rarity]
-            -- 优先 crAvg（品类+品质最精确），其次品质均价，再次仓库实际均价
-            est = math.max(
-                crAvg or (baseline * rr),
-                poolRarityAvg
-            )
-            if warehouseRarityAvg and warehouseRarityAvg > est then
-                est = warehouseRarityAvg
+            -- crAvg 有值时直接用（品类×品质最精确，无跨类污染）
+            -- 无 crAvg 时退化到 poolRarityAvg（已是品类等权均值，不再被极端品类主导）
+            local infoEst = crAvg or poolRarityAvg
+            if warehouseRarityAvg and warehouseRarityAvg > infoEst then
+                infoEst = warehouseRarityAvg
             end
+            -- L2：已知品质+轮廓，是较强信号，用 l1l2DampFactor 做插值
+            est = baseline + (infoEst - baseline) * l1l2DampFactor
         elseif level >= 2 then
             -- L2_hint（numeric 2）：仅知品质，不知轮廓/category
+            -- rarityAvgValue 已在 Init 中改为品类等权均值，rr 也随之修正，不再异常放大。
             local rr = rarityRelative[item.rarity] or 1.0
             local poolRarityAvg = rarityAvgValue[item.rarity] or (poolAvg * rr)
             local warehouseRarityAvg = inWarehouseRarityAvg[item.rarity]
-            est = math.max(baseline * rr, poolRarityAvg)
-            if warehouseRarityAvg and warehouseRarityAvg > est then
-                est = warehouseRarityAvg
+            local infoEst = math.max(baseline * rr, poolRarityAvg)
+            if warehouseRarityAvg and warehouseRarityAvg > infoEst then
+                infoEst = warehouseRarityAvg
             end
+            -- L2_hint：品质信号也做 damping
+            est = baseline + (infoEst - baseline) * l1l2DampFactor
         elseif level >= 1 then
-            -- L1: 知轮廓/类别 → baseline × categoryRelative
+            -- L1: 知轮廓/类别 → 插值到 baseline × categoryRelative
+            -- 信息量少时大幅压低调整量，避免一件古董把整仓估高 2.5×
             local cr = categoryRelative[item.category] or 1.0
-            est = baseline * cr
+            local infoEst = baseline * cr
+            est = baseline + (infoEst - baseline) * l1l2DampFactor
         end
         -- L0: 直接用 baseline
 
@@ -395,9 +632,15 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
 
     -- 仓库质量信号：用 random_avg_value 样品均价 vs 池均价判断好仓/坏仓
     -- 对 L0/L1 未知物品双向调整（阻尼平方根），L2/L3 已有具体信息不受影响
+    --
+    -- 置信度 damping（sampleCoverageDamp）：
+    --   原则：抽样件数越少，样品均价对全仓估值的影响越小
+    --   sampleCoverageDamp = min(1.0, sampleCount / itemCount × 4)
+    --     抽 0 件 → damp=0（sqrt阻尼后的偏移量全部抹除，回到 ×1.0）
+    --     抽 25% → damp=1.0（达到满分，sqrt阻尼仍保留）
+    --     无 sampleCount 信息 → damp=0.3（保守默认）
+    --   最终：dm_eff = 1 + (dm - 1) × damp，即对偏移量做线性折扣，不影响方向
     local sampleDampedMult = 1.0
-    local publicInfos = infoState.publicInfos or {}
-    local skillInfos  = infoState.skillInfos  or {}
     for _, infos in ipairs({ publicInfos, skillInfos }) do
         for _, info in ipairs(infos) do
             if info.type == "random_avg_value" and info.sampleAvgValue and info.sampleAvgValue > 0 then
@@ -416,9 +659,28 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
                 if referenceAvg > 0 then
                     local ratio = info.sampleAvgValue / referenceAvg
                     local dm = math.sqrt(ratio)
-                    dm = math.max(0.5, math.min(5.0, dm))
-                    if math.abs(dm - 1.0) > math.abs(sampleDampedMult - 1.0) then
-                        sampleDampedMult = dm
+                    -- 上限从 5.0 降至 2.5：避免极端比值（如藏书阁古董仓库）产生过大倍数
+                    -- dm=5.0 意味着样品均价是池均价的25倍，对全仓估值过于激进
+                    dm = math.max(0.5, math.min(2.5, dm))
+
+                    -- 样本覆盖率 damping：抽样件数/总件数越低，信号越不可靠
+                    -- 抽 50% 才达满分（×2 系数，原来是 ×4 即 25% 满分）
+                    -- ×4 时：priv_wardrobe 的 25% 四格物品 → damp=1.0（完全无 damping！）
+                    -- ×2 时：priv_wardrobe 的 25% 四格物品 → damp=0.5（中等 damping）
+                    -- 无 sampleCount 信息 → 保守默认 0.3
+                    local sampleCoverageDamp
+                    if info.sampleCount and info.sampleCount > 0 and itemCount > 0 then
+                        sampleCoverageDamp = math.min(1.0, (info.sampleCount / itemCount) * 2)
+                    else
+                        sampleCoverageDamp = 0.3  -- 无样本数信息时保守
+                    end
+                    -- 对 dm 的偏移量（dm-1）做线性折扣，方向不变
+                    local dmEff = 1.0 + (dm - 1.0) * sampleCoverageDamp
+
+                    if math.abs(dmEff - 1.0) > math.abs(sampleDampedMult - 1.0) then
+                        sampleDampedMult = dmEff
+                        print(string.format("[EstimateValue] sampleDampedMult: ratio=%.2f dm=%.3f sampleCov=%.2f dmEff=%.3f",
+                            ratio, dm, sampleCoverageDamp, dmEff))
                     end
                 end
             end
@@ -440,7 +702,7 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
             end
             -- L0/L1：进一步应用仓库质量信号（L2/L3 已有稀有度信息，不再调整）
             if level < 2 then
-                est = est * sampleDampedMult
+                est = est * sampleDampedMult * cellsBaselineMult
             end
         end
 
@@ -453,19 +715,20 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
     -- 仅做加法补偿，不修改 perItemEstimate，避免影响后续 L0V 约束。
     do
         local knownRarityCounts = {}  -- [rarityId] = 已确认的最大件数
-        local function collectCount(info)
+        -- 从 quality_count 收集
+        forEachInfo(function(info)
             if info.type == "quality_count" and info.rarityId and info.rarityCount then
                 local cur = knownRarityCounts[info.rarityId] or 0
                 if info.rarityCount > cur then
                     knownRarityCounts[info.rarityId] = info.rarityCount
                 end
             end
-        end
-        for _, info in ipairs(publicInfos) do collectCount(info) end
-        for _, info in ipairs(skillInfos) do
-            collectCount(info)
-            if info.extraInfos then
-                for _, extra in ipairs(info.extraInfos) do collectCount(extra) end
+        end)
+        -- 合并 quality_avg_cells / quality_total_cells 中提取的品质件数
+        for rarId, count in pairs(knownRarityCountsFromCells) do
+            local cur = knownRarityCounts[rarId] or 0
+            if count > cur then
+                knownRarityCounts[rarId] = count
             end
         end
 
@@ -479,23 +742,40 @@ function EstimateValue.Estimate(infoState, items, expectedValue)
                 end
             end
 
+            -- 配额修正 damping：与 L1/L2 共用同一个 l1l2DampFactor
+            -- 原理：quality_count 是一条仓库级统计信息（"有 N 件紫色"），
+            --   但如果我们对整个仓库的揭示比例很低（revealFraction→0），
+            --   这条信息的可信度应该被压低：它可能只是公开展示的部分，
+            --   未揭示物品的品质分布仍高度不确定。
+            -- 当 l1l2DampFactor=0（0件揭示）时，配额修正完全被抑制 → 全靠先验
+            -- 当 l1l2DampFactor=1（≥50%揭示）时，配额修正完全生效 → 精确修正
+            -- 例外：若某品质已有 ≥1 件被精确揭示（revealedByRarity[rarId] >= 1），
+            --   说明这条品质信息已有实物佐证，damping 放宽到 max(damp, 0.5)
             for rarId, totalCount in pairs(knownRarityCounts) do
                 local revealed = revealedByRarity[rarId] or 0
                 local quota = math.max(0, totalCount - revealed)
                 if quota > 0 then
                     -- 未揭示这 quota 件的期望值（按品质均价）
+                    -- rarityAvgValue 已在 Init 中改为品类等权均值，不再被极端品类主导
                     local expectedPerItem = math.max(
                         rarityAvgValue[rarId] or 0,
                         inWarehouseRarityAvg[rarId] or 0
                     )
-                    -- 当前这 quota 件被估为 baseline（L0），差额补入总估值
-                    local boost = quota * math.max(0, expectedPerItem - baseline)
+                    -- damping：无物品级揭示时，配额修正最多只贡献 l1l2DampFactor 比例
+                    -- 若该品质已有实物揭示（revealed >= 1），放宽下限到 0.5
+                    local quotaDamp = l1l2DampFactor
+                    if revealed >= 1 then
+                        quotaDamp = math.max(quotaDamp, 0.5)
+                    end
+                    -- 当前这 quota 件被估为 baseline（L0），差额 × quotaDamp 补入总估值
+                    local boost = quota * math.max(0, expectedPerItem - baseline) * quotaDamp
                     if boost > 0 then
                         totalEstimate = totalEstimate + boost
                         print("[EstimateValue] quality_count 配额修正 [" .. rarId .. "]:"
                             .. " quota=" .. quota
                             .. " expectedPerItem=" .. string.format("%.0f", expectedPerItem)
                             .. " baseline=" .. string.format("%.0f", baseline)
+                            .. " quotaDamp=" .. string.format("%.2f", quotaDamp)
                             .. " boost=" .. string.format("%.0f", boost))
                     end
                 end
@@ -626,6 +906,19 @@ end
 ---@return boolean
 function EstimateValue.IsInitialized()
     return initialized
+end
+
+--- 重置初始化状态（每局新仓库开始时调用）
+--- 不同仓库的 warehouseValue 不同，导致动态权重不同，必须重新 Init
+function EstimateValue.Reset()
+    initialized = false
+    rarityRelative  = {}
+    rarityAvgValue  = {}
+    categoryRelative = {}
+    sizeAvgValue    = {}
+    categoryRarityAvg = {}
+    poolAvg         = 0
+    poolMinValue    = 0
 end
 
 return EstimateValue

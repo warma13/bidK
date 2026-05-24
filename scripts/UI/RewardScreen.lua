@@ -290,31 +290,35 @@ function RewardScreen.Show(onBackCallback)
 
     -- ── 根节点 ───────────────────────────────────────────────────
     local screenRoot = UI.Panel {
-        position = "absolute",
-        left = 0, top = 0, right = 0, bottom = 0,
+        width = "100%", height = "100%",
         flexDirection = "column",
-        backgroundImage = "image/reward_center_bg_20260519073207.jpg",
-        backgroundFit = "cover",
         overflow = "hidden",
         children = {
-            -- 毛玻璃遮罩
-            UI.Panel {
-                position = "absolute", left = 0, top = 0,
-                width = "100%", height = "100%",
-                backgroundImage = "image/frosted_glass_overlay_20260517184616.jpg",
-                backgroundFit = "cover",
-                opacity = 0.35,
-                pointerEvents = "none",
-            },
             topBar,
             body,
             TicketTooltip.CreateOverlay(),
         },
     }
+    TicketTooltip.SetRoot(screenRoot)
 
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
-        children = { screenRoot },
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundImage = "image/reward_center_bg_20260519073207.jpg",
+        backgroundFit = "cover",
+        children = {
+            -- 毛玻璃遮罩（全屏覆盖）
+            UI.Panel {
+                position = "absolute", left = 0, top = 0, right = 0, bottom = 0,
+                backgroundImage = "image/frosted_glass_overlay_20260517184616.jpg",
+                backgroundFit = "cover",
+                opacity = 0.35,
+                pointerEvents = "none",
+            },
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
+                children = { screenRoot },
+            },
+        },
     })
 
     -- 初始展示第一个 Tab

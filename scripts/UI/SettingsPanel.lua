@@ -40,6 +40,7 @@ local cloudLoaded = false
 local LOCAL_VERSION = Config.GAME.Version  -- 统一引用 Config
 local VERSION_CHECK_KEY = "app_version"
 local VERSION_CHECK_INTERVAL = 600   -- 定时检测间隔（秒，10分钟）
+local MANUAL_CHECK_COOLDOWN  = 60   -- 手动检测冷却（秒，1分钟）
 local versionLabel = nil             -- 版本号显示
 local versionStatusLabel = nil       -- 检测结果提示
 local versionCheckBtn = nil          -- 手动检测按钮
@@ -93,6 +94,7 @@ local function SaveSettings()
         bgmVolume = GetBgmVolume(),
         sfxVolume = GetSfxVolume(),
         glowEffect = glowToggle and glowToggle:GetValue() or GetGlowEffect(),
+        bgmIndex = Utils.GetMenuBgmIndex(),
     })
 end
 
@@ -106,8 +108,14 @@ local function ApplySettings()
     if s.bgmVolume then SetBgmVolume(s.bgmVolume) end
     if s.sfxVolume then SetSfxVolume(s.sfxVolume) end
 
+    -- 恢复 BGM 选择
+    if s.bgmIndex then
+        Utils.SetMenuBgm(s.bgmIndex)
+    end
+
     print("[SettingsPanel] Applied settings: bgm=" .. tostring(s.bgmVolume)
-        .. " sfx=" .. tostring(s.sfxVolume))
+        .. " sfx=" .. tostring(s.sfxVolume)
+        .. " bgmIdx=" .. tostring(s.bgmIndex))
 end
 
 -- ============================================================================
@@ -188,9 +196,17 @@ local function DoRedeem()
                 SaveSystem.AddCharacterCoins(result.charCoins)
                 SaveSystem.Save()
             end
+            -- 发放点券
+            if result.pointTickets and result.pointTickets > 0 then
+                SaveSystem.AddPointTickets(result.pointTickets)
+                SaveSystem.Save()
+            end
             local statusText = "兑换成功！+" .. Utils.FormatMoney(coins)
             if result.charCoins and result.charCoins > 0 then
                 statusText = statusText .. "，+" .. result.charCoins .. "角色币"
+            end
+            if result.pointTickets and result.pointTickets > 0 then
+                statusText = statusText .. "，+" .. result.pointTickets .. "点券"
             end
             SetRedeemStatus(statusText, { 100, 220, 100, 255 })
             Utils.PlaySfx("bid_success")
@@ -537,6 +553,21 @@ function SettingsPanel.CreatePopup()
                 variant = "secondary",
                 onClick = function()
                     Utils.PlayClick()
+                    -- 手动检测限流：60秒内只检测一次，之后返回缓存结果
+                    local now = os.time()
+                    if _initCheckDone and (now - lastCheckTime) < MANUAL_CHECK_COOLDOWN then
+                        -- 冷却中，显示缓存结果
+                        if versionStatusLabel then
+                            if hasNewVersion then
+                                -- 已有新版本提示，保持不变
+                            else
+                                versionStatusLabel:SetText("当前已是最新版本 v" .. LOCAL_VERSION)
+                                versionStatusLabel:SetFontColor({ 130, 200, 130, 255 })
+                                versionStatusLabel:SetVisible(true)
+                            end
+                        end
+                        return
+                    end
                     DoVersionCheck()
                 end,
             },
@@ -556,22 +587,66 @@ function SettingsPanel.CreatePopup()
         versionStatusLabel:SetVisible(true)
     end
 
-    local popupContent = UI.Panel {
-        width = sz(310), height = "92%",
-        backgroundColor = C.bgPanel,
-        borderRadius = 0,
-        paddingHorizontal = sz(16), paddingVertical = sz(10),
-        gap = sz(6),
-        flexDirection = "column",
-        onClick = function() end,  -- 阻止点击穿透到遮罩层
+    -- ── 左栏：音频 & 显示设置 ──
+    local leftColumn = UI.Panel {
+        flex = 1, flexShrink = 1,
+        gap = sz(8), flexDirection = "column",
         children = {
-            -- 标题
             UI.Label {
-                text = "设置", fontSize = sz(16), fontWeight = "bold",
-                fontColor = C.textPrimary, flexShrink = 0,
+                text = "音频 & 显示", fontSize = sz(13), fontWeight = "bold",
+                fontColor = C.textSecondary, flexShrink = 0,
             },
-            UI.Panel { width = "100%", height = 1, backgroundColor = { 60, 70, 100, 150 }, flexShrink = 0 },
             -- BGM
+            -- BGM 切换曲目（放在音量滑块上方）
+            (function()
+                local list = Utils.GetMenuBgmList()
+                local idx = Utils.GetMenuBgmIndex()
+                local lbl = UI.Label {
+                    text = list[idx].name,
+                    fontSize = sz(12),
+                    fontColor = { 220, 220, 100 },
+                    textAlign = "center",
+                }
+                return UI.Panel {
+                    flexDirection = "row", width = "100%",
+                    justifyContent = "space-between", alignItems = "center",
+                    flexShrink = 0,
+                    children = {
+                        UI.Label { text = "切换曲目", fontSize = sz(11), fontColor = C.textSecondary },
+                        UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = sz(6),
+                            children = {
+                                UI.Button {
+                                    text = "<", width = sz(24), minHeight = sz(20),
+                                    fontSize = sz(11), variant = "outline",
+                                    onClick = function()
+                                        Utils.PlayClick()
+                                        local i = Utils.GetMenuBgmIndex() - 1
+                                        if i < 1 then i = #list end
+                                        Utils.SetMenuBgm(i)
+                                        lbl:SetText(list[i].name)
+                                        SaveSettings()
+                                    end,
+                                },
+                                lbl,
+                                UI.Button {
+                                    text = ">", width = sz(24), minHeight = sz(20),
+                                    fontSize = sz(11), variant = "outline",
+                                    onClick = function()
+                                        Utils.PlayClick()
+                                        local i = Utils.GetMenuBgmIndex() + 1
+                                        if i > #list then i = 1 end
+                                        Utils.SetMenuBgm(i)
+                                        lbl:SetText(list[i].name)
+                                        SaveSettings()
+                                    end,
+                                },
+                            },
+                        },
+                    },
+                }
+            end)(),
+            -- BGM 音量
             UI.Panel {
                 width = "100%", flexShrink = 0, gap = sz(3), flexDirection = "column",
                 children = {
@@ -616,10 +691,22 @@ function SettingsPanel.CreatePopup()
                 }
                 return glowToggle
             end)(),
+        },
+    }
+
+    -- ── 右栏：操作 & 工具 ──
+    local rightColumn = UI.Panel {
+        flex = 1, flexShrink = 1,
+        gap = sz(8), flexDirection = "column",
+        children = {
+            UI.Label {
+                text = "操作 & 工具", fontSize = sz(13), fontWeight = "bold",
+                fontColor = C.textSecondary, flexShrink = 0,
+            },
             -- 手动保存
             UI.Button {
-                text = "手动保存", width = "100%", flex = 1, flexShrink = 1,
-                minHeight = sz(24), maxHeight = sz(36),
+                text = "手动保存", width = "100%",
+                minHeight = sz(30), maxHeight = sz(36),
                 fontSize = sz(13),
                 variant = "primary",
                 onClick = function(self)
@@ -641,7 +728,7 @@ function SettingsPanel.CreatePopup()
             },
             -- 兑换码区域
             UI.Panel {
-                width = "100%", flex = 1, flexShrink = 1,
+                width = "100%", flexShrink = 0,
                 gap = sz(4), flexDirection = "column",
                 children = {
                     UI.Label { text = "兑换码", fontSize = sz(13), fontColor = C.textPrimary, flexShrink = 0 },
@@ -661,10 +748,11 @@ function SettingsPanel.CreatePopup()
                     versionStatusLabel,
                 },
             },
-            -- 关闭按钮
+            -- 关闭按钮（底部弹性填充）
+            UI.Panel { flexGrow = 1 },
             UI.Button {
-                text = "关闭", width = "100%", flex = 1, flexShrink = 1,
-                minHeight = sz(24), maxHeight = sz(36),
+                text = "关闭", width = "100%",
+                minHeight = sz(30), maxHeight = sz(36),
                 fontSize = sz(13),
                 variant = "secondary",
                 onClick = function()
@@ -672,6 +760,36 @@ function SettingsPanel.CreatePopup()
                     popupVisible = false
                     if popupOverlay then popupOverlay:SetVisible(false) end
                 end,
+            },
+        },
+    }
+
+    local popupContent = UI.Panel {
+        width = sz(520), height = "92%",
+        backgroundColor = C.bgPanel,
+        borderRadius = 0,
+        paddingHorizontal = sz(16), paddingVertical = sz(10),
+        gap = sz(6),
+        flexDirection = "column",
+        onClick = function() end,  -- 阻止点击穿透到遮罩层
+        children = {
+            -- 标题
+            UI.Label {
+                text = "设置", fontSize = sz(16), fontWeight = "bold",
+                fontColor = C.textPrimary, flexShrink = 0,
+            },
+            UI.Panel { width = "100%", height = 1, backgroundColor = { 60, 70, 100, 150 }, flexShrink = 0 },
+            -- 双栏主体
+            UI.Panel {
+                width = "100%", flex = 1, flexShrink = 1,
+                flexDirection = "row",
+                gap = sz(16),
+                children = {
+                    leftColumn,
+                    -- 竖线分隔
+                    UI.Panel { width = 1, height = "100%", backgroundColor = { 60, 70, 100, 150 }, flexShrink = 0 },
+                    rightColumn,
+                },
             },
         },
     }

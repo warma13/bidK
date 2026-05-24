@@ -667,8 +667,10 @@ local function baseCompeteBid(estimate, player, round, expectedValue, playerIdx,
     -- bidScale 接近1时 floorRatio 接近0.80；bidScale 接近0.33时 floorRatio 接近0.40
     -- 低倍率轮次（sealed bid）底价贴近估值；高倍率轮次保持低底价
     local floorRatio = opts.floorRatio or (0.40 + bidScale * 0.40)  -- range: [0.40, 0.80]
-    -- 底价不能超过 effectiveEstimate（有效估值上限）
-    local floor = math.min(estimate * floorRatio, effectiveEstimate * 0.95)
+    -- 底价同样受置信度缩放：信息量不足时底价应随之回落
+    -- 否则低置信度（如仅揭示 15% 物品）的虚高估值会通过底价路径锁定高出价
+    -- confidenceFactor ∈ [0.40, 1.00]：0.40=无信息，1.0=全L3（最大缩减到 40% 底价）
+    local floor = math.min(estimate * floorRatio, estimate * bidScale * 0.85) * confidenceFactor
 
     -- 竞争自适应底价：对手少时底价可以更低（更有可能低价捡漏）
     if opponentInfo.activeCount <= 1 and round >= 3 then

@@ -24,9 +24,6 @@ function StartScreen.Show(onStartCallback, buttonText)
 
     local root = UI.Panel {
         width = "100%", height = "100%",
-        backgroundColor = { 18, 18, 22, 255 },
-        backgroundImage = "main_hall_bg_20260319134729.jpg",
-        backgroundFit = "cover",
         justifyContent = "center",
         alignItems = "center",
         children = {
@@ -93,9 +90,17 @@ function StartScreen.Show(onStartCallback, buttonText)
             end)(),
         },
     }
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
-        children = { root },
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundColor = { 18, 18, 22, 255 },
+        backgroundImage = "main_hall_bg_20260319134729.jpg",
+        backgroundFit = "cover",
+        children = {
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
+                children = { root },
+            },
+        },
     })
 end
 

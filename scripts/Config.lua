@@ -16,7 +16,7 @@ local Config = {}
 
 Config.GAME = {
     Title = "拍卖之王",
-    Version = "1.1.29",
+    Version = "1.1.34",
     MaxPlayers = 4,
     WarehouseColumns = 30,      -- 玩家仓库格子列数
     WarehouseMaxRows = 21,      -- 玩家仓库格子最大行数（满级 5+4*4=21）
@@ -263,6 +263,11 @@ Config.REWARD_TYPES = {
         icon     = "image/point_ticket_icon_20260518210650.png",
         countFmt = function(amount) return "×" .. (amount or 1) end,
     },
+    chest = {
+        name     = "礼盒",
+        icon     = nil,   -- 动态：通过 chestId 从 Chests 配置获取
+        countFmt = function(amount) return "×" .. (amount or 1) end,
+    },
 }
 
 --- 获取奖励图标路径（coins 走 Utils.GetIcon，ticket 走 Config.TICKETS）
@@ -273,6 +278,10 @@ function Config.GetRewardIcon(reward)
     elseif reward.type == "ticket" and reward.ticketId then
         local t = Config.TICKETS[reward.ticketId]
         return t and t.icon or "image/point_ticket_icon_20260518210650.png"
+    elseif reward.type == "chest" and reward.chestId then
+        local Chests = require("Config.Chests")
+        local c = Chests.BY_ID[reward.chestId]
+        return c and c.iconImage or ""
     else
         local rt = Config.REWARD_TYPES[reward.type]
         return rt and rt.icon or ""
@@ -293,6 +302,10 @@ function Config.GetRewardName(reward)
     if reward.type == "ticket" and reward.ticketId then
         local t = Config.TICKETS[reward.ticketId]
         return t and t.name or "积分券"
+    elseif reward.type == "chest" and reward.chestId then
+        local Chests = require("Config.Chests")
+        local c = Chests.BY_ID[reward.chestId]
+        return c and c.name or "礼盒"
     end
     local rt = Config.REWARD_TYPES[reward.type]
     return rt and rt.name or "奖励"
@@ -301,8 +314,10 @@ end
 -- ============================================================================
 -- 系统邮件（id 不可变更，用于标记已读/已领取）
 -- ============================================================================
--- reward  字段：单奖励 { type="coins"|"bp_exp"|"ticket"|"point_tickets", amount=N, ticketId="..." }
+-- reward  字段：单奖励 { type="coins"|"bp_exp"|"ticket"|"point_tickets"|"chest", amount=N, ticketId/chestId="..." }
 -- rewards 字段：多奖励数组，与 reward 互斥（优先使用 rewards）
+-- veteranOnly = true：仅老玩家可见（存档创建日期 < 邮件 date 时才显示）
+--   新注册玩家（存档创建日期 ≥ 邮件日期）不会看到此邮件，防止刷号领附件
 -- 每次版本更新在此追加一条新记录，id 固定不变，旧公告永久保留。
 -- id 命名规范：v{版本号下划线形式}_update，例如 v1_1_28_update
 Config.MAILS = {
@@ -312,6 +327,7 @@ Config.MAILS = {
         sender = "系统",
         date   = "2026-05-21",
         expiry = "",
+        veteranOnly = true,
         body   = "感谢各位拍友一直以来的支持！本次更新带来以下新内容：\n\n"
               .. "【新增】通行证系统\n参与对局、完成每日任务可获得通行证经验，积累经验升级通行证，解锁丰厚赛季奖励。看广告可自动解锁高级奖励，无需手动领取。\n\n"
               .. "【新增】金色 & 红色道具\n部分道具现有金色（稀有）和红色（传说）品质版本，每日商店有概率刷新，也可在商城直接购买。\n\n"
@@ -331,12 +347,75 @@ Config.MAILS = {
         sender = "系统",
         date   = "2026-05-21",
         expiry = "",
+        veteranOnly = true,
         body   = "感谢各位拍友的持续支持！本次更新内容：\n\n"
               .. "【优化】生成算法优化\n改进了仓库物品的生成算法，物品分布更加合理，游戏体验更佳。\n\n"
               .. "【加强】部分角色技能加强\n对部分角色的技能进行了数值调整和效果加强，让每位角色都更具竞争力。\n\n"
               .. "感谢大家的反馈，祝游戏愉快！",
         rewards = {
             { type = "coins", amount = 2000000 },
+        },
+    },
+    {
+        id     = "v1_1_30_update",
+        title  = "1.1.30 版本更新公告",
+        sender = "系统",
+        date   = "2026-05-21",
+        expiry = "",
+        body   = "感谢各位拍友的持续支持！本次更新内容：\n\n"
+              .. "【新增】背景音乐\n新增休闲风格背景音乐，可在设置面板中切换曲目。\n\n"
+              .. "【修复】抽选仓库时可点击\n修复了在抽选仓库动画播放期间仍可点击底部按钮的问题。\n\n"
+              .. "【优化】邮件系统\n新增删除已读邮件功能，保持收件箱整洁。\n\n"
+              .. "感谢大家的反馈，祝游戏愉快！",
+    },
+    {
+        id     = "v1_1_32_update",
+        title  = "1.1.32 版本更新公告",
+        sender = "系统",
+        date   = "2026-05-22",
+        expiry = "",
+        veteranOnly = true,
+        body   = "感谢各位拍友的持续支持！本次更新内容：\n\n"
+              .. "【修复】战利品生成算法\n修复了仓库物品生成中的多个问题，战利品分布更加合理。\n\n"
+              .. "【优化】信息揭示与利用\n优化了竞拍信息的揭示逻辑，修复了部分信息泄露问题；AI 现在能更好地利用格子信息进行估值。\n\n"
+              .. "【优化】区域选择界面\n优化了区域选择界面的 UI 展示效果，视觉体验更佳。\n\n"
+              .. "感谢大家的反馈，祝游戏愉快！",
+        rewards = {
+            { type = "coins",         amount = 2000000 },
+            { type = "point_tickets", amount = 30 },
+            { type = "chest",         amount = 1, chestId = "chest_gold" },
+        },
+    },
+    {
+        id     = "v1_1_33_update",
+        title  = "1.1.33 版本更新公告",
+        sender = "系统",
+        date   = "2026-05-23",
+        expiry = "",
+        body   = "感谢各位拍友的持续支持！本次更新对多位角色的技能进行了调整与强化。\n\n"
+              .. "【加强】吴鉴之 · 慧眼识珠\n全面重新设计：第1轮改为鉴别全场品质最高的3件藏品，后续每轮持续扫描随机2件品质，第4轮精读最贵藏品的轮廓和品质。从「看便宜货」改为「锁定高价值目标」。\n\n"
+              .. "【加强】陆鉴 · 形迹可循\n第2轮起揭示等级从轮廓提升为轮廓+品质，第4轮新增紫色及以上藏品的轮廓扫描，信息质量大幅提升。\n\n"
+              .. "【加强】裴锦书 · 烟火慧眼\n第1轮日用品揭示从轮廓升级为轮廓+品质，通才品质信息提前至第2轮，第5轮新增日用品精确价值全览。\n\n"
+              .. "【修复】谢怀仁 · 医眼如炬\n修复了技能信息越往后越弱的设计缺陷：第2轮起揭示升级为轮廓+品质，第5轮新增全场医疗藏品完整复扫。\n\n"
+              .. "【加强】程云裳 · 锦绣眼\n第1轮服饰揭示从轮廓升级为轮廓+品质，后续改为每轮随机1件通才品质，第4轮新增精读随机1件服饰精确价值。\n\n"
+              .. "【修复+加强】江识玉 · 双向侦查\n修正第1轮全场最高藏品的揭示精度，新增第2轮起珠宝持续品质追踪，以及第4轮全场最贵2件复扫，「双向」名副其实。\n\n"
+              .. "【加强】周正霆 · 精密制造\n新增第4轮再精读机械随机1件全部信息，第5轮新增通才随机2件品质收尾，补足后两轮信息空白。\n\n"
+              .. "感谢大家的反馈，祝游戏愉快！",
+    },
+    {
+        id     = "v1_1_34_update",
+        title  = "1.1.34 版本更新公告",
+        sender = "系统",
+        date   = "2026-05-23",
+        expiry = "",
+        body   = "感谢各位拍友的持续支持！本次更新带来以下优化：\n\n"
+              .. "【优化】战利品生成算法\n重新设计仓库物品选取权重，极端高价物品（如顶级限量藏品）的出现频率与仓库实际价值档位动态挂钩，使仓库内容分布更加合理，普通仓库中的物品价值区间更贴近实际体验。\n\n"
+              .. "【优化】AI出价逻辑\nAI对红色藏品的估值不再受极端高价物品干扰，出价参考值更符合当前仓库的整体价值，第一轮出价大幅改善，竞拍对局体验更平衡。\n\n"
+              .. "感谢大家的反馈，祝游戏愉快！",
+        rewards = {
+            { type = "coins",         amount = 2000000 },
+            { type = "point_tickets", amount = 30 },
+            { type = "chest",         amount = 1, chestId = "chest_common" },
         },
     },
 }

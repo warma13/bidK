@@ -4,6 +4,7 @@
 
 local Config = require("Config")
 local PropSystem = require("PropSystem")
+local _AIEstimateValue = require("AI.EstimateValue")  -- 用于每局重置动态权重
 
 local AIPlayer = {}
 
@@ -73,6 +74,9 @@ function AIPlayer.Init()
     ai.pumpActive = {}
     ai.lastIntents = {}
     ai.tiebreakTimers = {}
+    -- 每局开始重置估值模块：不同仓库的 warehouseValue 不同
+    -- 动态权重依赖 warehouseValue，必须在新仓库 Init 时重新计算
+    _AIEstimateValue.Reset()
 end
 
 -- ============================================================================
@@ -300,15 +304,18 @@ function AIPlayer.DecideSealedBid(playerIdx, player, round)
 
     -- 底价保护：必须在风格化之后执行，防止风格化将数字向下取整绕过保底
     -- 仅对 COMPETE 意图生效，其他意图（BLUFF/PUMP/RESIGN）不受此约束
-    if intent == INTENT.COMPETE then
+    if intent == INTENT.COMPETE or intent == INTENT.PUMP then
+        -- 底价保护：COMPETE + PUMP 意图均需底价兜底
+        -- PUMP 意图在前两轮可能基于 estSecond（上轮出价的 60-80%）出价，
+        -- 如果上轮出价本身很低，PUMP 出价会极低，需要底价保护。
+        --
         -- 底价比例随信息完整度动态提升：
-        --   infoWeight=0（无信息）→ estimate × 0.15（弱保护，防止极端低出价）
-        --   infoWeight=1（全揭示）→ estimate × 0.40（强保护，信息充分时不应乱出价）
-        -- 使用新算法的 estimate（已融合 tier 先验 + 逐件信息），无需再调用旧 min 模式。
-        -- 注意：不除以 roundMul——底价是"出价本身"的下限，不是"获得的价值"的下限。
-        --       倍率只影响赢家最终支付额，不影响 AI 愿意出的价格下限。
+        --   infoWeight=0（无信息）→ estimate × 0.25（前两轮）/ 0.15（后期）
+        --   infoWeight=1（全揭示）→ estimate × 0.50（前两轮）/ 0.40（后期）
+        -- 前两轮信息少但不应出价过低，基线从 0.15 提高到 0.25
         local infoWeight = (aiInfoState and aiInfoState.infoWeight) or 0
-        local floorRatio = 0.15 + infoWeight * 0.25   -- [0.15, 0.40]
+        local baseFloorRatio = (round <= 2) and 0.25 or 0.15
+        local floorRatio = baseFloorRatio + infoWeight * 0.25
         local absoluteFloor = estimate * floorRatio
 
         if absoluteFloor > 0 and bidAmount < absoluteFloor then

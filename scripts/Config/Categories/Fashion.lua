@@ -29,7 +29,7 @@ Fashion.items = {
     { name = "设计师款墨镜",     rows = 1, cols = 2, quality = "green",  value = 920,   desc = "独立设计师品牌偏光墨镜，附原装皮套",             image = IMG .. "服饰/设计师款墨镜.png" },
     { name = "手工编织皮夹",     rows = 1, cols = 1, quality = "green",  value = 740,   desc = "植鞣革手工编织纹路钱夹，卡槽充足",               image = IMG .. "服饰/手工编织皮夹.png" },
     { name = "限量印花卫衣",     rows = 2, cols = 2, quality = "green",  value = 980,   desc = "艺术家联名卫衣，编号签名标签在",                 image = IMG .. "服饰/限量印花卫衣.png" },
-    { name = "银质袖扣套装",     rows = 1, cols = 1, quality = "green",  value = 870,   desc = "925纯银袖扣一对，附原装绒布盒",                 image = IMG .. "服饰/银质袖扣套装.png" },
+    { name = "银质袖扣套装",     rows = 1, cols = 1, quality = "green",  value = 870,   desc = "925纯银袖扣一对，附原装绒布盒",                 image = IMG .. "服饰/银质袖扣套装.png", extraCategories = {"jewel"} },
     { name = "轻奢马毛手包",     rows = 1, cols = 2, quality = "green",  value = 1050,  desc = "马毛拼接皮质手包，链条配件做工细腻",             image = IMG .. "服饰/轻奢马毛手包.png" },
     { name = "日系工匠布包",     rows = 2, cols = 2, quality = "green",  value = 830,   desc = "手织帆布搭配真皮提手，职人手工制作",             image = IMG .. "服饰/日系工匠布包.png" },
     { name = "精工牛仔裤",       rows = 2, cols = 2, quality = "green",  value = 760,   desc = "日本职人手工染色牛仔裤，原版布边",               image = IMG .. "服饰/精工牛仔裤.png" },
@@ -40,7 +40,7 @@ Fashion.items = {
     { name = "品牌机械腕表",       rows = 1, cols = 1, quality = "blue",  value = 5800,  desc = "瑞士机械机芯腕表，蓝宝石镜面无划痕",             image = IMG .. "服饰/品牌机械腕表.png",  tags = {"horology"} },
     { name = "高定礼服裙",         rows = 2, cols = 2, quality = "blue",  value = 3900,  desc = "设计师高定工作室礼服，手工钉珠工艺",             image = IMG .. "服饰/高定礼服裙.png" },
     { name = "真皮骑士夹克",       rows = 2, cols = 2, quality = "blue",  value = 2900,  desc = "意大利植鞣革骑士夹克，金属拉链顺滑",             image = IMG .. "服饰/真皮骑士夹克.png" },
-    { name = "纯银项链套装",       rows = 1, cols = 2, quality = "blue",  value = 2400,  desc = "925银手工锻打项链，附宝石吊坠一枚",               image = IMG .. "服饰/纯银项链套装.png" },
+    { name = "纯银项链套装",       rows = 1, cols = 2, quality = "blue",  value = 2400,  desc = "925银手工锻打项链，附宝石吊坠一枚",               image = IMG .. "服饰/纯银项链套装.png", extraCategories = {"jewel"} },
     { name = "手工棕色皮靴",       rows = 1, cols = 2, quality = "blue",  value = 3500,  desc = "西班牙手工制作切尔西靴，Goodyear沿条工艺",       image = IMG .. "服饰/手工棕色皮靴.png" },
     { name = "品牌皮草披肩",       rows = 2, cols = 2, quality = "blue",  value = 5200,  desc = "进口狐狸毛皮草披肩，附品牌防伪标",               image = IMG .. "服饰/品牌皮草披肩.png" },
     { name = "设计师奢华托特包",   rows = 2, cols = 2, quality = "blue",  value = 4100,  desc = "独立设计师手工缝制托特包，帆布配真皮撞色",       image = IMG .. "服饰/设计师奢华托特包.png" },
@@ -48,10 +48,10 @@ Fashion.items = {
     -- 紫 ×7
     { name = "顶级定制西装",       rows = 2, cols = 2, quality = "purple", value = 14800, desc = "萨维尔街裁缝全定制西装，手工锁扣眼蒸汽定型",     image = IMG .. "服饰/顶级定制西装.png" },
     { name = "珍稀蟒皮手提包",     rows = 2, cols = 2, quality = "purple", value = 19600, desc = "缅甸蟒蛇皮手工缝制包，金属扣件镀金处理",         image = IMG .. "服饰/珍稀蟒皮手提包.png" },
-    { name = "珠宝镶嵌皮腰封",     rows = 1, cols = 2, quality = "purple", value = 12300, desc = "皮质腰封镶嵌多颗宝石，高级定制工坊出品",         image = IMG .. "服饰/珠宝镶嵌皮腰封.png" },
+    { name = "珠宝镶嵌皮腰封",     rows = 1, cols = 2, quality = "purple", value = 12300, desc = "皮质腰封镶嵌多颗宝石，高级定制工坊出品",         image = IMG .. "服饰/珠宝镶嵌皮腰封.png", extraCategories = {"jewel"} },
     { name = "皇室礼宾定制礼服",   rows = 2, cols = 2, quality = "purple", value = 26000, desc = "欧洲礼宾公司定制晚宴礼服，附来源证书",           image = IMG .. "服饰/皇室礼宾定制礼服.png" },
     { name = "传承皮草大衣",       rows = 2, cols = 2, quality = "purple", value = 31000, desc = "水貂皮全长大衣，手工缝制，附毛皮鉴定证书",       image = IMG .. "服饰/传承皮草大衣.png" },
-    { name = "顶级定制珠宝腕表",   rows = 1, cols = 1, quality = "purple", value = 48000, desc = "珠宝表盘手工镶钻，机械芯，限量100枚附编号证书", image = IMG .. "服饰/顶级定制珠宝腕表.png", tags = {"horology"} },
+    { name = "顶级定制珠宝腕表",   rows = 1, cols = 1, quality = "purple", value = 48000, desc = "珠宝表盘手工镶钻，机械芯，限量100枚附编号证书", image = IMG .. "服饰/顶级定制珠宝腕表.png", tags = {"horology"}, extraCategories = {"jewel"} },
     { name = "手工刺绣旗袍",       rows = 2, cols = 2, quality = "purple", value = 17500, desc = "苏绣老工匠手工刺绣旗袍，真丝底布，附工匠签名",   image = IMG .. "服饰/手工刺绣旗袍.png" },
     -- 红 ×3
     { name = "传奇设计师孤品礼服", rows = 2, cols = 2, quality = "red",    value = 280000, desc = "已故传奇设计师最后遗作，全球孤品，附拍卖证明",   image = IMG .. "服饰/传奇设计师孤品礼服.png" },
@@ -71,14 +71,24 @@ Fashion.items = {
     { name = "赛车联名夹克",       rows = 2, cols = 2, quality = "blue",   value = 3600,  desc = "F1车队官方联名赛车夹克，刺绣队徽附赛季纪念标",   image = IMG .. "服饰/赛车联名夹克.png",         tags = {"streetwear"} },
     { name = "高端压缩训练套装",   rows = 2, cols = 2, quality = "blue",   value = 2400,  desc = "顶级运动科技压缩衣裤套装，肌肉支撑性能卓越",     image = IMG .. "服饰/高端压缩训练套装.png",     tags = {"streetwear"} },
     -- 金 ×5
-    { name = "限量联名球鞋原盒套装", rows = 1, cols = 2, quality = "gold",  value = 55000,  desc = "知名艺术家联名球鞋，限量99双，原盒附编号证书",   image = IMG .. "服饰/限量联名球鞋原盒套装.png", tags = {"streetwear"} },
-    { name = "顶级鳄鱼皮手袋",     rows = 2, cols = 2, quality = "gold",   value = 88000,  desc = "尼罗河鳄鱼皮Birkin包，18K金五金，附CITES证书", image = IMG .. "服饰/顶级鳄鱼皮手袋.png" },
-    { name = "名师亲绘真丝晚礼服", rows = 2, cols = 2, quality = "gold",   value = 120000, desc = "顶级设计师在真丝底布上亲手绘制花纹的订制礼服",   image = IMG .. "服饰/名师亲绘真丝晚礼服.png" },
-    { name = "限量铂金包",         rows = 2, cols = 2, quality = "gold",   value = 380000, desc = "全球限量12只的马鞍皮铂金包，附出生证和CITES证书", image = IMG .. "服饰/限量铂金包.png" },
-    { name = "传世珐琅胸针",       rows = 1, cols = 1, quality = "gold",   value = 160000, desc = "欧洲百年珠宝工坊孤品珐琅胸针，附工坊档案",       image = IMG .. "服饰/传世珐琅胸针.png" },
-    -- 红 ×2（新增，原有红品质见上方 -- 红 ×3 区块）
-    { name = "绝版鳄鱼皮套装",     rows = 2, cols = 3, quality = "red",    value = 1200000, desc = "同批次鳄鱼皮定制手袋+腰带+钱包三件套，孤品",    image = IMG .. "服饰/绝版鳄鱼皮套装.png" },
-    { name = "皇家御制珠宝套装",   rows = 2, cols = 3, quality = "red",    value = 3800000, desc = "欧洲皇室典藏珠宝套装，红宝石项链+耳环+手镯，附皇室档案", image = IMG .. "服饰/皇家御制珠宝套装.png" },
+    { name = "限量联名球鞋原盒套装", rows = 1, cols = 2, quality = "gold",  value = 55000,  desc = "知名艺术家联名球鞋，限量99双，原盒附编号证书",         image = IMG .. "服饰/限量联名球鞋原盒套装.png", tags = {"streetwear"} },
+    { name = "顶级鳄鱼皮手袋",       rows = 2, cols = 2, quality = "gold",  value = 88000,  desc = "尼罗河鳄鱼皮Birkin包，18K金五金，附CITES证书",         image = IMG .. "服饰/顶级鳄鱼皮手袋.png" },
+    { name = "名师亲绘真丝晚礼服",   rows = 2, cols = 2, quality = "gold",  value = 120000, desc = "顶级设计师在真丝底布上亲手绘制花纹的订制礼服",           image = IMG .. "服饰/名师亲绘真丝晚礼服.png" },
+    { name = "限量铂金包",           rows = 2, cols = 2, quality = "gold",  value = 380000, desc = "全球限量12只的马鞍皮铂金包，附出生证和CITES证书",         image = IMG .. "服饰/限量铂金包.png" },
+    { name = "传世珐琅胸针",         rows = 1, cols = 1, quality = "gold",  value = 160000, desc = "欧洲百年珠宝工坊孤品珐琅胸针，附工坊档案",               image = IMG .. "服饰/传世珐琅胸针.png", extraCategories = {"jewel"} },
+    -- 金 ×5（补充）
+    { name = "宫廷级织金礼袍",       rows = 2, cols = 2, quality = "gold",  value = 95000,  desc = "宫廷织造工艺复原礼袍，皇家御用金丝手工织造，博物馆合作款", image = IMG .. "服饰/宫廷级织金礼袍.png" },
+    { name = "全定制骑装套装",       rows = 2, cols = 2, quality = "gold",  value = 72000,  desc = "英国顶级马术定制骑装，含猎装外套马裤皮靴全套",           image = IMG .. "服饰/全定制骑装套装.png" },
+    { name = "百年工坊限量围巾",     rows = 1, cols = 2, quality = "gold",  value = 58000,  desc = "苏格兰百年纺织工坊手工编织限量围巾，全球99条附编号证书",   image = IMG .. "服饰/百年工坊限量围巾.png" },
+    { name = "珠宝腕表礼盒套装",     rows = 1, cols = 2, quality = "gold",  value = 220000, desc = "顶级表厂周年纪念腕表+原厂5条皮表带礼盒套装，序号1/20",   image = IMG .. "服饰/珠宝腕表礼盒套装.png", tags = {"horology"}, extraCategories = {"jewel"} },
+    { name = "纯金珠绣礼服",         rows = 2, cols = 2, quality = "gold",  value = 195000, desc = "全手工真金珠线刺绣礼服，耗时300工时，附工坊制作证书",     image = IMG .. "服饰/纯金珠绣礼服.png" },
+    -- 红 ×2（原有）
+    { name = "绝版鳄鱼皮套装",       rows = 2, cols = 3, quality = "red",   value = 1200000, desc = "同批次鳄鱼皮定制手袋+腰带+钱包三件套，孤品",              image = IMG .. "服饰/绝版鳄鱼皮套装.png" },
+    { name = "皇家御制珠宝套装",     rows = 2, cols = 3, quality = "red",   value = 3800000, desc = "欧洲皇室典藏珠宝套装，红宝石项链+耳环+手镯，附皇室档案",  image = IMG .. "服饰/皇家御制珠宝套装.png", extraCategories = {"jewel"} },
+    -- 红 ×3（补充）
+    { name = "拍卖成交传奇礼服",     rows = 2, cols = 3, quality = "red",   value = 1850000, desc = "苏富比成交的传奇设计师最终系列礼服，附完整拍卖记录",       image = IMG .. "服饰/拍卖成交传奇礼服.png" },
+    { name = "清宫凤冠",             rows = 2, cols = 2, quality = "red",   value = 4500000, desc = "清代宫廷凤冠，点翠工艺配红蓝宝石，附清宫档案及鉴定书",    image = IMG .. "服饰/清宫凤冠.png", extraCategories = {"jewel"} },
+    { name = "百年钻石项链",         rows = 1, cols = 2, quality = "red",   value = 8800000, desc = "1920年代顶级珠宝行出品钻石项链，逾50克拉，附GIA证书",    image = IMG .. "服饰/百年钻石项链.png", extraCategories = {"jewel"} },
 }
 
 return Fashion

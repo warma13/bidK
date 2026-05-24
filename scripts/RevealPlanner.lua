@@ -87,13 +87,16 @@ local function analyze(items)
             list[#list + 1] = item
         end
 
-        local cat = item.category
-        if cat then
-            if not stats.categoryItems[cat] then
-                stats.categoryItems[cat] = {}
-                stats.categoryIds[#stats.categoryIds + 1] = cat
+        -- 支持多品类：categories 优先，兼容旧单品类字段
+        local itemCats = item.categories or (item.category and { item.category })
+        if itemCats then
+            for _, cat in ipairs(itemCats) do
+                if not stats.categoryItems[cat] then
+                    stats.categoryItems[cat] = {}
+                    stats.categoryIds[#stats.categoryIds + 1] = cat
+                end
+                stats.categoryItems[cat][#stats.categoryItems[cat] + 1] = item
             end
-            stats.categoryItems[cat][#stats.categoryItems[cat] + 1] = item
         end
 
         local val = item.realValue or Config.GetItemRealValue(item)
@@ -136,9 +139,16 @@ local function pickRandom(list, n)
 end
 
 --- 从未使用的品质中随机选一个（preferHigh=true 时偏好高品质）
+--- 从全部品质中选取（包括仓库中数量为0的品质），避免玩家通过"只揭示存在的品质"反推仓库内容
 local function pickUnusedQuality(preferHigh)
+    -- 全量品质列表（固定顺序）
+    local allQualityIds = {}
+    for _, rar in ipairs(Config.RARITY) do
+        allQualityIds[#allQualityIds + 1] = rar.id
+    end
+
     local candidates = {}
-    for _, qId in ipairs(stats.qualityIds) do
+    for _, qId in ipairs(allQualityIds) do
         if not data.usedQualities[qId] then
             candidates[#candidates + 1] = qId
         end
@@ -147,7 +157,7 @@ local function pickUnusedQuality(preferHigh)
         -- 全部用过，重置
         data.usedQualities = {}
         candidates = {}
-        for _, qId in ipairs(stats.qualityIds) do
+        for _, qId in ipairs(allQualityIds) do
             candidates[#candidates + 1] = qId
         end
     end
@@ -256,15 +266,14 @@ end
 function generators.quality_outline(qualityId)
     qualityId = qualityId or pickUnusedQuality(false)
     if not qualityId then return nil end
-    local items = stats.qualityItems[qualityId]
-    if not items or #items == 0 then return nil end
+    local items = stats.qualityItems[qualityId] or {}
 
     local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
     data.usedQualities[qualityId] = true
     return {
         type    = "quality_outline",
         text    = "扫描到全部 " .. #items .. " 件" .. colorName .. "品质藏品的轮廓",
-        reveals = makeReveals(items, 3),  -- 已知品质 → L3（品质色框）
+        reveals = makeReveals(items, 3),  -- 已知品质 → L3（品质色框），0件时 reveals 为空
     }
 end
 
@@ -324,24 +333,24 @@ end
 function generators.quality_avg_cells(qualityId)
     qualityId = qualityId or pickUnusedQuality(true)
     if not qualityId then return nil end
-    local items = stats.qualityItems[qualityId]
-    if not items or #items == 0 then return nil end
+    local items = stats.qualityItems[qualityId] or {}
+    local count = #items
 
     local totalCells = 0
     for _, item in ipairs(items) do
         totalCells = totalCells + (item.w or 1) * (item.h or 1)
     end
-    local avg = math.floor(totalCells / #items + 0.5)
+    local avg = count > 0 and math.floor(totalCells / count + 0.5) or 0
     local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
 
     data.usedQualities[qualityId] = true
     return {
         type            = "quality_avg_cells",
-        text            = colorName .. "品质藏品共 " .. #items .. " 件，平均占 " .. avg .. " 格",
+        text            = colorName .. "品质藏品平均占 " .. avg .. " 格",
         reveals         = {},
         -- 机器可读字段
         rarityId        = qualityId,
-        rarityCount     = #items,
+        rarityCount     = count,
         rarityAvgCells  = avg,
     }
 end
@@ -365,14 +374,14 @@ end
 function generators.quality_avg_value(qualityId)
     qualityId = qualityId or pickUnusedQuality(false)
     if not qualityId then return nil end
-    local items = stats.qualityItems[qualityId]
-    if not items or #items == 0 then return nil end
+    local items = stats.qualityItems[qualityId] or {}
+    local count = #items
 
     local totalVal = 0
     for _, item in ipairs(items) do
         totalVal = totalVal + (item.realValue or Config.GetItemRealValue(item))
     end
-    local avg = totalVal / #items
+    local avg = count > 0 and (totalVal / count) or 0
     local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
 
     data.usedQualities[qualityId] = true
@@ -382,7 +391,7 @@ function generators.quality_avg_value(qualityId)
         reveals          = {},
         -- 机器可读字段
         rarityId         = qualityId,
-        rarityCount      = #items,
+        rarityCount      = count,
         rarityAvgValue   = avg,
     }
 end
@@ -444,14 +453,14 @@ end
 function generators.quality_total_cells(qualityId)
     qualityId = qualityId or pickUnusedQuality(false)
     if not qualityId then return nil end
-    local items = stats.qualityItems[qualityId]
-    if not items or #items == 0 then return nil end
+    local items = stats.qualityItems[qualityId] or {}
+    local count = #items
 
     local totalCells = 0
     for _, item in ipairs(items) do
         totalCells = totalCells + (item.w or 1) * (item.h or 1)
     end
-    local avg = math.floor(totalCells / #items + 0.5)
+    local avg = count > 0 and math.floor(totalCells / count + 0.5) or 0
     local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
 
     data.usedQualities[qualityId] = true
@@ -461,7 +470,7 @@ function generators.quality_total_cells(qualityId)
         reveals           = {},
         -- 机器可读字段
         rarityId          = qualityId,
-        rarityCount       = #items,
+        rarityCount       = count,
         rarityTotalCells  = totalCells,
         rarityAvgCells    = avg,
     }
@@ -495,18 +504,18 @@ end
 function generators.quality_count(qualityId)
     qualityId = qualityId or pickUnusedQuality(false)
     if not qualityId then return nil end
-    local items = stats.qualityItems[qualityId]
-    if not items or #items == 0 then return nil end
+    local items = stats.qualityItems[qualityId] or {}
+    local count = #items
 
     local colorName = QUALITY_COLOR_NAME[qualityId] or qualityId
     data.usedQualities[qualityId] = true
     return {
         type        = "quality_count",
-        text        = "本场拍卖共有" .. colorName .. "品质藏品 " .. #items .. " 件",
+        text        = "本场拍卖共有" .. colorName .. "品质藏品 " .. count .. " 件",
         reveals     = {},
         -- 机器可读字段
         rarityId    = qualityId,
-        rarityCount = #items,
+        rarityCount = count,
     }
 end
 

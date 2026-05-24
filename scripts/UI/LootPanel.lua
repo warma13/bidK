@@ -42,6 +42,19 @@ local imgLayoutCache = {}
 -- 上次 gridContainer 布局快照，用于检测 resize
 local lastGridLayout = nil
 
+-- 检测 gridContainer 布局是否发生变化；若变化则清空 imgLayoutCache 并返回 true
+local function checkGridLayoutChanged(gridLayout)
+    if not gridLayout then return false end
+    if not lastGridLayout
+        or lastGridLayout.x ~= gridLayout.x or lastGridLayout.y ~= gridLayout.y
+        or lastGridLayout.w ~= gridLayout.w or lastGridLayout.h ~= gridLayout.h then
+        lastGridLayout = { x = gridLayout.x, y = gridLayout.y, w = gridLayout.w, h = gridLayout.h }
+        imgLayoutCache = {}
+        return true
+    end
+    return false
+end
+
 local refs = UIState.refs
 local C = Config.COLORS
 
@@ -484,16 +497,7 @@ function LootPanel.Update()
     local gridLayout = refs.gridContainer and refs.gridContainer:GetAbsoluteLayout() or nil
 
     -- 检测 grid 布局是否发生变化（resize 或首次加载），若变化则清空缓存
-    local gridLayoutChanged = false
-    if gridLayout then
-        if not lastGridLayout
-            or lastGridLayout.x ~= gridLayout.x or lastGridLayout.y ~= gridLayout.y
-            or lastGridLayout.w ~= gridLayout.w or lastGridLayout.h ~= gridLayout.h then
-            lastGridLayout = { x = gridLayout.x, y = gridLayout.y, w = gridLayout.w, h = gridLayout.h }
-            imgLayoutCache = {}
-            gridLayoutChanged = true
-        end
-    end
+    local gridLayoutChanged = checkGridLayoutChanged(gridLayout)
 
     for r = 1, maxRows do
         for c = 1, cols do
@@ -721,15 +725,8 @@ function LootPanel.UpdateImageHitAreas()
     local gridLayout = refs.gridContainer and refs.gridContainer:GetAbsoluteLayout() or nil
     if not gridLayout then return end
 
-    -- 检测 grid 是否 resize（与 Update 中逻辑一致）
-    local gridChanged = false
-    if not lastGridLayout
-        or lastGridLayout.x ~= gridLayout.x or lastGridLayout.y ~= gridLayout.y
-        or lastGridLayout.w ~= gridLayout.w or lastGridLayout.h ~= gridLayout.h then
-        lastGridLayout = { x = gridLayout.x, y = gridLayout.y, w = gridLayout.w, h = gridLayout.h }
-        imgLayoutCache = {}
-        gridChanged = true
-    end
+    -- 检测 grid 是否 resize（复用 Update 中同一个函数）
+    local gridChanged = checkGridLayoutChanged(gridLayout)
 
     for i = 1, lastActiveImageCount do
         local img = refs.itemImages[i]
@@ -842,15 +839,15 @@ function LootPanel._OnSlotClick(slotIdx)
     if level == 1 then
         -- Level 1（灰色，品质未知）：按尺寸筛选展示物品（再次点击关闭）
         if idp then idp:Hide() end
-        WarehouseItemListPanel.Toggle(nil, sizeKey)
+        WarehouseItemListPanel.Toggle(nil, sizeKey, slotIdx)
     elseif level == 2 then
         -- Level 2（品质提示，1×1格子显示品质色）：只按品质筛选（轮廓未知，不传尺寸）
         if idp then idp:Hide() end
-        WarehouseItemListPanel.Toggle(item.rarity, nil)
+        WarehouseItemListPanel.Toggle(item.rarity, nil, slotIdx)
     elseif level == 3 then
         -- Level 3（品质框，W×H全覆盖品质色）：按品质+尺寸筛选展示物品
         if idp then idp:Hide() end
-        WarehouseItemListPanel.Toggle(item.rarity, sizeKey)
+        WarehouseItemListPanel.Toggle(item.rarity, sizeKey, slotIdx)
     elseif level >= 4 then
         -- Level 4：展示物品详情
         WarehouseItemListPanel.Hide()

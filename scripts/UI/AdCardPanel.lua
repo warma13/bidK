@@ -504,6 +504,27 @@ local function ClaimMilestone(msIndex)
 end
 
 -- ============================================================================
+-- 一键领取所有可领取的里程碑
+-- ============================================================================
+
+local claimAllBtn = nil  -- UI 引用
+
+local function ClaimAllMilestones()
+    if not cloudLoaded then return end
+    local claimed = false
+    for i, ms in ipairs(AC.DAILY_MILESTONES) do
+        local bit = 1 << (i - 1)
+        if dailyCount >= ms.adsRequired and (milestoneBits & bit) == 0 then
+            ClaimMilestone(i)
+            claimed = true
+        end
+    end
+    if not claimed then
+        pcall(FloatingMessage.Show, "暂无可领取的奖励")
+    end
+end
+
+-- ============================================================================
 -- 刷新 UI
 -- ============================================================================
 
@@ -581,6 +602,11 @@ function AdCardPanel.RefreshAll()
         countLabel:SetText("今日: " .. dailyCount .. "/" .. AC.MAX_DAILY_ADS)
     end
 
+    -- 全部领取按钮状态
+    if claimAllBtn then
+        claimAllBtn:SetDisabled(not HasUnclaimedMilestones())
+    end
+
     -- 里程碑行 — 脏检查，避免无意义 SetStyle 吞掉点击事件
     for i, ms in ipairs(AC.DAILY_MILESTONES) do
         local row = milestoneRows[i]
@@ -622,9 +648,14 @@ local function BuildMilestoneSlots(ms, sz)
     local slots = {}
 
     -- 金币格子
+    local coinReward = { type = "coins", amount = ms.coins }
     slots[#slots + 1] = RewardSlot.Make({
         image = Utils.GetIcon("coin"),
         count = Utils.FormatMoney(ms.coins),
+        onClick = function()
+            Utils.PlayClick()
+            TicketTooltip.ShowReward(coinReward)
+        end,
     }, sz)
 
     -- 门票格子
@@ -651,6 +682,16 @@ local function BuildMilestoneSlots(ms, sz)
             iconFontSize = sz(12),
             iconColor    = { 255, 220, 100, 255 },
             count        = "卡点",
+            onClick = function()
+                Utils.PlayClick()
+                TicketTooltip.ShowItem({
+                    name     = "卡点",
+                    subtitle = "+" .. ms.bonusPoints,
+                    image    = Utils.GetIcon("coin"),
+                    rarity   = "common",
+                    desc     = "广告卡升级积分，累计足够卡点可提升广告卡等级，提高每次观看广告的金币收益。",
+                })
+            end,
         }, sz)
     end
 
@@ -1266,6 +1307,19 @@ function AdCardPanel.CreateContent()
         },
     }
 
+    -- 全部领取按钮
+    claimAllBtn = UI.Button {
+        text = "全部领取",
+        width = sz(80), height = sz(28),
+        fontSize = sz(11), fontWeight = "bold",
+        variant = "primary",
+        disabled = not HasUnclaimedMilestones(),
+        onClick = function()
+            Utils.PlayClick()
+            ClaimAllMilestones()
+        end,
+    }
+
     -- 右栏
     local rightCol = UI.Panel {
         width = "52%", height = "100%", flexDirection = "column", gap = sz(4),
@@ -1283,6 +1337,13 @@ function AdCardPanel.CreateContent()
                         children = msChildren,
                     },
                 },
+            },
+            -- 底部固定栏：全部领取
+            UI.Panel {
+                width = "100%", flexShrink = 0,
+                flexDirection = "row", justifyContent = "flex-end",
+                paddingTop = sz(4),
+                children = { claimAllBtn },
             },
         },
     }

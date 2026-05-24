@@ -7,7 +7,7 @@ local Config           = require("Config")
 local UIState          = require("UI.UIState")
 local MoneyHUD         = require("UI.MoneyHUD")
 local Utils            = require("UI.Utils")
-local DebugPanel       = require("UI.DebugPanel")
+
 local SaveSystem       = require("SaveSystem")
 local FloatingMessage  = require("UI.FloatingMessage")
 local UnlockCharDialog = require("UI.UnlockCharDialog")
@@ -705,9 +705,6 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
                     or ((region.bg and region.bg ~= "") and region.bg or nil)
     local lobbyRoot = UI.Panel {
         width = "100%", height = "100%",
-        backgroundColor = C.bgDark,
-        backgroundImage = lobbyBg,
-        backgroundFit = "cover",
         flexDirection = "column",
         children = {
             -- ==================== 顶部栏 ====================
@@ -830,9 +827,6 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         },
     }
 
-    -- 绑定 lobbyRoot 引用，供仓库切换时更新背景
-    lobbyRootRef = lobbyRoot
-
     -- 创建最终根容器
     local finalRoot = UI.Panel {
         width = "100%", height = "100%",
@@ -843,10 +837,21 @@ function LobbyScreen.Show(regionIdx, onBackCallback, onStartCallback)
         },
     }
 
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
-        children = { finalRoot, DebugPanel.CreateHUD() },
-    })
+    local bgPanel = UI.Panel {
+        width = "100%", height = "100%",
+        backgroundColor = C.bgDark,
+        backgroundImage = lobbyBg,
+        backgroundFit = "cover",
+        children = {
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
+                children = { finalRoot },
+            },
+        },
+    }
+    -- 绑定引用，供仓库切换时更新背景
+    lobbyRootRef = bgPanel
+    UI.SetRoot(bgPanel)
 
     -- 初始化
     refreshCharInfo()

@@ -84,6 +84,9 @@ local function GiveReward(reward)
     elseif reward.type == "ticket" then
         SaveSystem.AddTickets(reward.ticketId, reward.amount or 1)
         SaveFW.MarkDirty("save_system")
+    elseif reward.type == "chest" and reward.chestId then
+        SaveSystem.AddProp(reward.chestId, reward.amount or 1)
+        SaveFW.MarkDirty("save_system")
     end
 end
 
@@ -126,7 +129,17 @@ function MailPanel.Show(onBackCallback)
             for k, v in pairs(m) do entry[k] = v end
             entry._sortTime = m.date or ""
             entry._sortIdx  = i  -- 数组序号，越大越新
-            result[#result + 1] = entry
+            -- veteranOnly 邮件：仅老玩家可见（存档创建日期 < 邮件日期）
+            local dominated = false
+            if m.veteranOnly then
+                local created = SaveSystem.GetCreatedAt()  -- "YYYY-MM-DD"
+                if created == "" or created >= (m.date or "") then
+                    dominated = true  -- 新玩家或同日注册，跳过
+                end
+            end
+            if not dominated and not SaveSystem.IsMailDismissed(m.id) then
+                result[#result + 1] = entry
+            end
         end
         -- 按时间降序（溢出邮件 _sortTime 是数字，系统邮件是字符串，分开比较：溢出在前）
         table.sort(result, function(a, b)
@@ -523,6 +536,15 @@ function MailPanel.Show(onBackCallback)
                 SelectRow(m.id)
                 selectedMail = m
                 BuildMailContent(m)
+                -- 刷新该行已读状态（绿点 + 标题样式）
+                if _widget then
+                    local hasReward = (m.rewards and #m.rewards > 0) or m.reward ~= nil
+                    local isClaimed = hasReward and SaveSystem.IsMailClaimed(m.id)
+                    local showDot = hasReward and not isClaimed
+                    _widget._dot:SetBackgroundColor(showDot and C.unreadDot or { 0, 0, 0, 0 })
+                    _widget._titleLbl:SetProp("fontWeight", "normal")
+                    _widget._titleLbl:SetFontColor(C.dimText)
+                end
             end,
         }
         mailListContainer:AddChild(mailVirtualList)
@@ -635,7 +657,7 @@ function MailPanel.Show(onBackCallback)
             UI.Panel { flexGrow = 1 },
             UI.Button {
                 text = "全部领取",
-                width = sz(110), paddingVertical = sz(7),
+                width = sz(100), paddingVertical = sz(7),
                 fontSize = sz(13), fontWeight = "bold",
                 fontColor = C.claimText,
                 backgroundColor = C.claimBg,
@@ -643,6 +665,45 @@ function MailPanel.Show(onBackCallback)
                 pressedBackgroundColor = C.claimPr,
                 borderRadius = sz(4),
                 onClick = ClaimAll,
+            },
+            UI.Button {
+                text = "删除已读",
+                width = sz(100), paddingVertical = sz(7),
+                fontSize = sz(13), fontWeight = "bold",
+                fontColor = C.backText,
+                backgroundColor = C.backBg,
+                hoverBackgroundColor = { 195, 215, 40, 50 },
+                pressedBackgroundColor = { 195, 215, 40, 110 },
+                borderWidth = 1, borderColor = C.backBdr,
+                borderRadius = sz(4),
+                onClick = function()
+                    Utils.PlayClick()
+                    local count = 0
+                    local current = BuildMailList_GetMails()
+                    for _, m in ipairs(current) do
+                        if m.isOverflow then
+                            -- 溢出邮件不删除
+                        elseif SaveSystem.IsMailRead(m.id) then
+                            -- 有未领取附件的不删除
+                            local hasReward = (m.rewards and #m.rewards > 0) or m.reward ~= nil
+                            if hasReward and not SaveSystem.IsMailClaimed(m.id) then
+                                -- 跳过
+                            else
+                                SaveSystem.DismissMail(m.id)
+                                count = count + 1
+                            end
+                        end
+                    end
+                    if count > 0 then
+                        FloatingMsg.Show("已删除 " .. count .. " 封已读邮件")
+                        mails = BuildMailList_GetMails()
+                        selectedMail = nil
+                        BuildMailList()
+                        BuildMailContent(nil)
+                    else
+                        FloatingMsg.Show("没有可删除的邮件")
+                    end
+                end,
             },
             UI.Label {
                 text = string.format("%d/%d 封", total - unread, total),
@@ -652,20 +713,24 @@ function MailPanel.Show(onBackCallback)
     }
 
     -- ── SetRoot ───────────────────────────────────────────────────────────────
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundImage = "image/task_bg_20260516170303.jpg",
+        backgroundFit = "cover",
         children = {
+            -- 高斯模糊遮罩（全屏覆盖）
             UI.Panel {
-                width = "100%", height = "100%",
-                backgroundImage = "image/task_bg_20260516170303.jpg",
-                backgroundFit = "cover",
-                flexDirection = "column",
+                position = "absolute", left = 0, top = 0, right = 0, bottom = 0,
+                backdropBlur = 40, backgroundColor = C.bg,
+            },
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
                 children = {
                     UI.Panel {
-                        position = "absolute", left = 0, top = 0, right = 0, bottom = 0,
-                        backdropBlur = 40, backgroundColor = C.bg,
-                    },
-                    topBar,
+                        width = "100%", height = "100%",
+                        flexDirection = "column",
+                        children = {
+                            topBar,
                     -- ── 主体：左右分栏 ────────────────────────────────────────
                     UI.Panel {
                         width = "100%", flexGrow = 1, flexShrink = 1,
@@ -705,7 +770,9 @@ function MailPanel.Show(onBackCallback)
                             },
                         },
                     },
-                    bottomBar,
+                            bottomBar,
+                        },
+                    },
                 },
             },
         },

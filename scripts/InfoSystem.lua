@@ -116,10 +116,16 @@ function InfoSystem.AnalyzeWarehouse(items)
         local realValue = item.realValue or Config.GetItemRealValue(item)
         stats.totalValue = stats.totalValue + realValue
 
-        if item.category then
-            local cat = Config.GetCategory(item.category)
-            stats.categoryCounts[item.category] = (stats.categoryCounts[item.category] or 0) + 1
-            stats.categoryNames[item.category] = cat.name
+        -- 支持多品类：categories 优先，兼容旧单品类字段
+        local itemCats = item.categories or (item.category and { item.category })
+        if itemCats then
+            for _, catId in ipairs(itemCats) do
+                local cat = Config.GetCategory(catId)
+                if cat then
+                    stats.categoryCounts[catId] = (stats.categoryCounts[catId] or 0) + 1
+                    stats.categoryNames[catId] = cat.name
+                end
+            end
         end
 
         local rar = Config.GetRarity(item.rarity)
@@ -194,7 +200,16 @@ function InfoSystem.FilterByCategory(category)
     end
     local result = {}
     for _, item in ipairs(data.warehouseItems) do
-        if catSet[item.category] then result[#result + 1] = item end
+        -- 支持多品类：遍历 item.categories，兼容旧 item.category
+        local itemCats = item.categories or (item.category and { item.category })
+        if itemCats then
+            for _, catId in ipairs(itemCats) do
+                if catSet[catId] then
+                    result[#result + 1] = item
+                    break  -- 避免同一物品被重复添加
+                end
+            end
+        end
     end
     return result
 end
@@ -248,19 +263,22 @@ end
 
 --- 从候选列表中挑选品质最高的N件
 function InfoSystem.PickHighestItems(candidates, n)
-    local sorted = {}
-    for i, item in ipairs(candidates) do sorted[i] = item end
-    table.sort(sorted, function(a, b)
-        local aIdx = data.warehouseStats.rarityOrder[a.rarity] or 0
-        local bIdx = data.warehouseStats.rarityOrder[b.rarity] or 0
-        if aIdx ~= bIdx then return aIdx > bIdx end
-        local aVal = a.realValue or Config.GetItemRealValue(a)
-        local bVal = b.realValue or Config.GetItemRealValue(b)
-        return aVal > bVal
-    end)
-    local result = {}
-    for i = 1, math.min(n, #sorted) do result[i] = sorted[i] end
-    return result
+    -- 先找出最高品质等级
+    local maxRarityIdx = 0
+    for _, item in ipairs(candidates) do
+        local idx = data.warehouseStats.rarityOrder[item.rarity] or 0
+        if idx > maxRarityIdx then maxRarityIdx = idx end
+    end
+    -- 收集所有最高品质的物品
+    local topTier = {}
+    for _, item in ipairs(candidates) do
+        local idx = data.warehouseStats.rarityOrder[item.rarity] or 0
+        if idx == maxRarityIdx then
+            topTier[#topTier + 1] = item
+        end
+    end
+    -- 在最高品质内随机选取
+    return InfoSystem.PickRandomItems(topTier, n)
 end
 
 --- 根据target类型选择物品
@@ -326,7 +344,7 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
             end
         end
         local qualityStr = table.concat(rarNames, "、")
-        local text = qualityStr .. "品质藏品共" .. #candidates .. "件，总价值 " .. FormatValue(totalVal)
+        local text = qualityStr .. "品质藏品总价值 " .. FormatValue(totalVal)
         -- knownTotalValue 和 coveredItemIdxs 供 AI 估值模块使用
         return { text = text, icon = "", knownTotalValue = totalVal, coveredItemIdxs = itemIdxList }
     end
@@ -384,7 +402,7 @@ function InfoSystem.ProcessRevealEvent(event, playerIdx, round)
             parts[#parts + 1] = rarCounts[name] .. "件" .. name
         end
         local prefix = catName and (catName .. "中") or ""
-        text = "看到了" .. prefix .. #selected .. "件品质：" .. table.concat(parts, "、")
+        text = "鉴别" .. prefix .. #selected .. "件品质：" .. table.concat(parts, "、")
 
     elseif level == "L2" then
         -- 品质色覆盖全 W×H：知道品质 + 轮廓

@@ -201,7 +201,10 @@ function InfoEstimation.ComputeEstimate(playerIdx, round, infoSystem, infoStates
 
     -- 2. 确保新估值模块已初始化
     if not _NewEstimateValue.IsInitialized() then
-        _NewEstimateValue.Init(warehouseTypeId)
+        -- 传入 expectedValue 作为 warehouseValue，用于动态权重计算：
+        -- 高价物品（如追光者引擎原型2800万）在差仓（targetPerPick极低）时动态权重趋近0，
+        -- 不会污染 rarityAvgValue，解决 AI 第一轮严重高估问题
+        _NewEstimateValue.Init(warehouseTypeId, expectedValue)
     end
 
     -- 3. 获取仓库物品并调用新估值算法

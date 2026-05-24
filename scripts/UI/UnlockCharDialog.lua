@@ -19,7 +19,6 @@ local UI         = require("urhox-libs/UI")
 local SaveSystem = require("SaveSystem")
 
 local UNLOCK_TICKET_COST = 300  -- 解锁所需点券
-local COIN_TO_TICKET     = 10   -- 1 角色币抵扣 10 点券
 
 local UnlockCharDialog = {}
 
@@ -51,25 +50,6 @@ function UnlockCharDialog.Create(opts)
         text = "", fontSize = sz(12),
         fontColor = { 180, 160, 95, 200 },
     }
-    local dlgDiscountLbl = UI.Label {
-        text = "", fontSize = sz(12), fontWeight = "bold",
-        fontColor = { 140, 220, 120, 240 },
-    }
-    local dlgDiscountRow = UI.Panel {
-        width = "100%", flexDirection = "row",
-        alignItems = "center", justifyContent = "center",
-        gap = sz(6), paddingVertical = sz(6),
-        backgroundColor = { 30, 60, 30, 160 }, borderRadius = sz(6),
-        visible = false,
-        children = {
-            UI.Panel {
-                width = sz(16), height = sz(16),
-                backgroundImage = "Textures/tickets/character_coin.png",
-                backgroundFit = "contain", flexShrink = 0,
-            },
-            dlgDiscountLbl,
-        },
-    }
     local dlgActualCostLbl = UI.Label {
         text = "", fontSize = sz(14), fontWeight = "bold",
         fontColor = { 255, 215, 55, 255 },
@@ -94,16 +74,10 @@ function UnlockCharDialog.Create(opts)
         onClick = function()
             local ch = currentChar
             if not ch then return end
-            local charCoins      = SaveSystem.GetCharacterCoins()
             local currentTickets = SaveSystem.GetPointTickets()
-            local coinsToUse     = math.min(charCoins, math.floor(UNLOCK_TICKET_COST / COIN_TO_TICKET))
-            local actualCost     = UNLOCK_TICKET_COST - coinsToUse * COIN_TO_TICKET
-            if currentTickets < actualCost then return end
+            if currentTickets < UNLOCK_TICKET_COST then return end
 
-            SaveSystem.AddPointTickets(-actualCost)
-            if coinsToUse > 0 then
-                SaveSystem.SpendCharacterCoins(coinsToUse)
-            end
+            SaveSystem.AddPointTickets(-UNLOCK_TICKET_COST)
             SaveSystem.UnlockCharacter(ch.id)
             SaveSystem.Save()
             hide()
@@ -179,21 +153,6 @@ function UnlockCharDialog.Create(opts)
                                     },
                                 },
                             },
-                            dlgDiscountRow,
-                            -- 实际消耗行
-                            UI.Panel {
-                                width = "100%", flexDirection = "row",
-                                alignItems = "center", justifyContent = "center", gap = sz(6),
-                                children = {
-                                    UI.Label { text = "实际消耗：", fontSize = sz(12), fontColor = { 180, 185, 200, 200 } },
-                                    UI.Panel {
-                                        width = sz(16), height = sz(16),
-                                        backgroundImage = "image/point_ticket_icon_20260518210650.png",
-                                        backgroundFit = "contain", flexShrink = 0,
-                                    },
-                                    dlgActualCostLbl,
-                                },
-                            },
                             dlgBalanceLbl,
                         },
                     },
@@ -222,30 +181,15 @@ function UnlockCharDialog.Create(opts)
     -- ── 对外接口 ──────────────────────────────────────────────────────────
     local function show(ch)
         currentChar = ch
-        local charCoins      = SaveSystem.GetCharacterCoins()
         local currentTickets = SaveSystem.GetPointTickets()
-        local coinsToUse     = math.min(charCoins, math.floor(UNLOCK_TICKET_COST / COIN_TO_TICKET))
-        local discount       = coinsToUse * COIN_TO_TICKET
-        local actualCost     = UNLOCK_TICKET_COST - discount
-        local canAfford      = currentTickets >= actualCost
+        local canAfford      = currentTickets >= UNLOCK_TICKET_COST
 
         dlgAvatarPanel:SetStyle({ backgroundImage = ch.avatar })
         dlgNameLbl:SetText(ch.name)
         dlgAbilityLbl:SetText(ch.ability or "")
 
-        if coinsToUse > 0 then
-            dlgDiscountLbl:SetText(
-                tostring(coinsToUse) .. " 角色币 × " .. COIN_TO_TICKET ..
-                " = -" .. tostring(discount) .. " 点券"
-            )
-            dlgDiscountRow:SetVisible(true)
-        else
-            dlgDiscountRow:SetVisible(false)
-        end
-
-        dlgActualCostLbl:SetText(tostring(actualCost) .. " 点券")
         dlgBalanceLbl:SetText(canAfford
-            and ("当前点券 " .. currentTickets .. "，解锁后剩余 " .. (currentTickets - actualCost))
+            and ("当前点券 " .. currentTickets .. "，解锁后剩余 " .. (currentTickets - UNLOCK_TICKET_COST))
             or  ("点券不足，当前仅有 " .. currentTickets .. " 点券"))
         dlgBalanceLbl:SetStyle({ fontColor = canAfford and { 120, 195, 100, 220 } or { 220, 80, 70, 230 } })
         dlgConfirmBtn:SetStyle({ backgroundColor = canAfford and { 130, 100, 18, 240 } or { 35, 35, 40, 200 } })

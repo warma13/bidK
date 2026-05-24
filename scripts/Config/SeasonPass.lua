@@ -13,6 +13,7 @@ M.SEASON = {
     name         = "竞拍之王·第一赛季",
     durationDays = 30,
     maxLevel     = 150,
+    endDate      = "2026-06-30",  -- 赛季结束日期（YYYY-MM-DD），倒计时显示用
 }
 
 -- ============================================================================
@@ -76,7 +77,8 @@ M.SEASON_ITEMS = {
 -- ============================================================================
 
 local function coins(n)      return { type = "coins",   amount = n * 5 } end
-local function chest(id, n)  return { type = "chest",   id = id, count = (n or 1) * 5 } end
+local function chest(id, n)      return { type = "chest",   id = id, count = (n or 1) * 5 } end
+local function freeChest(id, n)  return { type = "chest",   id = id, count = (n or 1) } end
 local function item(id)      return { type = "item",    itemId = id } end
 local function ticket(id, n) return { type = "tickets", ticketId = id, count = n * 5 } end
 
@@ -110,23 +112,23 @@ local function BuildTiers()
     -- 大里程碑集中定义（覆盖通用逻辑）
     local MILESTONES = {
         [30]  = {
-            free = { coins(10000), chest("chest_s1") },
+            free = { coins(10000), freeChest("chest_s1") },
             vip  = { coins(50000), chest("chest_common"), ticket("ticket_commercial", 1) },
         },
         [60]  = {
-            free = { coins(10000), chest("chest_s1") },
+            free = { coins(10000), freeChest("chest_s1") },
             vip  = { coins(50000), chest("chest_silver"), ticket("ticket_port", 1) },
         },
         [90]  = {
-            free = { coins(10000), chest("chest_s1"), item("season_2026s1_golden_tree") },
+            free = { coins(10000), freeChest("chest_s1"), item("season_2026s1_golden_tree") },
             vip  = { coins(50000), chest("chest_gold"),  ticket("ticket_techpark", 1) },
         },
         [120] = {
-            free = { coins(10000), chest("chest_s1") },
+            free = { coins(10000), freeChest("chest_s1") },
             vip  = { coins(50000), chest("chest_gold"),  ticket("ticket_deepsea", 1) },
         },
         [150] = {
-            free = { coins(10000), chest("chest_s1"), item("season_2026s1_jade_seal") },
+            free = { coins(10000), freeChest("chest_s1"), item("season_2026s1_jade_seal") },
             vip  = { coins(50000), chest("chest_gold"),  ticket("ticket_private", 1) },
         },
     }
@@ -141,7 +143,7 @@ local function BuildTiers()
         elseif lvl % 10 == 0 then
             -- 每10级：免费+礼盒，VIP+道具箱
             t[lvl] = {
-                free = { coins(10000), chest("chest_s1") },
+                free = { coins(10000), freeChest("chest_s1") },
                 vip  = { coins(50000), PropChestByLevel(lvl) },
             }
         elseif lvl % 5 == 0 then

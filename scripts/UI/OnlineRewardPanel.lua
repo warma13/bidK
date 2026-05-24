@@ -246,6 +246,28 @@ local function ClaimMilestone(msIndex)
 end
 
 -- ============================================================================
+-- 一键领取所有可领取的里程碑
+-- ============================================================================
+
+local claimAllBtn = nil
+
+local function ClaimAllMilestones()
+    if not cloudLoaded then return end
+    local claimed = false
+    local mins = GetOnlineMinutes()
+    for i, ms in ipairs(OC.MILESTONES) do
+        local bit = 1 << (i - 1)
+        if mins >= ms.minutes and (claimedBits & bit) == 0 then
+            ClaimMilestone(i)
+            claimed = true
+        end
+    end
+    if not claimed then
+        FloatingMessage.Show("暂无可领取的奖励")
+    end
+end
+
+-- ============================================================================
 -- 刷新 UI
 -- ============================================================================
 
@@ -258,6 +280,11 @@ function OnlineRewardPanel.RefreshAll()
     if btnBadge then
         local ok = pcall(btnBadge.SetVisible, btnBadge, HasUnclaimedMilestones())
         if not ok then btnBadge = nil; btnLabel = nil end
+    end
+
+    -- 全部领取按钮状态
+    if claimAllBtn then
+        claimAllBtn:SetDisabled(not HasUnclaimedMilestones())
     end
 
     -- 里程碑行 — 只在状态变化时更新，避免每帧 SetStyle 吞掉点击事件
@@ -409,20 +436,28 @@ function OnlineRewardPanel.CreatePopup()
                 text = ms.label,
                 fontSize = sz(8), fontColor = { 180, 190, 220, 230 },
             },
-            UI.Panel {
-                flexDirection = "row", alignItems = "center",
-                justifyContent = "center", gap = sz(1),
-                children = {
-                    UI.Panel {
-                        width = sz(10), height = sz(10),
-                        backgroundImage = Utils.GetIcon("coin"),
+            (function()
+                local coinAmount = ms.coins
+                return UI.Panel {
+                    flexDirection = "row", alignItems = "center",
+                    justifyContent = "center", gap = sz(1),
+                    cursor = "pointer",
+                    onClick = function()
+                        Utils.PlayClick()
+                        TicketTooltip.ShowReward({ type = "coins", amount = coinAmount })
+                    end,
+                    children = {
+                        UI.Panel {
+                            width = sz(10), height = sz(10),
+                            backgroundImage = Utils.GetIcon("coin"),
+                        },
+                        UI.Label {
+                            text = Utils.FormatMoney(coinAmount),
+                            fontSize = sz(8), fontColor = { 255, 220, 100, 255 },
+                        },
                     },
-                    UI.Label {
-                        text = Utils.FormatMoney(ms.coins),
-                        fontSize = sz(8), fontColor = { 255, 220, 100, 255 },
-                    },
-                },
-            },
+                }
+            end)(),
         }
         if ms.ticket then
             local tConf = Config.TICKETS[ms.ticket]
@@ -613,9 +648,14 @@ function OnlineRewardPanel.CreateContent()
     -- 奖励格子构建（使用共享 RewardSlot 组件）
     local function BuildRewardSlots(ms)
         local slots = {}
+        local coinAmount = ms.coins
         slots[#slots + 1] = RewardSlot.Make({
             image = Utils.GetIcon("coin"),
-            count = Utils.FormatMoney(ms.coins),
+            count = Utils.FormatMoney(coinAmount),
+            onClick = function()
+                Utils.PlayClick()
+                TicketTooltip.ShowReward({ type = "coins", amount = coinAmount })
+            end,
         }, sz)
         if ms.ticket then
             local tConf   = Config.TICKETS[ms.ticket]
@@ -690,6 +730,19 @@ function OnlineRewardPanel.CreateContent()
     }
     OnlineRewardPanel._contentDurationLabel = durationLabel
 
+    -- 全部领取按钮
+    claimAllBtn = UI.Button {
+        text = "全部领取",
+        width = sz(80), height = sz(28),
+        fontSize = sz(11), fontWeight = "bold",
+        variant = "primary",
+        disabled = not HasUnclaimedMilestones(),
+        onClick = function()
+            Utils.PlayClick()
+            ClaimAllMilestones()
+        end,
+    }
+
     local content = UI.Panel {
         width = "100%", height = "100%",
         flexDirection = "column", gap = sz(8),
@@ -729,6 +782,13 @@ function OnlineRewardPanel.CreateContent()
                         children = msChildren,
                     },
                 },
+            },
+            -- 底部固定栏：全部领取（居右）
+            UI.Panel {
+                width = "100%", flexShrink = 0,
+                flexDirection = "row", justifyContent = "flex-end",
+                paddingTop = sz(4),
+                children = { claimAllBtn },
             },
         },
     }

@@ -10,6 +10,10 @@ local WarehouseGrid = {}
 local Config = require("Config")
 local COLS = Config.GAME.WarehouseColumns
 
+-- 有效宽高（尊重 item.rotated 旋转状态）
+local function effW(item) return item.rotated and (item.h or 1) or (item.w or 1) end
+local function effH(item) return item.rotated and (item.w or 1) or (item.h or 1) end
+
 -- ============================================================================
 -- 内部工具
 -- ============================================================================
@@ -131,8 +135,8 @@ end
 ---@param col number
 ---@return boolean success
 function WarehouseGrid.PlaceAt(inst, item, row, col)
-    local w = item.w or 1
-    local h = item.h or 1
+    local w = effW(item)
+    local h = effH(item)
     if not WarehouseGrid.CanPlaceAt(inst, row, col, w, h) then
         return false
     end
@@ -152,8 +156,8 @@ end
 ---@return number|nil row
 ---@return number|nil col
 function WarehouseGrid.AutoPlace(inst, item)
-    local w = item.w or 1
-    local h = item.h or 1
+    local w = effW(item)
+    local h = effH(item)
     local row, col = WarehouseGrid.FindPosition(inst, w, h)
     if not row then
         return false, nil, nil
@@ -170,8 +174,8 @@ function WarehouseGrid.Remove(inst, item)
     local gx = item.gridX
     local gy = item.gridY
     if not gx or not gy then return false end
-    local w = item.w or 1
-    local h = item.h or 1
+    local w = effW(item)
+    local h = effH(item)
     markOccupied(inst.grid, gy, gx, w, h, false)
     inst.usedCells = inst.usedCells - (w * h)
     item.gridX = nil
@@ -249,8 +253,8 @@ function WarehouseGrid.Rebuild(inst, items)
     WarehouseGrid.Clear(inst)
     local failed = {}
     for _, item in ipairs(items) do
-        local w = item.w or 1
-        local h = item.h or 1
+        local w = effW(item)
+        local h = effH(item)
         local gx = item.gridX
         local gy = item.gridY
         if gx and gy and canPlaceAt(inst.grid, inst.rows, gy, gx, w, h) then

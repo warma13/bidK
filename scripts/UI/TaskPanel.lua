@@ -16,6 +16,7 @@ local SaveFramework = require("SaveFramework")
 local FloatingMessage = require("UI.FloatingMessage")
 
 local SeasonPass = require("SeasonPass")
+local TicketTooltip = require("UI.TicketTooltip")
 
 local TaskPanel = {}
 
@@ -510,20 +511,36 @@ local function TaskRow(task, claimedBits, snap, isWeekly)
     -- 奖励格子列表
     local slots = {}
     if task.reward.coins and task.reward.coins > 0 then
+        local coinAmt = task.reward.coins
         slots[#slots + 1] = RewardSlot.Make({
             size        = 52,
             image       = Utils.GetIcon("coin"),
-            count       = FormatReward(task.reward.coins),
+            count       = FormatReward(coinAmt),
             bgColor     = { 20, 48, 28, 230 },
             borderColor = { 55, 130, 70, 180 },
+            onClick     = function()
+                Utils.PlayClick()
+                TicketTooltip.ShowReward({ type = "coins", amount = coinAmt })
+            end,
         }, sz)
     end
     if task.reward.xp and task.reward.xp > 0 then
+        local xpAmt = task.reward.xp
         slots[#slots + 1] = RewardSlot.Make({
             size          = 52,
             image         = "image/xp_gold_20260518121142.png",
-            count         = tostring(task.reward.xp),
+            count         = tostring(xpAmt),
             borderColor   = { 50, 105, 175, 180 },
+            onClick       = function()
+                Utils.PlayClick()
+                TicketTooltip.ShowItem({
+                    name     = "通行证经验",
+                    subtitle = "+" .. xpAmt,
+                    image    = "image/xp_gold_20260518121142.png",
+                    rarity   = "uncommon",
+                    desc     = "通行证经验值，累计足够经验可提升通行证等级，解锁更多奖励。",
+                })
+            end,
         }, sz)
     end
 
@@ -635,14 +652,12 @@ local function TaskRow(task, claimedBits, snap, isWeekly)
                 flex = 1,
                 flexDirection = "column",
                 justifyContent = "center",
-                pointerEvents = "none",
                 children = {
                     titleLabel,
                     UI.Panel {
                         flexDirection = "row",
                         alignItems = "center",
                         gap = sz(8),
-                        pointerEvents = "none",
                         children = slotRowChildren,
                     },
                 },

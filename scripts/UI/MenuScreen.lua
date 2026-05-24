@@ -11,7 +11,7 @@ local UserCache = require("UserCache")
 local MoneyHUD = require("UI.MoneyHUD")
 local Utils = require("UI.Utils")
 local LeaderboardPanel = require("UI.LeaderboardPanel")
-local DebugPanel = require("UI.DebugPanel")
+
 local SettingsPanel = require("UI.SettingsPanel")
 local AdCardPanel = require("UI.AdCardPanel")
 local OnlineRewardPanel = require("UI.OnlineRewardPanel")
@@ -265,7 +265,7 @@ local function CreateAnnouncementPopup()
     return overlay
 end
 
-function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
+function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback, onExtractionCallback)
     UIState.currentScreen = "menu"
     local C = Config.COLORS
     local sz = Utils.sz
@@ -338,9 +338,6 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
 
     local menuRoot = UI.Panel {
         width = "100%", height = "100%",
-        backgroundColor = { 18, 18, 22, 255 },
-        backgroundImage = "main_hall_bg_20260319134729.jpg",
-        backgroundFit = "cover",
         children = {
             navBar,
             -- 右下角：排行榜 + 竞拍按钮组
@@ -365,19 +362,40 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                             LeaderboardPanel.Show()
                         end,
                     },
-                    UI.Button {
-                        text = "竞拍 »",
-                        width = Utils.sz(140), height = Utils.sz(55),
-                        fontSize = Utils.sz(20),
-                        fontWeight = "bold",
-                        backgroundColor = { 200, 210, 0, 240 },
-                        fontColor = { 15, 15, 10, 255 },
-                        borderWidth = 0,
-                        borderRadius = Utils.sz(4),
-                        onClick = function()
-                            Utils.PlayClick()
-                            if onStartCallback then onStartCallback() end
-                        end,
+                    UI.Panel {
+                        flexDirection = "row",
+                        gap = Utils.sz(6),
+                        children = {
+                            UI.Button {
+                                text = "搜索 »",
+                                width = Utils.sz(90), height = Utils.sz(55),
+                                fontSize = Utils.sz(16),
+                                fontWeight = "bold",
+                                backgroundColor = { 40, 100, 160, 230 },
+                                fontColor = { 220, 235, 255, 255 },
+                                borderWidth = 1,
+                                borderColor = { 80, 150, 220, 180 },
+                                borderRadius = Utils.sz(4),
+                                onClick = function()
+                                    Utils.PlayClick()
+                                    if onExtractionCallback then onExtractionCallback() end
+                                end,
+                            },
+                            UI.Button {
+                                text = "竞拍 »",
+                                width = Utils.sz(140), height = Utils.sz(55),
+                                fontSize = Utils.sz(20),
+                                fontWeight = "bold",
+                                backgroundColor = { 200, 210, 0, 240 },
+                                fontColor = { 15, 15, 10, 255 },
+                                borderWidth = 0,
+                                borderRadius = Utils.sz(4),
+                                onClick = function()
+                                    Utils.PlayClick()
+                                    if onStartCallback then onStartCallback() end
+                                end,
+                            },
+                        },
                     },
                 },
             },
@@ -483,7 +501,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                                         onClick = function()
                                             Utils.PlayClick()
                                             MailPanel.Show(function()
-                                                MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
+                                                MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback, onExtractionCallback)
                                             end)
                                         end,
                                         children = {
@@ -535,7 +553,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                                     onClick = function()
                                         Utils.PlayClick()
                                         RewardScreen.Show(function()
-                                            MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
+                                            MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback, onExtractionCallback)
                                         end)
                                     end,
                                     children = {
@@ -582,7 +600,7 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
                                     onClick = function()
                                         Utils.PlayClick()
                                         SeasonPassPanel.Show(function()
-                                            MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback)
+                                            MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallback, onPropCallback, onBackpackCallback, onExtractionCallback)
                                         end)
                                     end,
                                     children = {
@@ -615,9 +633,19 @@ function MenuScreen.Show(onStartCallback, onWarehouseCallback, onCharacterCallba
             LeaderboardPanel.Create(),
         }
     }
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
-        children = { menuRoot, DebugPanel.CreateHUD() },
+    TicketTooltip.SetRoot(menuRoot)
+
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundColor = { 18, 18, 22, 255 },
+        backgroundImage = "main_hall_bg_20260319134729.jpg",
+        backgroundFit = "cover",
+        children = {
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
+                children = { menuRoot },
+            },
+        },
     })
 end
 

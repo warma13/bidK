@@ -20,37 +20,39 @@ local popupOverlay = nil
 -- 格式化工具
 -- ============================================================================
 
---- 格式化游戏时长：秒 → "Xh Ymin" 或 "Ymin"
+--- 格式化游戏时长：秒 → "X小时Y分钟" 或 "Y分钟"
 local function FormatPlayTime(seconds)
     seconds = math.floor(seconds or 0)
     local h = math.floor(seconds / 3600)
     local m = math.floor((seconds % 3600) / 60)
     if h > 0 then
-        return h .. "h" .. m .. "min"
+        return h .. "小时" .. m .. "分钟"
     elseif m > 0 then
-        return m .. "min"
+        return m .. "分钟"
     else
-        return seconds .. "s"
+        return seconds .. "秒"
     end
 end
 
---- 格式化大数字（K / 万 / 亿）
+--- 格式化大数字（万 / 亿）
 local function FormatBig(n)
     n = math.floor(n or 0)
-    if n >= 100000000 then
+    local abs = math.abs(n)
+    if abs >= 100000000 then
         return string.format("%.1f亿", n / 100000000)
-    elseif n >= 10000 then
-        return string.format("%.0fK", n / 1000)
+    elseif abs >= 10000 then
+        return string.format("%.1f万", n / 10000)
     end
     -- 千分位
-    local s = tostring(n)
+    local neg = n < 0
+    local s = tostring(abs)
     local result, count = "", 0
     for i = #s, 1, -1 do
         count = count + 1
         result = s:sub(i, i) .. result
         if count % 3 == 0 and i > 1 then result = "," .. result end
     end
-    return result
+    return neg and ("-" .. result) or result
 end
 
 --- 格式化精确数字（千分位）

@@ -8,6 +8,7 @@ local GameState = require("GameState")
 local UIState = require("UI.UIState")
 local Utils = require("UI.Utils")
 local Props = require("Config.Props")
+local PropCardWidget = require("UI.PropCardWidget")
 local PlayerListPanel = {}
 
 local refs = UIState.refs
@@ -30,14 +31,11 @@ local lastBidWidth = {}        -- 上次出价宽度 [idx] = number
 local lastRoundPropSnapshot = {}  -- 上次道具使用快照 [idx][r] = propId or ""
 
 -- 道具品质层级颜色（与 PropScreen/BidControlPanel 保持一致）
-local function GetTierColors(price)
-    if price <= 2000 then
-        return { hexTint = nil,                    headerBg = { 75, 78, 88, 255 },   headerText = { 210, 212, 220, 255 } }
-    elseif price <= 5000 then
-        return { hexTint = { 80, 230, 120, 255 },  headerBg = { 30, 110, 65, 255 },  headerText = { 190, 255, 210, 255 } }
-    else
-        return { hexTint = { 200, 100, 255, 255 }, headerBg = { 85, 35, 130, 255 },  headerText = { 230, 200, 255, 255 } }
+local function GetTierColors(def)
+    if def then
+        return PropCardWidget.GetTierColors(def)
     end
+    return PropCardWidget.TIER_COLORS.white
 end
 
 
@@ -393,7 +391,7 @@ function PlayerListPanel.Update()
                         if newPropId ~= "" then
                             local def = Props.BY_ID[newPropId]
                             local imgPath = def and def.iconImage or ""
-                            local tier = def and GetTierColors(def.price) or GetTierColors(0)
+                            local tier = GetTierColors(def)
                             sp.propIcon:SetStyle({ backgroundImage = imgPath })
                             sp.propIcon:SetVisible(true)
                             sp.propHexFrame:SetStyle({ imageTint = tier.hexTint })

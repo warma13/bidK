@@ -5,7 +5,7 @@
 
 local M = {}
 
-M.WORLD_MAP_BG = "image/world_map_bg.jpg"
+M.WORLD_MAP_BG = "image/edited_地图底图v4_灰色调_20260522113900.png"
 M.DEFAULT_BGM  = "audio/bgm_grocery.ogg"
 
 -- ============================================================================
@@ -22,14 +22,16 @@ M.REGIONS = {
         bg   = "image/bg_oldtown_20260321192643.jpg",
         bgm  = "audio/bgm_oldtown.ogg",
         desc = "城郊居民区的老旧储物仓，五金杂货与遗留旧物混杂一处",
-        mapX = 0.23, mapY = 0.58,
+        buildingImg = "image/建筑_城郊旧仓区_20260522071125.png",
+        mapX = 0.16, mapY = 0.24,
+        imgW = 150, imgH = 110,
         warehouseTypes = { "suburb_unknown", "suburb_basement", "suburb_supermarket", "suburb_recycling", "suburb_hardware" },
         difficulties = {
             {
                 level = "suburb", label = "1万场",
                 entryFee = 0,
                 startingMoney = 80000,
-                warehouseValue = 10000,
+                warehouseValue = 45000,
                 assetRequirement = 10000,
             },
         },
@@ -43,7 +45,9 @@ M.REGIONS = {
         bg   = "image/bg_warehouse_techpark_20260322132509.jpg",
         bgm  = "audio/bgm_grocery.ogg",
         desc = "老工业区的厂房与物流仓库，机械零件和电子废品堆积如山",
-        mapX = 0.36, mapY = 0.50,
+        buildingImg = "image/建筑_工业物流园_20260522071139.png",
+        mapX = 0.117, mapY = 0.473,
+        imgW = 100, imgH = 75,
         warehouseTypes = { "ind_unknown", "ind_autoparts", "ind_building", "ind_machinery", "ind_ewaste", "ind_appliance", "ind_unclaimed" },
         difficulties = {
             {
@@ -64,7 +68,9 @@ M.REGIONS = {
         bg   = "image/bg_oldtown_20260321192643.jpg",
         bgm  = "audio/bgm_grocery.ogg",
         desc = "大型购物中心与品牌连锁店的滞销库存和清仓货物",
-        mapX = 0.52, mapY = 0.82,
+        buildingImg = "image/建筑_商业综合体_20260522071125.png",
+        mapX = 0.383, mapY = 0.324,
+        imgW = 130, imgH = 130,
         warehouseTypes = { "com_unknown", "com_department", "com_brandclear", "com_superstore", "com_jewelry", "com_sports", "com_imports", "com_furniture", "com_cosmetics" },
         difficulties = {
             {
@@ -85,7 +91,9 @@ M.REGIONS = {
         bg   = "image/edited_bg_bondedport_night_20260323131115.jpg",
         bgm  = "audio/bgm_bondedport.ogg",
         desc = "繁忙国际港口的海关扣押仓与保税区，全球各地货物汇聚于此",
-        mapX = 0.78, mapY = 0.70,
+        buildingImg = "image/建筑_国际港口区_20260522071504.png",
+        mapX = 0.860, mapY = 0.24,
+        imgW = 160, imgH = 120,
         warehouseTypes = { "port_unknown", "port_customs", "port_container", "port_unclaimed", "port_bonded", "port_coldchain", "port_artship", "port_yacht", "port_auction" },
         difficulties = {
             {
@@ -106,7 +114,9 @@ M.REGIONS = {
         bg   = "image/bg_techpark_20260321192636.jpg",
         bgm  = "audio/bgm_techpark.ogg",
         desc = "高新技术企业集聚区，倒闭的AI公司与实验室剩余设备等待拍卖",
-        mapX = 0.67, mapY = 0.35,
+        buildingImg = "image/建筑_科技创新园_20260522071433.png",
+        mapX = 0.627, mapY = 0.469,
+        imgW = 170, imgH = 130,
         warehouseTypes = { "tech_unknown", "tech_incubator", "tech_quantum", "tech_semiconductor", "tech_medical", "tech_newenergy", "tech_aerospace", "tech_datacenter", "tech_university" },
         difficulties = {
             {
@@ -127,7 +137,9 @@ M.REGIONS = {
         bg   = "image/bg_oldtown_20260321192643.jpg",
         bgm  = "audio/bgm_oldtown.ogg",
         desc = "古玩市场、拍卖行与私人博物馆聚集地，顶级藏品竞拍之所",
-        mapX = 0.12, mapY = 0.22,
+        buildingImg = "image/建筑_文化艺术区v2_20260522070906.png",
+        mapX = 0.26, mapY = 0.67,
+        imgW = 190, imgH = 140,
         warehouseTypes = { "cult_unknown", "cult_museum", "cult_auction", "cult_antique", "cult_luxury", "cult_gallery", "cult_jewelry", "cult_watch", "cult_wine" },
         difficulties = {
             {
@@ -148,7 +160,9 @@ M.REGIONS = {
         bg   = "image/bg_warehouse_shipwreck_20260328204443.jpg",
         bgm  = "audio/bgm_bondedport.ogg",
         desc = "远洋打捞与水下考古的物资集散地，海底遗物与远古宝藏静待发掘",
-        mapX = 0.91, mapY = 0.58,
+        buildingImg = "image/建筑_深海打捞站_20260522071134.png",
+        mapX = 0.851, mapY = 0.75,
+        imgW = 150, imgH = 110,
         warehouseTypes = { "sea_unknown", "sea_archaeology", "sea_wreck", "sea_expedition", "sea_research", "sea_biology", "sea_maintenance", "sea_minerals", "sea_harbor" },
         difficulties = {
             {
@@ -169,7 +183,9 @@ M.REGIONS = {
         bg   = "image/edited_bg_bondedport_night_20260323131115.jpg",
         bgm  = "audio/bgm_bondedport.ogg",
         desc = "专为超高净值人士提供的私密资产托管区，离岸信托、豪宅遗产与顶级藏品在此静候最终处置",
-        mapX = 0.45, mapY = 0.15,
+        buildingImg = "image/建筑_顶级私产托管区_20260522071143.png",
+        mapX = 0.586, mapY = 0.21,
+        imgW = 130, imgH = 95,
         warehouseTypes = { "priv_unknown", "priv_mansion", "priv_jet", "priv_trust", "priv_wardrobe", "priv_cellar", "priv_vault", "priv_library" },
         difficulties = {
             {

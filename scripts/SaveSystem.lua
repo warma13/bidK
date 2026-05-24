@@ -103,7 +103,9 @@ local saveData = {
     gameHistory        = {},
     mailRead           = {},    -- { [mailId] = true }
     mailClaimed        = {},    -- { [mailId] = true }
+    mailDismissed      = {},    -- { [mailId] = true } 删除已读
     overflowMails      = {},    -- 开箱仓库满时的溢出物品邮件
+    createdAt          = "",    -- 存档创建日期 "YYYY-MM-DD"，用于判断老玩家邮件资格
 }
 
 -- ============================================================================
@@ -164,7 +166,9 @@ local function loadLocal()
     saveData.gameHistory        = saveData.gameHistory        or {}
     saveData.mailRead           = saveData.mailRead           or {}
     saveData.mailClaimed        = saveData.mailClaimed        or {}
+    saveData.mailDismissed      = saveData.mailDismissed      or {}
     saveData.overflowMails      = saveData.overflowMails      or {}
+    saveData.createdAt          = saveData.createdAt           or ""
     print("[SaveSystem] Local load OK (" .. #saveData.items .. " items)")
     return true
 end
@@ -458,6 +462,7 @@ SaveFramework.Register(MODULE_NAME, {
         saveData.unlockedCharacters = saveData.unlockedCharacters or {}
         saveData.mailRead           = saveData.mailRead           or {}
         saveData.mailClaimed        = saveData.mailClaimed        or {}
+        saveData.mailDismissed      = saveData.mailDismissed      or {}
         saveData.overflowMails      = saveData.overflowMails      or {}
         saveData.gameHistory        = {}
 
@@ -536,9 +541,61 @@ function SaveSystem.Init(onReady)
     end
 
     local isNew = (#saveData.items == 0 and (saveData.stats.totalGames or 0) == 0)
+
+    -- 初始化存档创建日期
+    if not saveData.createdAt or saveData.createdAt == "" then
+        if isNew then
+            -- 全新存档：记录当天
+            saveData.createdAt = os.date("%Y-%m-%d")
+        else
+            -- 迁移老存档：视为最早的老玩家，用第一封邮件日期保证能领所有邮件
+            local earliest = nil
+            for _, m in ipairs(Config.MAILS or {}) do
+                if m.date and (not earliest or m.date < earliest) then
+                    earliest = m.date
+                end
+            end
+            -- 取第一封邮件前一天，确保 createdAt < 任何邮件 date
+            if earliest then
+                -- "YYYY-MM-DD" 格式，简单把日减1（不处理跨月，-01变-00 也能保证 < 原日期）
+                local y, mo, d = earliest:match("(%d+)-(%d+)-(%d+)")
+                if y then
+                    local t = os.time({ year = tonumber(y), month = tonumber(mo), day = tonumber(d) - 1 })
+                    saveData.createdAt = os.date("%Y-%m-%d", t)
+                else
+                    saveData.createdAt = "2020-01-01"
+                end
+            else
+                saveData.createdAt = "2020-01-01"
+            end
+        end
+        SaveFramework.MarkDirty(MODULE_NAME)
+        print("[SaveSystem] Set createdAt=" .. saveData.createdAt .. (isNew and " (new)" or " (migrated)"))
+    end
+
+    -- 一次性迁移修正：旧版代码将老存档 createdAt 误设为当天，需修正为第一封邮件前一天
+    if not isNew and saveData.createdAt == os.date("%Y-%m-%d") then
+        local earliest = nil
+        for _, m in ipairs(Config.MAILS or {}) do
+            if m.date and (not earliest or m.date < earliest) then
+                earliest = m.date
+            end
+        end
+        if earliest then
+            local y, mo, d = earliest:match("(%d+)-(%d+)-(%d+)")
+            if y then
+                local t = os.time({ year = tonumber(y), month = tonumber(mo), day = tonumber(d) - 1 })
+                saveData.createdAt = os.date("%Y-%m-%d", t)
+            end
+        end
+        SaveFramework.MarkDirty(MODULE_NAME)
+        print("[SaveSystem] Fixed createdAt for veteran save → " .. saveData.createdAt)
+    end
+
     print("[SaveSystem] Init OK. Items: " .. #saveData.items
         .. ", Games: " .. (saveData.stats.totalGames or 0)
-        .. ", saveConfirmed=" .. tostring(saveConfirmed))
+        .. ", saveConfirmed=" .. tostring(saveConfirmed)
+        .. ", createdAt=" .. (saveData.createdAt or ""))
     if onReady then onReady(saveConfirmed, isNew) end
 end
 
@@ -840,7 +897,7 @@ function SaveSystem.UpgradeWarehouse(currentGold, deductGoldFn)
     print("[SaveSystem] Warehouse upgraded to Lv." .. saveData.warehouseLevel
         .. " (rows: " .. WarehouseUpgrade.GetRows(saveData.warehouseLevel)
         .. ", capacity: " .. WarehouseUpgrade.GetCapacity(saveData.warehouseLevel) .. ")")
-    SaveSystem.SaveNow()
+    SaveSystem.Save()
     return true
 end
 
@@ -872,11 +929,7 @@ end
 function SaveSystem.AddTickets(ticketId, count, skipSave)
     if not saveData.tickets then saveData.tickets = {} end
     saveData.tickets[ticketId] = (saveData.tickets[ticketId] or 0) + (count or 1)
-    if not skipSave then
-        SaveSystem.SaveNow()
-    else
-        SaveFramework.MarkDirty(MODULE_NAME)
-    end
+    SaveFramework.MarkDirty(MODULE_NAME)
     print("[SaveSystem] Ticket added: " .. ticketId .. " +" .. (count or 1) .. " → " .. saveData.tickets[ticketId])
 end
 
@@ -1004,7 +1057,7 @@ end
 
 function SaveSystem.AddCharacterCoins(count)
     saveData.characterCoins = (saveData.characterCoins or 0) + (count or 1)
-    SaveSystem.SaveNow()
+    SaveFramework.MarkDirty(MODULE_NAME)
     print("[SaveSystem] CharacterCoins +" .. (count or 1) .. " → " .. saveData.characterCoins)
 end
 
@@ -1056,6 +1109,11 @@ end
 -- 邮件（已读 / 已领取）
 -- ============================================================================
 
+--- 获取存档创建日期 "YYYY-MM-DD"
+function SaveSystem.GetCreatedAt()
+    return saveData.createdAt or ""
+end
+
 function SaveSystem.IsMailRead(mailId)
     return saveData.mailRead[mailId] == true
 end
@@ -1078,13 +1136,33 @@ function SaveSystem.ClaimMail(mailId)
     return true
 end
 
+function SaveSystem.IsMailDismissed(mailId)
+    return saveData.mailDismissed[mailId] == true
+end
+
+function SaveSystem.DismissMail(mailId)
+    if saveData.mailDismissed[mailId] then return end
+    saveData.mailDismissed[mailId] = true
+    SaveFramework.MarkDirty(MODULE_NAME)
+end
+
 --- 返回未读邮件数量（含未领取奖励的）
+--- 判断某封邮件对当前玩家是否可见（veteranOnly + dismissed 过滤）
+local function isMailVisible(m)
+    if saveData.mailDismissed and saveData.mailDismissed[m.id] then return false end
+    if m.veteranOnly then
+        local created = saveData.createdAt or ""
+        if created == "" or created >= (m.date or "") then return false end
+    end
+    return true
+end
+
 function SaveSystem.GetUnreadMailCount()
     local Cfg   = require("Config")
     local mails = Cfg.MAILS or {}
     local count = 0
     for _, m in ipairs(mails) do
-        if not saveData.mailRead[m.id] then
+        if isMailVisible(m) and not saveData.mailRead[m.id] then
             count = count + 1
         end
     end
@@ -1097,7 +1175,7 @@ function SaveSystem.GetUnclaimedMailCount()
     local mails = Cfg.MAILS or {}
     local count = 0
     for _, m in ipairs(mails) do
-        if m.rewards and not saveData.mailClaimed[m.id] then
+        if isMailVisible(m) and m.rewards and not saveData.mailClaimed[m.id] then
             count = count + 1
         end
     end

@@ -273,9 +273,6 @@ local function CreateGameUI()
     local uiRoot = UI.Panel {
         id = "root",
         width = "100%", height = "100%",
-        backgroundColor = C.bgDark,
-        backgroundImage = bgImage,
-        backgroundFit = "cover",
         flexDirection = "row",
         paddingVertical = "6%",
         paddingHorizontal = "2%",
@@ -336,9 +333,17 @@ local function CreateGameUI()
         }
     }
     refs.gameRoot = uiRoot
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
-        children = { uiRoot, DebugPanel.CreateHUD() },
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundColor = C.bgDark,
+        backgroundImage = bgImage,
+        backgroundFit = "cover",
+        children = {
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
+                children = { uiRoot },
+            },
+        },
     })
 end
 

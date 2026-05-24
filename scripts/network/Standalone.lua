@@ -65,6 +65,7 @@ local function InitEngine()
     -- ====================================================================
     do
         local origSetRoot = UI.SetRoot
+        local DebugPanel = require("UI.DebugPanel")
         UI.SetRoot = function(widget, destroyOld)
             -- 切换前清空 overlay 栈，移除旧界面遗留的幽灵弹窗
             local stack = UI.GetOverlayStack()
@@ -72,6 +73,10 @@ local function InitEngine()
                 UI.PopOverlay()
             end
             UI.ClearFocus()
+            -- 自动追加常驻 HUD（版本号 + UID）到每个页面
+            if widget and widget.AddChild then
+                widget:AddChild(DebugPanel.CreateHUD())
+            end
             origSetRoot(widget, destroyOld)
         end
     end

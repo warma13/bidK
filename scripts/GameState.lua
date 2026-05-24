@@ -237,45 +237,49 @@ end
 function GameState._InitAIProps(diffIdx)
     local Props = require("Config.Props")
 
-    -- 仓库 tier 决定道具品质权重（高价值场偏向高品质道具）
-    local whTier = (state.warehouseData and state.warehouseData.tier) or "normal"
+    -- ── 按区域 warehouseValue 决定 AI 道具品质权重 ──
+    -- 经济学依据（AI 预算 ≈ warehouseValue × 2）：
+    --   白=1500  绿=2500  蓝=8000  紫=30k~120k(均~55k)  金=150k~420k(均~270k)
+    --   红色道具无金币价格（商城专供），AI 不使用
+    local wv = state.expectedValue or 100000
 
-    -- 仓库 tier → 各品质道具权重
-    -- white: 低端信息（格数/数量统计），green: 中端（均价/多件轮廓），blue: 高端（最高品质/大件轮廓/品类揭示）
-    local TIER_PROP_WEIGHTS = {
-        trash    = { white = 10, green = 0,  blue = 0  },
-        junk     = { white = 8,  green = 2,  blue = 0  },
-        poor     = { white = 6,  green = 4,  blue = 0  },
-        normal   = { white = 4,  green = 5,  blue = 1  },
-        good     = { white = 2,  green = 5,  blue = 3  },
-        treasure = { white = 1,  green = 3,  blue = 6  },
-        jackpot  = { white = 0,  green = 2,  blue = 8  },
+    local REGION_PROP_CONFIG = {
+        --                        white green blue purple gold red     min max
+        -- 1万场: AI≈9万, 白绿为主, 蓝(8k)偶尔, 紫金买不起
+        { maxWV =   50000, w = { white = 10, green = 5,  blue = 1, purple = 0, gold = 0, red = 0 }, count = { 0, 1 } },
+        -- 10万场: AI≈16万, 白绿蓝, 紫(3~12万)太贵
+        { maxWV =  100000, w = { white = 6,  green = 6,  blue = 3, purple = 0, gold = 0, red = 0 }, count = { 1, 1 } },
+        -- 50万场: AI≈80万, 紫(5.5万≈7%预算)偶尔
+        { maxWV =  500000, w = { white = 3,  green = 5,  blue = 6, purple = 1, gold = 0, red = 0 }, count = { 1, 2 } },
+        -- 100万场: AI≈160万, 紫(5.5万≈3.4%)常见, 金(27万≈17%)偶尔
+        { maxWV = 1000000, w = { white = 1,  green = 3,  blue = 5, purple = 3, gold = 1, red = 0 }, count = { 1, 2 } },
+        -- 200万场: AI≈300万, 紫常见, 金(27万≈9%)小概率
+        { maxWV = 2000000, w = { white = 0,  green = 2,  blue = 4, purple = 4, gold = 1, red = 0 }, count = { 1, 2 } },
+        -- 500万场: AI≈800万, 紫(0.7%)日常, 金(3.4%)正常使用
+        { maxWV = 5000000, w = { white = 0,  green = 1,  blue = 3, purple = 5, gold = 2, red = 0 }, count = { 2, 3 } },
+        -- 1000万场+: AI≈1600万, 金(1.7%)随意买
+        { maxWV = math.huge,w= { white = 0,  green = 0,  blue = 2, purple = 4, gold = 3, red = 0 }, count = { 2, 3 } },
     }
 
-    -- 仓库 tier → AI 道具数量范围（高价值场 AI 携带更多道具）
-    local TIER_COUNT = {
-        trash    = { 0, 1 },
-        junk     = { 1, 1 },
-        poor     = { 1, 1 },
-        normal   = { 1, 2 },
-        good     = { 1, 2 },
-        treasure = { 2, 3 },
-        jackpot  = { 2, 3 },
-    }
+    local cfg = REGION_PROP_CONFIG[#REGION_PROP_CONFIG] -- fallback: 最高档
+    for _, c in ipairs(REGION_PROP_CONFIG) do
+        if wv <= c.maxWV then cfg = c; break end
+    end
 
-    local weights  = TIER_PROP_WEIGHTS[whTier] or TIER_PROP_WEIGHTS.normal
-    local cntRange = TIER_COUNT[whTier] or { 1, 2 }
+    local weights  = cfg.w
+    local cntRange = cfg.count
 
     -- diffIdx 高难度额外给 +1 上限
     local d        = diffIdx or 1
     local maxCount = math.min(cntRange[2] + (d >= 3 and 1 or 0), 3)
     local minCount = cntRange[1]
 
-    -- 按 tier 分组所有道具（AI 可使用含 dailyShop 道具，品质权重由仓库决定）
-    local byTier = { white = {}, green = {}, blue = {} }
+    -- 按 tier 分组所有道具（覆盖白→绿→蓝→紫→金全品质）
+    -- 过滤条件：inGame=true 且有金币价格（price字段）——商城专供道具(仅mallPrice)AI不使用
+    local byTier = { white = {}, green = {}, blue = {}, purple = {}, gold = {}, red = {} }
     for _, def in ipairs(Props.LIST) do
         local t = def.tier or "white"
-        if byTier[t] then
+        if byTier[t] and def.inGame and def.price then
             byTier[t][#byTier[t] + 1] = def
         end
     end
@@ -321,7 +325,7 @@ function GameState._InitAIProps(diffIdx)
                     for _, ap in ipairs(assigned) do
                         names[#names + 1] = ap.def.name .. "(" .. ap.def.tier .. ")"
                     end
-                    print("[GameState] AI" .. idx .. " [wh=" .. whTier .. "] props: " .. table.concat(names, ", "))
+                    print("[GameState] AI" .. idx .. " [wv=" .. wv .. "] props: " .. table.concat(names, ", "))
                 end
             end
         end
@@ -892,6 +896,22 @@ GameState.SecureSetMoney = function(playerIdx, newValue, source, context) MoneyM
 GameState.SecureAddMoney = function(playerIdx, delta, source, context) MoneyManager.SecureAddMoney(playerIdx, delta, source, context) end
 GameState.LoadCloudMoney = function(callback) MoneyManager.LoadCloudMoney(callback) end
 GameState.SaveCloudMoney = function() MoneyManager.SaveCloudMoney() end
+
+-- ============================================================================
+-- 提取模式：直接注入仓库数据（不触碰玩家/轮次状态）
+-- ============================================================================
+
+--- 供 ExtractionScreen 复用 LootPanel 时调用：只设置仓库数据和阶段
+---@param warehouseData table  { items, grid, totalValue, warehouseName }
+function GameState.SetExtractionWarehouse(warehouseData)
+    state.warehouseData       = warehouseData
+    state.warehouseItems      = warehouseData.items or {}
+    state.warehouseName       = warehouseData.warehouseName or ""
+    state.warehouseTotalValue = warehouseData.totalValue or 0
+    state.warehouseTypeId     = "extraction"
+    state.revealedItemIndex   = #state.warehouseItems  -- 不显示搜索图标
+    state.phase               = GameState.PHASE.SEALED_BID  -- 非 WAREHOUSE_OPEN/GAME_OVER：启用流光但无搜索动画
+end
 
 function GameState.SetOnStateChange(fn) state.onStateChange = fn end
 function GameState.SetOnMoneyChanged(fn) MoneyManager.SetOnMoneyChanged(fn) end

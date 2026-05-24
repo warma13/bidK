@@ -17,6 +17,7 @@ local ItemDetailPanel = require("UI.ItemDetailPanel")
 local SellMode    = require("UI.Warehouse.SellMode")
 local GridSystem  = require("UI.Warehouse.GridSystem")
 local UpgradePanel = require("UI.Warehouse.UpgradePanel")
+local DragHandler = require("UI.Warehouse.DragHandler")
 
 local Panel = {}
 
@@ -67,6 +68,7 @@ local ctx = {
     sellValueLabel   = nil,
     sellModeBtn      = nil,
     sellConfirmPopup = nil,
+    dragModeBtn      = nil,  -- 拖拽整理模式按钮
 
     -- 勾选框显示引用
     levelLabel    = nil,
@@ -79,6 +81,9 @@ local ctx = {
     isDragSelecting     = false,
     dragSelectTouched   = {},
     dragSelectPointerId = nil,
+
+    -- 物品拖拽换位：true 时 imgPanel.onPointerDown 启动拖拽
+    dragEnabled = false,
 
     -- 占位符，由 Show() 绑定
     _needPositionUpdate  = function() end,
@@ -205,6 +210,9 @@ end
 -- ============================================================================
 
 function Panel.Update(dt)
+    -- 物品拖拽换位轮询（与出售模式互斥）
+    DragHandler.Update(ctx, dt)
+
     if not ctx.isDragSelecting or not ctx.isSellMode then
         if ctx.isDragSelecting then SellMode.EndDragSelect(ctx) end
         return
@@ -239,6 +247,23 @@ function Panel.Update(dt)
     else
         SellMode.EndDragSelect(ctx)
     end
+end
+
+-- ============================================================================
+-- 拖拽换位开关（供外部调用，如特定游戏状态下启用/禁用）
+-- ============================================================================
+
+function Panel.EnableDrag()
+    ctx.dragEnabled = true
+end
+
+function Panel.DisableDrag()
+    DragHandler.Cancel(ctx)  -- 若正在拖拽则取消
+    ctx.dragEnabled = false
+end
+
+function Panel.IsDragEnabled()
+    return ctx.dragEnabled
 end
 
 -- ============================================================================
@@ -277,6 +302,7 @@ function Panel.Show(onBack)
     ctx.sellValueLabel   = nil
     ctx.sellModeBtn      = nil
     ctx.sellConfirmPopup = nil
+    ctx.dragModeBtn      = nil
 
     -- ── 创建格子网格 ────────────────────────────────
     local capacity = SaveSystem.GetWarehouseCapacity()
@@ -344,6 +370,11 @@ function Panel.Show(onBack)
                 end
             end,
             onPointerDown = function(event)
+                if ctx.dragEnabled and not ctx.isSellMode then
+                    local item = ctx.imageToItem[idx]
+                    if item then DragHandler.OnImgPointerDown(ctx, item, ctx.itemImages[idx], event) end
+                    return
+                end
                 if not ctx.isSellMode then return end
                 Utils.PlayClick()
                 local item = ctx.imageToItem[idx]
@@ -789,11 +820,44 @@ function Panel.Show(onBack)
         marginTop = sz(3),
         onClick = function()
             Utils.PlayClick()
+            DragHandler.Cancel(ctx)  -- 切换出售模式前取消任何进行中的拖拽
             SellMode.Toggle(ctx)
         end,
         children = { sellBtnLabel },
     }
     ctx.sellModeBtn._label = sellBtnLabel
+
+    -- ── 拖拽整理按钮 ─────────────────────────────────
+    local dragBtnLabel = UI.Label {
+        text = "拖拽整理", fontSize = sz(9),
+        fontColor = { 180, 220, 255, 220 },
+        pointerEvents = "none",
+    }
+    ctx.dragModeBtn = UI.Panel {
+        width = "100%", height = sz(22),
+        borderRadius = 0,
+        backgroundColor = { 52, 56, 68, 180 },
+        justifyContent = "center", alignItems = "center",
+        marginTop = sz(3),
+        onClick = function()
+            Utils.PlayClick()
+            if ctx.dragEnabled then
+                -- 关闭拖拽模式
+                DragHandler.Cancel(ctx)
+                ctx.dragEnabled = false
+                ctx.dragModeBtn:SetStyle({ backgroundColor = { 52, 56, 68, 180 } })
+                dragBtnLabel:SetText("拖拽整理")
+            else
+                -- 开启拖拽模式（先退出出售模式）
+                if ctx.isSellMode then SellMode.Exit(ctx) end
+                ctx.dragEnabled = true
+                ctx.dragModeBtn:SetStyle({ backgroundColor = { 50, 90, 160, 220 } })
+                dragBtnLabel:SetText("退出整理")
+            end
+        end,
+        children = { dragBtnLabel },
+    }
+    ctx.dragModeBtn._label = dragBtnLabel
 
     local sidebarScroll = UI.ScrollView {
         width = "100%",
@@ -813,6 +877,7 @@ function Panel.Show(onBack)
                     clearBtn,
                     organizeBtn,
                     ctx.sellModeBtn,
+                    ctx.dragModeBtn,
                 },
             },
         },
@@ -973,7 +1038,6 @@ function Panel.Show(onBack)
     -- ── 全屏根 ──────────────────────────────────────
     local root = UI.Panel {
         width = "100%", height = "100%",
-        backgroundColor = { 18, 18, 22, 255 },
         flexDirection = "column",
         children = {
             topBar,
@@ -985,13 +1049,21 @@ function Panel.Show(onBack)
     }
 
     ctx.refs_root = root
+    DragHandler.Init(ctx)  -- 初始化拖拽 ghost 面板（需在 refs_root 设置后）
+
     local wrapper = UI.Panel {
         width = "100%", height = "100%",
         children = { root, MoneyHUD.CreatePopup() },
     }
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
-        children = { wrapper },
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundColor = { 18, 18, 22, 255 },
+        children = {
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
+                children = { wrapper },
+            },
+        },
     })
 
     UpgradePanel.UpdateLevelDisplay(ctx)

@@ -49,7 +49,12 @@ function PropEffects.RarityCellCount(params, warehouseItems)
     end
 
     local text = table.concat(rarNames, "和") .. "品质物品共占 " .. totalCells .. " 格"
-    return { text = text, icon = "" }
+    return {
+        text = text, icon = "",
+        type = "rarity_total_cells",
+        rarities = params.rarities,
+        totalCells = totalCells,
+    }
 end
 
 --- 显示指定品质物品的总数量
@@ -67,7 +72,12 @@ function PropEffects.RarityItemCount(params, warehouseItems)
     end
 
     local text = table.concat(rarNames, "和") .. "品质物品共有 " .. count .. " 件"
-    return { text = text, icon = "" }
+    return {
+        text = text, icon = "",
+        type = "quality_count",
+        rarityId = params.rarities[1],   -- 当前所有该类道具均为单品质
+        rarityCount = count,
+    }
 end
 
 --- 随机显示N件物品轮廓（L1）
@@ -109,6 +119,8 @@ function PropEffects.SizeAvgValue(params, warehouseItems)
         type = "random_avg_value",
         sampleAvgValue = avgValue,
         sampleCellCount = targetCells,   -- 用于 AI 对比同尺寸池均价，而非全池均价
+        sampleCount = count,             -- 实际 N格物品件数，供 sampleCoverageDamp 精确计算
+        totalCount = #warehouseItems,    -- 仓库总件数
     }
 end
 
@@ -215,8 +227,14 @@ function PropEffects.RarityAvgCellCount(params, warehouseItems)
         return { text = qualityStr .. "品质物品暂无数据", icon = "" }
     end
 
-    local text = qualityStr .. "品质物品平均占 " .. string.format("%.1f", totalCells / count) .. " 格（共 " .. count .. " 件）"
-    return { text = text, icon = "" }
+    local avgCellCount = totalCells / count
+    local text = qualityStr .. "品质物品平均占 " .. string.format("%.1f", avgCellCount) .. " 格"
+    return {
+        text = text, icon = "",
+        type = "rarity_avg_cell_count",
+        rarities = params.rarities,
+        avgCellCount = avgCellCount,
+    }
 end
 
 -- ── 蓝色品质效果（每日商店）──────────────────────────────────────────────────
@@ -234,20 +252,23 @@ function PropEffects.TopRaritySilhouette(params, warehouseItems)
         if rank > topRank then topRank = rank end
     end
 
-    -- 收集所有最高品质物品
-    local topItems, reveals = {}, {}
+    -- 收集所有最高品质物品，随机选一件揭示轮廓
+    local topItems = {}
     for _, item in ipairs(warehouseItems) do
         if (RARITY_RANK[item.rarity] or 0) == topRank then
             topItems[#topItems + 1] = item
-            if item.idx then
-                reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 1 }
-            end
         end
     end
 
-    local rar = Config.GetRarity(topItems[1].rarity)
-    local rarName = rar and rar.name or topItems[1].rarity
-    local text = rarName .. "品质物品共 " .. #topItems .. " 件，已显示轮廓"
+    local picked = topItems[math.random(1, #topItems)]
+    local reveals = {}
+    if picked.idx then
+        reveals[#reveals + 1] = { itemIdx = picked.idx, targetLevel = 1 }
+    end
+
+    local rar = Config.GetRarity(picked.rarity)
+    local rarName = rar and rar.name or picked.rarity
+    local text = "已显示一件" .. rarName .. "品质物品的轮廓"
     return { text = text, icon = "", reveals = reveals }
 end
 
@@ -263,17 +284,21 @@ function PropEffects.LargestItemSilhouette(params, warehouseItems)
         if cells > maxCells then maxCells = cells end
     end
 
-    local largeItems, reveals = {}, {}
+    -- 收集所有最大格物品，随机选一件揭示轮廓
+    local largeItems = {}
     for _, item in ipairs(warehouseItems) do
         if (item.w or 1) * (item.h or 1) == maxCells then
             largeItems[#largeItems + 1] = item
-            if item.idx then
-                reveals[#reveals + 1] = { itemIdx = item.idx, targetLevel = 1 }
-            end
         end
     end
 
-    local text = "占位 " .. maxCells .. " 格的物品共 " .. #largeItems .. " 件，已显示轮廓"
+    local picked = largeItems[math.random(1, #largeItems)]
+    local reveals = {}
+    if picked.idx then
+        reveals[#reveals + 1] = { itemIdx = picked.idx, targetLevel = 1 }
+    end
+
+    local text = "已显示一件占位最多（" .. maxCells .. " 格）的物品轮廓"
     return { text = text, icon = "", reveals = reveals }
 end
 
@@ -317,7 +342,7 @@ function PropEffects.CategorySilhouette(params, warehouseItems)
     end
 
     local name = chosenName or chosen
-    local text = name .. "品类共 " .. #catItems .. " 件，已显示轮廓"
+    local text = "已显示" .. name .. "品类物品的轮廓"
     return { text = text, icon = "", reveals = reveals }
 end
 
@@ -326,7 +351,11 @@ end
 --- 显示仓库中所有物品的总数量
 function PropEffects.TotalItemCount(params, warehouseItems)
     local count = #warehouseItems
-    return { text = "仓库共有 " .. count .. " 件物品", icon = "" }
+    return {
+        text = "仓库共有 " .. count .. " 件物品", icon = "",
+        type = "total_item_count",
+        totalCount = count,
+    }
 end
 
 --- 随机显示N件物品的品质（L2_hint：只知品质，不暴露轮廓）
@@ -376,7 +405,13 @@ function PropEffects.TopRarityItemValue(params, warehouseItems)
     local rarName = rar and rar.name or item.rarity
     local val = item.realValue or Config.GetItemRealValue(item)
 
-    return { text = rarName .. "品质物品价值 " .. formatVal(val) .. "（共 " .. #topItems .. " 件）", icon = "" }
+    return {
+        text = rarName .. "品质物品价值 " .. formatVal(val), icon = "",
+        type = "quality_avg_value",
+        rarityId = item.rarity,
+        rarityAvgValue = val,
+        isSingleTopItem = true,          -- 标记：这是仓库内最高品质的单件价格，而非品质均价
+    }
 end
 
 --- 显示占格最多的物品的完整信息（L4）
@@ -420,7 +455,11 @@ function PropEffects.TotalCellCount(params, warehouseItems)
     for _, item in ipairs(warehouseItems) do
         total = total + (item.w or 1) * (item.h or 1)
     end
-    return { text = "仓库 " .. #warehouseItems .. " 件物品共占 " .. total .. " 格", icon = "" }
+    return {
+        text = "仓库物品共占 " .. total .. " 格", icon = "",
+        type = "total_cell_count",
+        totalCells = total,
+    }
 end
 
 --- 显示仓库中所有红色物品的轮廓（L1）
@@ -436,7 +475,7 @@ function PropEffects.RedItemSilhouette(params, warehouseItems)
         return { text = "仓库中暂无红色品质物品", icon = "" }
     end
 
-    return { text = "红色品质共 " .. #reveals .. " 件，已显示全部轮廓", icon = "", reveals = reveals }
+    return { text = "已显示红色品质物品的轮廓", icon = "", reveals = reveals }
 end
 
 --- 显示占格最多的前N件物品的完整信息（L4）
@@ -502,7 +541,7 @@ function PropEffects.TopRarityFullInfo(params, warehouseItems)
     end
 
     local rarName = rar and rar.name or item.rarity
-    local text = "极品鉴定：" .. item.name .. "（" .. rarName .. "，" .. formatVal(val) .. "）[共 " .. #topItems .. " 件极品]"
+    local text = "极品鉴定：" .. item.name .. "（" .. rarName .. "，" .. formatVal(val) .. "）"
     return { text = text, icon = "", reveals = reveals, revealedItem = item }
 end
 

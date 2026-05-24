@@ -513,6 +513,35 @@ local function BuildTierCell(lvl, currentLevel, selectedLvl, vipUnlocked, onSele
 end
 
 -- ============================================================================
+-- 赛季倒计时工具
+-- ============================================================================
+
+-- 解析 "YYYY-MM-DD" 字符串，返回 os.time 时间戳（当日 23:59:59）
+local function ParseEndDate(dateStr)
+    if not dateStr or dateStr == "" then return nil end
+    local y, m, d = dateStr:match("(%d+)-(%d+)-(%d+)")
+    if not y then return nil end
+    return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d),
+                     hour = 23, min = 59, sec = 59 })
+end
+
+local function FormatCountdown(endDate)
+    local endTs = ParseEndDate(endDate)
+    if not endTs then return nil end
+    local now    = os.time()
+    local diff   = endTs - now
+    if diff <= 0 then return "已结束" end
+    local days   = math.floor(diff / 86400)
+    local hours  = math.floor((diff % 86400) / 3600)
+    local mins   = math.floor((diff % 3600) / 60)
+    if days >= 1 then
+        return string.format("剩余 %d 天 %02d 小时", days, hours)
+    else
+        return string.format("剩余 %02d:%02d", hours, mins)
+    end
+end
+
+-- ============================================================================
 -- 顶部 XP 信息栏
 -- ============================================================================
 
@@ -525,6 +554,8 @@ local function BuildHeader()
     local isMax      = level >= maxLevel
     local xpInLevel  = isMax and perLevel or (totalXP % perLevel)
     local highLevel  = SeasonPass.GetHighLevel()
+
+    local countdownText = FormatCountdown(Config.SEASON.endDate)
 
     local barW = 200
 
@@ -604,6 +635,29 @@ local function BuildHeader()
                         fontSize = 12,
                         fontColor = { 255, 255, 255, 220 },
                     },
+                    -- 赛季倒计时
+                    countdownText and UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = 5,
+                        marginTop = 2,
+                        children = {
+                            UI.Panel {
+                                width = 6, height = 6,
+                                borderRadius = 3,
+                                backgroundColor = countdownText == "已结束"
+                                    and { 160, 80, 80, 220 }
+                                    or  { 195, 215, 40, 220 },
+                            },
+                            UI.Label {
+                                text = "赛季结束：" .. countdownText,
+                                fontSize = 11,
+                                fontColor = countdownText == "已结束"
+                                    and { 200, 120, 120, 220 }
+                                    or  { 195, 215, 40, 200 },
+                            },
+                        },
+                    } or nil,
                 },
             },
         }
@@ -803,35 +857,38 @@ function SeasonPassPanel.Show(onBackCallback, selectedLvl)
         end,
     }
 
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
-        onKeyPress = function(self, key)
-            if key == KEY_ESCAPE then
-                DoBack()
-            end
-        end,
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundImage = "image/season_pass_bg_v3_20260517142939.jpg",
+        backgroundFit = "cover",
         children = {
-            (function()
-                local bgPanel = UI.Panel {
-                width = "100%", height = "100%",
-                backgroundImage = "image/season_pass_bg_v3_20260517142939.jpg",
+            -- 毛玻璃纹理叠加层（全屏覆盖）
+            UI.Panel {
+                position = "absolute",
+                left = 0, top = 0, right = 0, bottom = 0,
+                backgroundImage = "image/frosted_glass_overlay_20260517184616.jpg",
                 backgroundFit = "cover",
-                flexDirection = "column",
-                -- 点击空白处关闭浮窗
-                onClick = function()
-                    if detailInst:IsVisible() then detailInst:Hide() end
+                opacity = 0.45,
+                pointerEvents = "none",
+            },
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
+                onKeyPress = function(self, key)
+                    if key == KEY_ESCAPE then
+                        DoBack()
+                    end
                 end,
                 children = {
-                    -- 毛玻璃纹理叠加层（覆盖在背景图上方，UI内容之下）
-                    UI.Panel {
-                        position = "absolute",
-                        left = 0, top = 0, right = 0, bottom = 0,
-                        backgroundImage = "image/frosted_glass_overlay_20260517184616.jpg",
-                        backgroundFit = "cover",
-                        opacity = 0.45,
-                        pointerEvents = "none",
-                    },
-                    -- 顶栏（透明）
+                    (function()
+                        local bgPanel = UI.Panel {
+                        width = "100%", height = "100%",
+                        flexDirection = "column",
+                        -- 点击空白处关闭浮窗
+                        onClick = function()
+                            if detailInst:IsVisible() then detailInst:Hide() end
+                        end,
+                        children = {
+                            -- 顶栏（透明）
                     UI.Panel {
                         width = "100%", height = 48,
                         backgroundColor = { 0, 0, 0, 0 },
@@ -1022,10 +1079,12 @@ function SeasonPassPanel.Show(onBackCallback, selectedLvl)
                     detailInst:GetWidget(),
                 }
             }
-                rootRef = bgPanel   -- 直接记录引用，供 ShowDetailAt 计算坐标
-                return bgPanel
-            end)()
-        }
+                    rootRef = bgPanel   -- 直接记录引用，供 ShowDetailAt 计算坐标
+                    return bgPanel
+                end)()
+                }
+            },
+        },
     })
 
     -- 订阅 ESC 键（全局键盘事件）

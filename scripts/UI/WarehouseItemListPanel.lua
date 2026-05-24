@@ -21,6 +21,7 @@ local countLabel = nil
 
 -- 初始品质过滤（来自 level2 点击）
 local baseFilterRarity = nil
+local sourceSlotIdx = nil  -- 触发筛选面板的格子索引，用于 Toggle 判断是否同一格子
 
 -- 交互筛选状态
 local activeFilters = {
@@ -294,9 +295,7 @@ end
 -- ============================================================================
 
 function Panel.Create()
-    -- 面板高度 = 屏幕逻辑高度 84%，减去 headerBar(~46px)、分隔线(1px)、边框(4px)
-    local logH = graphics:GetHeight() / graphics:GetDPR()
-    local vlistH = math.floor(logH * 0.84 - 51)
+    -- VirtualList 使用 flex 填充，不再固定高度
 
     -- ── 标题栏 ──────────────────────────────────────
 
@@ -506,22 +505,46 @@ function Panel.Create()
     local sidebar = UI.Panel {
         width = 100,
         flexDirection = "column",
-        gap = 10,
-        padding = { 8, 6 },
         backgroundColor = { 30, 33, 40, 255 },
+        flexShrink = 0,
+        overflow = "hidden",
         children = {
-            qualitySection,
-            categorySection,
-            sizeSection,
-            clearBtn,
+            UI.ScrollView {
+                width = "100%",
+                flexGrow = 1,
+                flexShrink = 1,
+                flexBasis = 0,
+                showScrollbar = false,
+                children = {
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "column",
+                        gap = 10,
+                        padding = { 8, 6 },
+                        children = {
+                            qualitySection,
+                            categorySection,
+                            sizeSection,
+                            clearBtn,
+                        },
+                    },
+                },
+            },
         },
     }
 
     -- ── 右侧卡片网格（VirtualList） ─────────────────
 
+    -- 预计算 VirtualList 视口高度（面板 84% 屏高 - header ~44px）
+    local logH = graphics:GetHeight() / graphics:GetDPR()
+    local listViewportH = math.floor(logH * 0.84) - 44
+
     virtualList = UI.VirtualList {
         width = "100%",
-        height = vlistH,
+        flexGrow = 1,
+        flexShrink = 1,
+        flexBasis = 0,
+        viewportHeight = listViewportH,
         data = {},
         itemHeight = CARD_ROW_HEIGHT,
         itemGap = 6,
@@ -572,11 +595,15 @@ function Panel.Create()
         },
     }
 
+    -- 计算面板宽度和定位：手机端更宽，PC端靠右偏移
+    local logW = graphics:GetWidth() / graphics:GetDPR()
+    local panelW = math.min(420, math.floor(logW * 0.65))
+
     panel = UI.Panel {
         position = "absolute",
         right = "36%",
         top = "6%",
-        width = 400,
+        width = panelW,
         height = "84%",
         borderRadius = 0,
         borderWidth = 2,
@@ -617,10 +644,11 @@ end
 --- 显示面板
 ---@param filterRarity string|nil nil=全部, "white"/"blue"/etc=预选品质
 ---@param sizeKey string|nil nil=不限, "2x1"/"3x2"/etc=预选尺寸
-function Panel.Show(filterRarity, sizeKey)
+function Panel.Show(filterRarity, sizeKey, slotIdx)
     if not panel then return end
 
     baseFilterRarity = filterRarity
+    sourceSlotIdx = slotIdx or nil
 
     -- 重置交互筛选：预选品质和尺寸
     activeFilters.rarity = filterRarity
@@ -655,6 +683,7 @@ end
 function Panel.Hide()
     if panel then panel:SetVisible(false) end
     baseFilterRarity = nil
+    sourceSlotIdx = nil
     HideBackdropIfAllClosed()
 end
 
@@ -662,11 +691,12 @@ function Panel.IsVisible()
     return panel ~= nil and panel:IsVisible()
 end
 
-function Panel.Toggle(filterRarity, sizeKey)
-    if Panel.IsVisible() and baseFilterRarity == filterRarity then
+function Panel.Toggle(filterRarity, sizeKey, slotIdx)
+    -- 用格子索引判断是否同一格子，避免同品质不同格子被误判为相同
+    if Panel.IsVisible() and slotIdx and sourceSlotIdx == slotIdx then
         Panel.Hide()
     else
-        Panel.Show(filterRarity, sizeKey)
+        Panel.Show(filterRarity, sizeKey, slotIdx)
     end
 end
 

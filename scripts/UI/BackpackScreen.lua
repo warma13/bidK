@@ -577,24 +577,24 @@ function BackpackScreen.Show(onBackCallback)
     }
 
     -- ── 整体布局 ─────────────────────────────────────────────
-    UI.SetRoot(UI.SafeAreaView {
-        edges = "all", width = "100%", height = "100%",
+    UI.SetRoot(UI.Panel {
+        width = "100%", height = "100%",
+        backgroundImage = "image/prop_shop_bg.jpg",
+        backgroundFit = "cover",
         children = {
+            -- 背景模糊层（全屏覆盖）
             UI.Panel {
-                width = "100%", height = "100%",
+                position = "absolute",
+                left = 0, top = 0, right = 0, bottom = 0,
+                backdropBlur = 60,
+                backgroundColor = { 8, 10, 20, 100 },
+            },
+            UI.SafeAreaView {
+                edges = "all", width = "100%", height = "100%",
                 children = {
                     UI.Panel {
                         width = "100%", height = "100%",
-                        backgroundImage = "image/prop_shop_bg.jpg",
-                        backgroundFit = "cover",
                         children = {
-                            -- 背景模糊层
-                            UI.Panel {
-                                position = "absolute",
-                                left = 0, top = 0, right = 0, bottom = 0,
-                                backdropBlur = 60,
-                                backgroundColor = { 8, 10, 20, 100 },
-                            },
                             -- 主体
                             UI.Panel {
                                 width = "100%", height = "100%",
@@ -618,9 +618,9 @@ function BackpackScreen.Show(onBackCallback)
                                     },
                                 },
                             },
+                            returnBtn,
                         },
                     },
-                    returnBtn,
                 },
             },
         },

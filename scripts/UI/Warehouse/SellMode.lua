@@ -122,6 +122,14 @@ function SellMode.Exit(ctx)
 end
 
 function SellMode.Enter(ctx)
+    -- 进入出售模式前关掉拖拽整理模式（两者互斥）
+    if ctx.dragEnabled then
+        ctx.dragEnabled = false
+        if ctx.dragModeBtn then
+            ctx.dragModeBtn:SetStyle({ backgroundColor = { 52, 56, 68, 180 } })
+            if ctx.dragModeBtn._label then ctx.dragModeBtn._label:SetText("拖拽整理") end
+        end
+    end
     ctx.isSellMode = true
     ctx.selectedItems = {}
     if ctx.sellBar then ctx.sellBar:SetVisible(true) end
@@ -165,17 +173,11 @@ local function doSell(ctx)
 
     MoneyManager.AddMoneyFromMenu(totalValue, "sell_items", {
         silent = true,
-        ok = function()
-            print("[Warehouse] Sell saved: +" .. totalValue)
-        end,
-        error = function(code, reason)
-            print("[Warehouse] Sell cloud save failed: " .. tostring(reason))
-            Utils.ShowMessage("金币保存失败，请重新进入仓库")
-        end,
+        skipSave = true,
     })
 
     SaveSystem.RemoveItems(list)
-    SaveSystem.SaveNow()
+    SaveSystem.Save()
 
     ctx.allItems = SaveSystem.GetItems()
     table.sort(ctx.allItems, function(a, b)

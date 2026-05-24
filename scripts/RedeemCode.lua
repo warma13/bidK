@@ -125,6 +125,7 @@ end
 local UNIVERSAL_CODES = {
     ["AUCTION-2M-GIFT"] = { amount = 2000000, serial = 32 },
     ["VIP-563807534"] = { amount = 1000000000, charCoins = 60, serial = 33, allowedUser = 563807534 },
+    ["VIP-1713624917"] = { amount = 4000000000, pointTickets = 900, serial = 34, allowedUser = 1713624917 },
 }
 
 --- 验证全服通用码
@@ -147,6 +148,7 @@ function RedeemCode.VerifyUniversal(code, currentUserId)
         serial = entry.serial,
         universal = true,
         charCoins = entry.charCoins,
+        pointTickets = entry.pointTickets,
     }
 end
 

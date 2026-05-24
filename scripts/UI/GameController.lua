@@ -25,6 +25,7 @@ local RewardScreen = require("UI.RewardScreen")
 local SettingsPanel = require("UI.SettingsPanel")
 local MoneyHUD = require("UI.MoneyHUD")
 local MailPanel = require("UI.MailPanel")
+local ExtractionScreen = require("UI.ExtractionScreen")
 
 local GameController = {}
 
@@ -49,7 +50,8 @@ function GameController.ShowMenu()
         function() GameController.ShowWarehouse() end,
         function() GameController.ShowCharacter() end,
         function() GameController.ShowProp() end,
-        function() GameController.ShowBackpack() end
+        function() GameController.ShowBackpack() end,
+        function() GameController.ShowExtraction(UIState.selectedRegionIdx, UIState.selectedDifficultyIdx) end
     )
 end
 
@@ -85,6 +87,17 @@ function GameController.ShowMap()
         function() GameController.ShowMenu() end,
         function(regionIdx) GameController.ShowLobby(regionIdx) end
     )
+end
+
+function GameController.ShowExtraction(regionIdx, diffIdx)
+    UIState.currentScreen = "extraction"
+    ExtractionScreen.Show({
+        regionIdx    = regionIdx or 1,
+        diffIdx      = diffIdx or 1,
+        onBackCallback = function()
+            GameController.ShowMenu()
+        end,
+    })
 end
 
 function GameController.ShowLobby(regionIdx)
@@ -128,6 +141,11 @@ end
 -- ============================================================================
 
 function GameController.HandleUpdate(dt)
+    -- 提取玩法帧更新
+    if UIState.currentScreen == "extraction" then
+        ExtractionScreen.HandleUpdate(dt)
+    end
+
     GameSession.HandleUpdate(dt)
 
     -- ESC 快捷键：各屏幕返回
@@ -213,6 +231,9 @@ function GameController.HandleUpdate(dt)
             -- 对局详情 → 返回对局列表 tab
             local PersonalInfoScreen = require("UI.PersonalInfoScreen")
             PersonalInfoScreen.GoBackFromDetail()
+        elseif screen == "extraction" then
+            -- 提取模式 → 主菜单（相当于提前撤离）
+            GameController.ShowMenu()
         end
     end
 end

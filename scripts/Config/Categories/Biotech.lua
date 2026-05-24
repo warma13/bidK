@@ -70,9 +70,23 @@ Biotech.items = {
     { name = "质谱仪离子源模块", rows = 1, cols = 2, quality = "blue", value = 5800,  desc = "ESI电喷雾离子源模块，兼容多品牌质谱仪接口",       image = IMG .. "质谱仪离子源模块.png",         tags = {"research_instrument"} },
     { name = "超分辨率成像探针", rows = 1, cols = 1, quality = "blue", value = 4400,  desc = "STED超分辨荧光探针，光稳定性极高，分辨率<50nm",  image = IMG .. "超分辨率成像探针.png",         tags = {"research_instrument"} },
     -- 金 ×3
-    { name = "冷冻电镜样品台",   rows = 2, cols = 2, quality = "gold",  value = 58000,  desc = "cryo-EM自动样品台，液氮冷却，附振动隔离底座",   image = IMG .. "冷冻电镜样品台.png",           tags = {"research_instrument"} },
-    { name = "微型介入导管机器人", rows = 2, cols = 2, quality = "gold", value = 75000, desc = "血管介入微型机器人，0.5mm导管径，磁场导航",       image = IMG .. "微型介入导管机器人.png",       tags = {"research_instrument"} },
-    { name = "质子治疗准直器",   rows = 2, cols = 2, quality = "gold",  value = 95000,  desc = "多叶准直器模块，用于质子束精准形塑，医院级别",   image = IMG .. "质子治疗准直器.png",           tags = {"research_instrument"} },
+    { name = "冷冻电镜样品台",       rows = 2, cols = 2, quality = "gold",  value = 58000,  desc = "cryo-EM自动样品台，液氮冷却，附振动隔离底座",         image = IMG .. "冷冻电镜样品台.png",           tags = {"research_instrument"} },
+    { name = "微型介入导管机器人",   rows = 2, cols = 2, quality = "gold",  value = 75000,  desc = "血管介入微型机器人，0.5mm导管径，磁场导航",           image = IMG .. "微型介入导管机器人.png",       tags = {"research_instrument"} },
+    { name = "质子治疗准直器",       rows = 2, cols = 2, quality = "gold",  value = 95000,  desc = "多叶准直器模块，用于质子束精准形塑，医院级别",         image = IMG .. "质子治疗准直器.png",           tags = {"research_instrument"} },
+    -- 金 ×7（补充）
+    { name = "术中荧光造影仪",       rows = 1, cols = 2, quality = "gold",  value = 68000,  desc = "近红外荧光手术成像仪，实时识别肿瘤边界，含滤光镜组",   image = IMG .. "术中荧光造影仪.png" },
+    { name = "手术导航系统",         rows = 2, cols = 2, quality = "gold",  value = 92000,  desc = "光学手术导航仪，追踪精度±0.3mm，含反光球与参考支架",   image = IMG .. "手术导航系统.png" },
+    { name = "神经外科定向仪",       rows = 2, cols = 2, quality = "gold",  value = 105000, desc = "框架式立体定向仪，精度±0.1mm，附MRI兼容底座",           image = IMG .. "神经外科定向仪.png" },
+    { name = "高通量药物筛选平台",   rows = 2, cols = 2, quality = "gold",  value = 128000, desc = "384孔板自动化药物筛选工作站，含高精度分液机械臂",       image = IMG .. "高通量药物筛选平台.png" },
+    { name = "基因编辑递送系统",     rows = 2, cols = 2, quality = "gold",  value = 82000,  desc = "脂质纳米颗粒基因编辑递送平台，含sgRNA体外转录套件",     image = IMG .. "基因编辑递送系统.png",         tags = {"research_instrument"} },
+    { name = "人工心脏辅助泵",       rows = 1, cols = 2, quality = "gold",  value = 190000, desc = "植入式左心室辅助装置，离心流型，含外部控制器和备用电源", image = IMG .. "人工心脏辅助泵.png" },
+    { name = "手术机器人单臂模块",   rows = 2, cols = 2, quality = "gold",  value = 155000, desc = "腔镜手术机器人单工作臂，7自由度精密关节，原装消毒包装", image = IMG .. "手术机器人单臂模块.png" },
+    -- 红 ×5（补充）
+    { name = "单细胞测序平台",       rows = 2, cols = 2, quality = "red",   value = 820000,  desc = "超高通量单细胞RNA测序仪，一次处理10000细胞，含试剂盒",  image = IMG .. "单细胞测序平台.png",           tags = {"research_instrument"} },
+    { name = "流式细胞分选仪",       rows = 2, cols = 3, quality = "red",   value = 1250000, desc = "高速细胞分选仪，每秒可分选70000个，15色荧光同步检测",  image = IMG .. "流式细胞分选仪.png" },
+    { name = "手术机器人系统",       rows = 3, cols = 3, quality = "red",   value = 2400000, desc = "完整四臂腔镜手术机器人，含主控台、患者车及全套器械",    image = IMG .. "手术机器人系统.png" },
+    { name = "超导脑磁图仪",         rows = 3, cols = 3, quality = "red",   value = 3600000, desc = "248通道SQUID脑磁图仪，液氦冷却系统完整，信号噪声极低", image = IMG .. "超导脑磁图仪.png" },
+    { name = "质子治疗加速器喷嘴",   rows = 3, cols = 4, quality = "red",   value = 5800000, desc = "旋转机架质子治疗加速器同步喷嘴模块，含全套控制系统",    image = IMG .. "质子治疗加速器喷嘴.png" },
 }
 
 return Biotech

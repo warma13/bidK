@@ -24,6 +24,13 @@ local regionBgmMap = {
 }
 local defaultBgm = "audio/bgm_grocery.ogg"
 
+--- 菜单 BGM 列表（可在设置面板中切换）
+local menuBgmList = {
+    { name = "经典",  path = "audio/bgm_grocery.ogg" },
+    { name = "休闲",  path = "audio/bgm_lounge.ogg" },
+}
+local menuBgmIndex = 1  -- 当前选中的菜单 BGM 索引
+
 -- 显式静态路径，确保构建扫描器能识别并打包这些资源
 local sfxPathMap = {
     bid_place   = "audio/sfx/bid_place.ogg",
@@ -79,11 +86,31 @@ local function DoPlayBgm(bgmPath, bgmSound)
     source:Play(bgmSound)
 end
 
+--- 获取菜单 BGM 列表
+function Utils.GetMenuBgmList()
+    return menuBgmList
+end
+
+--- 获取当前菜单 BGM 索引
+function Utils.GetMenuBgmIndex()
+    return menuBgmIndex
+end
+
+--- 设置菜单 BGM（索引），并立即切换播放
+function Utils.SetMenuBgm(index)
+    if index < 1 or index > #menuBgmList then return end
+    menuBgmIndex = index
+    defaultBgm = menuBgmList[index].path
+    -- 如果当前在菜单（非区域 BGM），立即切换
+    Utils.PlayBgm(nil, true)
+end
+
 --- 根据区域ID切换 BGM（DWP 异步加载，不阻塞游戏）
 ---@param regionId string|nil nil=默认BGM
-function Utils.PlayBgm(regionId)
+---@param force boolean|nil 强制切换
+function Utils.PlayBgm(regionId, force)
     local bgmPath = (regionId and regionBgmMap[regionId]) or defaultBgm
-    if currentBgmId == bgmPath then return end
+    if not force and currentBgmId == bgmPath then return end
     currentBgmId = bgmPath
 
     -- 停止并移除旧 BGM 节点
@@ -194,14 +221,14 @@ function Utils.FormatMoneyExact(amount)
 end
 
 function Utils.FormatMoney(amount)
-    if amount >= 100000000 then
-        -- ≥ 1亿
+    local abs = math.abs(amount)
+    if abs >= 100000000 then
         return string.format("%.1f亿", amount / 100000000)
-    elseif amount >= 10000 then
-        -- ≥ 1万
+    elseif abs >= 10000 then
         return string.format("%.1f万", amount / 10000)
     end
-    local s = tostring(math.floor(amount))
+    local neg = amount < 0
+    local s = tostring(math.floor(abs))
     local result = ""
     local count = 0
     for i = #s, 1, -1 do
@@ -211,7 +238,7 @@ function Utils.FormatMoney(amount)
             result = "," .. result
         end
     end
-    return result
+    return neg and ("-" .. result) or result
 end
 
 -- ============================================================================

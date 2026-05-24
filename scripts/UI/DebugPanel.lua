@@ -433,6 +433,35 @@ function DebugPanel.CreateDebugPanel()
     children[#children + 1] = propBoxBlueRow
     children[#children + 1] = propBoxPurpleRow
 
+    -- 限定藏品区块
+    children[#children + 1] = Divider()
+    children[#children + 1] = UI.Label {
+        text = "限定红藏品（直接入库）", fontSize = sz(11),
+        fontColor = { 255, 100, 100, 220 },
+    }
+    local exclusiveItems = {
+        { name = "霍普蓝钻",          value = 80000000 },
+        { name = "百达翡丽Cal.89怀表", value = 35000000 },
+        { name = "乾隆御制珐琅彩瓶",  value = 25000000 },
+        { name = "达利原作油画",       value = 15000000 },
+    }
+    for _, def in ipairs(exclusiveItems) do
+        local captureName  = def.name
+        local captureValue = def.value
+        children[#children + 1] = UI.Button {
+            text = captureName .. "（" .. Utils.FormatMoney(captureValue) .. "）",
+            width = "100%", height = sz(28), fontSize = sz(11),
+            onClick = function()
+                Utils.PlayClick()
+                SaveSystem.AddWonItems({
+                    { name = captureName, baseValue = captureValue }
+                })
+                SaveFramework.MarkDirty("debug_exclusive")
+                Utils.ShowMessage("[Debug] 已添加：" .. captureName)
+            end,
+        }
+    end
+
     -- 通行证 XP 区块
     local xpRow = MakeRow {
         key  = "seasonXP", label = "通行证XP",

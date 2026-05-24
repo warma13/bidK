@@ -30,6 +30,9 @@ local state = {
 -- NanoVG 图片句柄缓存 { [iconPath] = handle }
 local imageCache = {}
 
+-- 全屏遮罩（阻止抽奖期间点击穿透）
+local overlay = nil
+
 -- ---------------------------------------------------------------------------
 -- 常量
 -- ---------------------------------------------------------------------------
@@ -147,6 +150,16 @@ function MapSelectionScreen.Show(regionId, warehouseTypes, onSelected)
     state.targetCardIdx = targetCardIdx
     state.lastTickCard = -1
 
+    -- 全屏透明遮罩，阻止底层 UI 交互
+    if overlay then overlay:Remove(); overlay = nil end
+    overlay = UI.Panel {
+        position = "absolute",
+        left = 0, top = 0,
+        width = "100%", height = "100%",
+        backgroundColor = { 0, 0, 0, 1 },  -- 几乎透明但能吃掉点击
+    }
+    UI.GetRoot():AddChild(overlay)
+
     print("[MapSelection] Show: " .. #types .. " types, selected=" .. selectedType.name)
     Utils.PlaySfx("slot_spin")
 end
@@ -157,6 +170,7 @@ end
 function MapSelectionScreen.Hide()
     state.active = false
     state.phase = "idle"
+    if overlay then UI.GetRoot():RemoveChild(overlay); overlay = nil end
 end
 
 function MapSelectionScreen.IsActive()
@@ -197,6 +211,7 @@ function MapSelectionScreen:Update(dt)
         if state.resultTimer >= RESULT_DELAY then
             state.phase = "done"
             state.active = false
+            if overlay then UI.GetRoot():RemoveChild(overlay); overlay = nil end
             if state.onSelected then
                 state.onSelected(state.selectedTypeId)
             end

@@ -7,6 +7,7 @@
 local Config = require("Config")
 local SaveSystem = require("SaveSystem")
 local WarehouseGrid = require("WarehouseGrid")
+local DragState = require("WG.DragState")
 
 local GridSystem = {}
 
@@ -31,8 +32,8 @@ function GridSystem.BuildGrid(ctx, filteredItems)
     for _, item in ipairs(ctx.gridInst.items) do
         local gx = item.gridX
         local gy = item.gridY
-        local w = item.w or 1
-        local h = item.h or 1
+        local w = DragState.EffW(item)
+        local h = DragState.EffH(item)
         if gx and gy then
             for r = gy, gy + h - 1 do
                 for c = gx, gx + w - 1 do
@@ -96,8 +97,8 @@ function GridSystem.RefreshDisplay(ctx)
             if not item then goto nextCell end
 
             local rar = Config.GetRarity(item.rarity)
-            local w = item.w or 1
-            local h = item.h or 1
+            local w = DragState.EffW(item)
+            local h = DragState.EffH(item)
             local isOrigin = (item.gridX == c and item.gridY == r)
 
             local bTop    = (r == item.gridY)         and 1 or 0
@@ -200,7 +201,7 @@ function GridSystem.UpdateImagePositions(ctx)
             if cb and cb:IsVisible() then
                 local item = ctx.checkboxToItem[i]
                 if item and item.gridX and item.gridY then
-                    local w = item.w or 1
+                    local w = DragState.EffW(item)
                     local rightCol = item.gridX + w - 1
                     local slotIdx = (item.gridY - 1) * ctx.COLS + rightCol
                     local slot = ctx.gridSlots[slotIdx]
